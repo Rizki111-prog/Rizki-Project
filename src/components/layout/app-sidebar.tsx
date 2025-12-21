@@ -39,13 +39,22 @@ const menuItems = [
     ] 
   },
   { href: '/expenses', label: 'Pengeluaran', icon: Wallet },
-  { href: '/finance', label: 'Keuangan', icon: LineChart },
+  { 
+    href: '/finance', 
+    label: 'Keuangan', 
+    icon: LineChart,
+    submenus: [
+      { href: '/finance', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/finance/balance', label: 'Saldo', icon: Wallet },
+    ]
+  },
   { href: '/history', label: 'Riwayat Transaksi', icon: History },
 ];
 
 export function AppSidebar() {
   const pathname = usePathname();
   const [openSales, setOpenSales] = React.useState(pathname.startsWith('/sales'));
+  const [openFinance, setOpenFinance] = React.useState(pathname.startsWith('/finance'));
 
   return (
     <>
@@ -62,43 +71,45 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarMenu>
           {menuItems.map((item) => (
-            item.submenus ? (
-              <SidebarMenuItem key={item.href}>
-                <Collapsible open={openSales} onOpenChange={setOpenSales}>
-                  <CollapsibleTrigger asChild>
-                    <SidebarMenuButton
-                      variant="ghost"
-                      className="w-full justify-start"
-                      isActive={pathname.startsWith(item.href)}
-                      tooltip={{ children: item.label, side: 'right' }}
-                    >
-                      <item.icon />
-                      <span>{item.label}</span>
-                      <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", openSales && "rotate-180")} />
-                    </SidebarMenuButton>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <div className="ml-7 mt-1 flex flex-col gap-1 border-l pl-3 py-1">
-                      {item.submenus.map((submenu) => (
-                        <SidebarMenuButton
-                          key={submenu.href}
-                          asChild
-                          size="sm"
-                          variant="ghost"
-                          isActive={pathname === submenu.href}
-                          tooltip={{ children: submenu.label, side: 'right' }}
-                        >
-                          <Link href={submenu.href}>
-                            <span className="pl-2">{submenu.label}</span>
-                          </Link>
-                        </SidebarMenuButton>
-                      ))}
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
-              </SidebarMenuItem>
-            ) : (
-              <SidebarMenuItem key={item.href}>
+            <SidebarMenuItem key={item.href}>
+              {item.submenus ? (
+                 <Collapsible 
+                    open={item.href === '/sales' ? openSales : openFinance} 
+                    onOpenChange={item.href === '/sales' ? setOpenSales : setOpenFinance}
+                  >
+                   <CollapsibleTrigger asChild>
+                     <SidebarMenuButton
+                       variant="ghost"
+                       className="w-full justify-start"
+                       isActive={pathname.startsWith(item.href)}
+                       tooltip={{ children: item.label, side: 'right' }}
+                     >
+                       <item.icon />
+                       <span>{item.label}</span>
+                       <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", (item.href === '/sales' ? openSales : openFinance) && "rotate-180")} />
+                     </SidebarMenuButton>
+                   </CollapsibleTrigger>
+                   <CollapsibleContent>
+                     <div className="ml-7 mt-1 flex flex-col gap-1 border-l pl-3 py-1">
+                       {item.submenus.map((submenu) => (
+                         <SidebarMenuButton
+                           key={submenu.href}
+                           asChild
+                           size="sm"
+                           variant="ghost"
+                           isActive={pathname === submenu.href || (submenu.href === '/finance' && pathname === '/finance/balance')}
+                           tooltip={{ children: submenu.label, side: 'right' }}
+                         >
+                           <Link href={submenu.href}>
+                              {submenu.icon && <submenu.icon className="h-4 w-4" />}
+                             <span className="pl-2">{submenu.label}</span>
+                           </Link>
+                         </SidebarMenuButton>
+                       ))}
+                     </div>
+                   </CollapsibleContent>
+                 </Collapsible>
+              ) : (
                 <SidebarMenuButton
                   asChild
                   isActive={pathname === item.href}
@@ -109,8 +120,8 @@ export function AppSidebar() {
                     <span>{item.label}</span>
                   </Link>
                 </SidebarMenuButton>
-              </SidebarMenuItem>
-            )
+              )}
+            </SidebarMenuItem>
           ))}
         </SidebarMenu>
       </SidebarContent>
