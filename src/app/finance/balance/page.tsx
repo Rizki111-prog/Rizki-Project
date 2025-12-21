@@ -78,11 +78,11 @@ export default function BalancePage() {
 
     const handleAddCard = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newCardName.trim() || !initialBalance.trim()) {
+        if (!newCardName.trim()) {
             toast({
                 variant: "destructive",
                 title: "Gagal",
-                description: "Nama akun dan saldo awal tidak boleh kosong.",
+                description: "Nama akun tidak boleh kosong.",
             });
             return;
         }
@@ -90,7 +90,7 @@ export default function BalancePage() {
 
         const newCard = {
             name: newCardName,
-            balance: Number(initialBalance),
+            balance: Number(initialBalance) || 0,
             createdAt: serverTimestamp(),
             icon: getIconForCard(newCardName)
         };
@@ -187,6 +187,7 @@ export default function BalancePage() {
                                     onChange={(e) => setNewCardName(e.target.value)}
                                     placeholder="Contoh: Bank BCA, Dompet Digital"
                                     className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"
+                                    required
                                 />
                             </div>
                             <div className="space-y-2">
@@ -196,7 +197,7 @@ export default function BalancePage() {
                                     type="number"
                                     value={initialBalance}
                                     onChange={(e) => setInitialBalance(e.target.value)}
-                                    placeholder="0"
+                                    placeholder="0 (Opsional)"
                                     className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"
                                 />
                             </div>
