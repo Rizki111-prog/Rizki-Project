@@ -29,6 +29,9 @@ const iconMap: { [key: string]: React.ElementType } = {
 };
 
 const getIconForCard = (cardName: string) => {
+    if (typeof cardName !== 'string') {
+        return 'DollarSign'; // Return a default icon if name is not a string
+    }
     const lowerCaseName = cardName.toLowerCase();
     if (lowerCaseName.includes('bank')) return 'Landmark';
     if (lowerCaseName.includes('cash') || lowerCaseName.includes('tunai')) return 'Wallet';
@@ -52,11 +55,13 @@ export default function BalancePage() {
             const loadedCards: FinancialCard[] = [];
             if (data) {
                 for (const key in data) {
-                    loadedCards.push({ 
-                        id: key, 
-                        ...data[key],
-                        icon: getIconForCard(data[key].name)
-                    });
+                    if (data[key] && typeof data[key] === 'object' && data[key].name) {
+                        loadedCards.push({ 
+                            id: key, 
+                            ...data[key],
+                            icon: getIconForCard(data[key].name)
+                        });
+                    }
                 }
             } else {
                  // Create a default 'Cash' card if none exist
@@ -66,8 +71,7 @@ export default function BalancePage() {
                     createdAt: serverTimestamp(),
                     icon: 'Wallet'
                 };
-                const newCardRef = push(cardsRef);
-                push(newCardRef, defaultCard);
+                push(cardsRef, defaultCard);
             }
             loadedCards.sort((a, b) => a.createdAt - b.createdAt);
             setCards(loadedCards);
