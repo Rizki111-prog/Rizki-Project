@@ -12,7 +12,7 @@ export default function FinancePage() {
         </div>
       </header>
       <main className="flex flex-1 flex-col gap-4 p-4 sm:px-6 sm:py-0 md:gap-8">
-        <Card>
+        <Card className="rounded-2xl shadow-sm">
           <CardHeader>
             <CardTitle>Dasbor Keuangan</CardTitle>
             <CardDescription>Ringkasan laba/rugi, dan saldo.</CardDescription>

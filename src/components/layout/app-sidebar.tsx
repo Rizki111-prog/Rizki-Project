@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   DollarSign,
   History,
+  LayoutDashboard,
   LineChart,
   ShoppingCart,
   Wallet,
@@ -16,10 +17,14 @@ import {
   SidebarMenuButton,
   SidebarContent,
   SidebarTrigger,
+  Sidebar,
+  SidebarInset,
+  SidebarProvider,
 } from '@/components/ui/sidebar';
 
 const menuItems = [
-  { href: '/', label: 'Penjualan', icon: ShoppingCart },
+  { href: '/', label: 'Dasbor', icon: LayoutDashboard },
+  { href: '/sales', label: 'Penjualan', icon: ShoppingCart },
   { href: '/expenses', label: 'Pengeluaran', icon: Wallet },
   { href: '/finance', label: 'Keuangan', icon: LineChart },
   { href: '/history', label: 'Riwayat Transaksi', icon: History },
