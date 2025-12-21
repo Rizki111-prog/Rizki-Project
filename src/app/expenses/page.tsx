@@ -16,7 +16,7 @@ export default function ExpensesPage() {
           <CardHeader>
             <CardTitle>Log Expense</CardTitle>
             <CardDescription>Record a new operational cost.</CardDescription>
-          </Header>
+          </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">Expense logging form will be here.</p>
           </CardContent>
