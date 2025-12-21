@@ -19,10 +19,10 @@ import {
 } from '@/components/ui/sidebar';
 
 const menuItems = [
-  { href: '/', label: 'Sales', icon: ShoppingCart },
-  { href: '/expenses', label: 'Expenses', icon: Wallet },
-  { href: '/finance', label: 'Finance', icon: LineChart },
-  { href: '/history', label: 'Transaction History', icon: History },
+  { href: '/', label: 'Penjualan', icon: ShoppingCart },
+  { href: '/expenses', label: 'Pengeluaran', icon: Wallet },
+  { href: '/finance', label: 'Keuangan', icon: LineChart },
+  { href: '/history', label: 'Riwayat Transaksi', icon: History },
 ];
 
 export function AppSidebar() {
