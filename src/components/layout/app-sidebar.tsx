@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  ChevronDown,
   DollarSign,
   History,
   LayoutDashboard,
@@ -11,20 +12,32 @@ import {
   Wallet,
 } from 'lucide-react';
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import {
   SidebarHeader,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarContent,
   SidebarTrigger,
-  Sidebar,
-  SidebarInset,
-  SidebarProvider,
 } from '@/components/ui/sidebar';
+import { cn } from '@/lib/utils';
+import React from 'react';
 
 const menuItems = [
   { href: '/', label: 'Dasbor', icon: LayoutDashboard },
-  { href: '/sales', label: 'Penjualan', icon: ShoppingCart },
+  { 
+    href: '/sales', 
+    label: 'Penjualan', 
+    icon: ShoppingCart,
+    submenus: [
+      { href: '/sales/regular', label: 'Pulsa, Token, & Paket Data' },
+      { href: '/sales/family-pack', label: 'Paket Akrab' },
+    ] 
+  },
   { href: '/expenses', label: 'Pengeluaran', icon: Wallet },
   { href: '/finance', label: 'Keuangan', icon: LineChart },
   { href: '/history', label: 'Riwayat Transaksi', icon: History },
@@ -32,7 +45,8 @@ const menuItems = [
 
 export function AppSidebar() {
   const pathname = usePathname();
-  
+  const [openSales, setOpenSales] = React.useState(pathname.startsWith('/sales'));
+
   return (
     <>
       <SidebarHeader className="border-b border-sidebar-border">
@@ -48,18 +62,55 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarMenu>
           {menuItems.map((item) => (
-            <SidebarMenuItem key={item.href}>
-              <SidebarMenuButton
-                asChild
-                isActive={pathname === item.href}
-                tooltip={{ children: item.label, side: 'right' }}
-              >
-                <Link href={item.href}>
-                  <item.icon />
-                  <span>{item.label}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            item.submenus ? (
+              <SidebarMenuItem key={item.href}>
+                <Collapsible open={openSales} onOpenChange={setOpenSales}>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton
+                      variant="ghost"
+                      className="w-full justify-start"
+                      isActive={pathname.startsWith(item.href)}
+                      tooltip={{ children: item.label, side: 'right' }}
+                    >
+                      <item.icon />
+                      <span>{item.label}</span>
+                      <ChevronDown className={cn("ml-auto transition-transform", openSales && "rotate-180")} />
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="ml-7 mt-1 flex flex-col gap-1 border-l pl-2">
+                      {item.submenus.map((submenu) => (
+                        <SidebarMenuButton
+                          key={submenu.href}
+                          asChild
+                          size="sm"
+                          variant="ghost"
+                          isActive={pathname === submenu.href}
+                          tooltip={{ children: submenu.label, side: 'right' }}
+                        >
+                          <Link href={submenu.href}>
+                            <span>{submenu.label}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </SidebarMenuItem>
+            ) : (
+              <SidebarMenuItem key={item.href}>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === item.href}
+                  tooltip={{ children: item.label, side: 'right' }}
+                >
+                  <Link href={item.href}>
+                    <item.icon />
+                    <span>{item.label}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )
           ))}
         </SidebarMenu>
       </SidebarContent>
