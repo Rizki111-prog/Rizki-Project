@@ -49,11 +49,11 @@ export function AppSidebar() {
 
   return (
     <>
-      <SidebarHeader className="border-b border-sidebar-border">
-        <div className="flex h-14 items-center gap-3 px-3">
-            <Link href="/" className="flex items-center gap-2 font-semibold text-sidebar-foreground">
+      <SidebarHeader className="border-b border-sidebar-border h-16">
+        <div className="flex items-center gap-3 px-3">
+            <Link href="/" className="flex items-center gap-2.5 font-bold text-lg text-sidebar-foreground">
                 <DollarSign className="h-6 w-6 text-primary" />
-                <span className="group-data-[collapsible=icon]:hidden">FinTrack Pro</span>
+                <span className="group-data-[collapsible=icon]:hidden">FinTrack</span>
             </Link>
             <div className="flex-1" />
             <SidebarTrigger className="hidden md:flex" />
@@ -74,11 +74,11 @@ export function AppSidebar() {
                     >
                       <item.icon />
                       <span>{item.label}</span>
-                      <ChevronDown className={cn("ml-auto transition-transform", openSales && "rotate-180")} />
+                      <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", openSales && "rotate-180")} />
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <div className="ml-7 mt-1 flex flex-col gap-1 border-l pl-2">
+                    <div className="ml-7 mt-1 flex flex-col gap-1 border-l pl-3 py-1">
                       {item.submenus.map((submenu) => (
                         <SidebarMenuButton
                           key={submenu.href}
@@ -89,7 +89,7 @@ export function AppSidebar() {
                           tooltip={{ children: submenu.label, side: 'right' }}
                         >
                           <Link href={submenu.href}>
-                            <span>{submenu.label}</span>
+                            <span className="pl-2">{submenu.label}</span>
                           </Link>
                         </SidebarMenuButton>
                       ))}

@@ -3,10 +3,11 @@ import './globals.css';
 import { SidebarProvider, Sidebar, SidebarInset } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { Toaster } from "@/components/ui/toaster";
+import { GeistSans } from 'geist/font/sans';
 
 export const metadata: Metadata = {
   title: 'FinTrack Pro',
-  description: 'Aplikasi pelacakan keuangan',
+  description: 'Aplikasi pelacakan keuangan modern',
 };
 
 export default function RootLayout({
@@ -15,7 +16,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id" className="h-full" suppressHydrationWarning>
+    <html lang="id" className={`${GeistSans.className} h-full`} suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
@@ -23,7 +24,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased h-full bg-background">
         <SidebarProvider>
-          <Sidebar>
+          <Sidebar collapsible="icon" variant="sidebar" side="left">
             <AppSidebar />
           </Sidebar>
           <SidebarInset>
