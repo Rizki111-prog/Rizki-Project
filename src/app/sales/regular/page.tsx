@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { db } from '@/firebase';
-import { ref, push, onValue, remove, update, serverTimestamp } from 'firebase/database';
+import { ref, push, onValue, remove, update, serverTimestamp, runTransaction } from 'firebase/database';
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -30,6 +30,7 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from 'date-fns';
 import { id } from 'date-fns/locale';
@@ -43,9 +44,17 @@ interface Transaction {
   sellingPrice: number;
   costPrice: number;
   fundSource: string;
+  fundSourceId?: string;
   paymentMethod: string;
+  paymentMethodId?: string;
   profit: number;
   createdAt: number;
+}
+
+interface FinancialCard {
+    id: string;
+    name: string;
+    balance: number;
 }
 
 export default function RegularSalesPage() {
@@ -59,6 +68,9 @@ export default function RegularSalesPage() {
   const [paymentMethod, setPaymentMethod] = useState('');
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [financialCards, setFinancialCards] = useState<FinancialCard[]>([]);
+  const [isLoadingCards, setIsLoadingCards] = useState(true);
+
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -85,6 +97,26 @@ export default function RegularSalesPage() {
 
     return () => unsubscribe();
   }, []);
+  
+  useEffect(() => {
+    const cardsRef = ref(db, 'keuangan/cards');
+    const unsubscribe = onValue(cardsRef, (snapshot) => {
+        const data = snapshot.val();
+        const loadedCards: FinancialCard[] = [];
+        if (data) {
+            for (const key in data) {
+                loadedCards.push({ id: key, ...data[key] });
+            }
+        }
+        setFinancialCards(loadedCards);
+        setIsLoadingCards(false);
+    }, (error) => {
+        console.error("Firebase read failed: " + error.message);
+        setIsLoadingCards(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const resetForm = () => {
     setCustomerId('');
@@ -100,7 +132,7 @@ export default function RegularSalesPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customerId || !productName || !sellingPrice || !costPrice) {
+    if (!customerId || !productName || !sellingPrice || !costPrice || !fundSource || !paymentMethod) {
       toast({
         variant: "destructive",
         title: "Gagal",
@@ -110,20 +142,50 @@ export default function RegularSalesPage() {
     }
     setIsSubmitting(true);
 
+    const cost = Number(costPrice);
+    const price = Number(sellingPrice);
+    const fundSourceCard = financialCards.find(c => c.id === fundSource);
+    const paymentMethodCard = financialCards.find(c => c.id === paymentMethod);
+
+    if (!fundSourceCard || !paymentMethodCard) {
+        toast({ variant: "destructive", title: "Gagal", description: "Sumber dana atau metode pembayaran tidak valid." });
+        setIsSubmitting(false);
+        return;
+    }
+
     const newTransaction = {
       datetime,
       customerId,
       productName,
-      sellingPrice: Number(sellingPrice),
-      costPrice: Number(costPrice),
-      fundSource,
-      paymentMethod,
+      sellingPrice: price,
+      costPrice: cost,
+      fundSource: fundSourceCard.name,
+      fundSourceId: fundSourceCard.id,
+      paymentMethod: paymentMethodCard.name,
+      paymentMethodId: paymentMethodCard.id,
       createdAt: serverTimestamp()
     };
 
     const transactionsRef = ref(db, 'transaksi_reguler');
     push(transactionsRef, newTransaction)
       .then(() => {
+        // Update balances
+        const fundSourceRef = ref(db, `keuangan/cards/${fundSourceCard.id}`);
+        runTransaction(fundSourceRef, (card) => {
+            if (card) {
+                card.balance -= cost;
+            }
+            return card;
+        });
+
+        const paymentMethodRef = ref(db, `keuangan/cards/${paymentMethodCard.id}`);
+        runTransaction(paymentMethodRef, (card) => {
+            if (card) {
+                card.balance += price;
+            }
+            return card;
+        });
+
         toast({
           title: "Sukses",
           description: "Transaksi berhasil disimpan.",
@@ -141,6 +203,7 @@ export default function RegularSalesPage() {
         setIsSubmitting(false);
       });
   };
+
 
   const handleDelete = (id: string) => {
     const transactionRef = ref(db, `transaksi_reguler/${id}`);
@@ -245,18 +308,38 @@ export default function RegularSalesPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="fundSource">Sumber Modal</Label>
-                  <Input id="fundSource" placeholder="Saldo Server" value={fundSource} onChange={(e) => setFundSource(e.target.value)} 
-                         className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
+                   <Select value={fundSource} onValueChange={setFundSource} required>
+                    <SelectTrigger className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2">
+                        <SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih sumber modal"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {financialCards.map(card => (
+                            <SelectItem key={card.id} value={card.id}>
+                                {card.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="paymentMethod">Metode Pembayaran</Label>
-                  <Input id="paymentMethod" placeholder="Tunai" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} 
-                         className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
+                   <Select value={paymentMethod} onValueChange={setPaymentMethod} required>
+                    <SelectTrigger className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2">
+                        <SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih metode pembayaran"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {financialCards.map(card => (
+                            <SelectItem key={card.id} value={card.id}>
+                                {card.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </CardContent>
             <CardFooter className="border-t px-6 py-4">
-              <Button type="submit" disabled={isSubmitting} className="transition-all duration-300 hover:scale-105">
+              <Button type="submit" disabled={isSubmitting || isLoadingCards} className="transition-all duration-300 hover:scale-105">
                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {isSubmitting ? 'Menyimpan...' : 'Simpan Transaksi'}
               </Button>
@@ -389,13 +472,51 @@ export default function RegularSalesPage() {
                   <Label htmlFor="edit-costPrice">Modal</Label>
                   <Input id="edit-costPrice" type="number" value={editingTransaction.costPrice} onChange={(e) => setEditingTransaction({ ...editingTransaction, costPrice: Number(e.target.value) })} />
                 </div>
-                <div className="space-y-2">
+                 <div className="space-y-2">
                   <Label htmlFor="edit-fundSource">Sumber Modal</Label>
-                  <Input id="edit-fundSource" value={editingTransaction.fundSource} onChange={(e) => setEditingTransaction({ ...editingTransaction, fundSource: e.target.value })} />
+                   <Select 
+                      value={editingTransaction.fundSourceId || financialCards.find(c => c.name === editingTransaction.fundSource)?.id} 
+                      onValueChange={(value) => {
+                          const card = financialCards.find(c => c.id === value);
+                          if (card) {
+                            setEditingTransaction({ ...editingTransaction, fundSourceId: card.id, fundSource: card.name });
+                          }
+                      }}
+                    >
+                    <SelectTrigger className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2">
+                        <SelectValue placeholder="Pilih sumber modal" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {financialCards.map(card => (
+                            <SelectItem key={card.id} value={card.id}>
+                                {card.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-paymentMethod">Metode Pembayaran</Label>
-                  <Input id="edit-paymentMethod" value={editingTransaction.paymentMethod} onChange={(e) => setEditingTransaction({ ...editingTransaction, paymentMethod: e.target.value })} />
+                  <Select 
+                      value={editingTransaction.paymentMethodId || financialCards.find(c => c.name === editingTransaction.paymentMethod)?.id} 
+                      onValueChange={(value) => {
+                          const card = financialCards.find(c => c.id === value);
+                          if (card) {
+                            setEditingTransaction({ ...editingTransaction, paymentMethodId: card.id, paymentMethod: card.name });
+                          }
+                      }}
+                    >
+                    <SelectTrigger className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2">
+                        <SelectValue placeholder="Pilih metode pembayaran" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {financialCards.map(card => (
+                            <SelectItem key={card.id} value={card.id}>
+                                {card.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <DialogFooter>
