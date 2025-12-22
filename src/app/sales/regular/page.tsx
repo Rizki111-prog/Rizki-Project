@@ -168,10 +168,13 @@ export default function RegularSalesPage() {
     setDatetime(now.toISOString().slice(0, 16));
   };
   
-  const handleProductSelect = (product: ProductMaster) => {
-      setProductName(product.name);
-      setSellingPrice(String(product.sellingPrice));
-      setCostPrice(String(product.costPrice));
+  const handleProductSelect = (productName: string) => {
+      const product = productMaster.find(p => p.name.toLowerCase() === productName.toLowerCase());
+      setProductName(productName);
+      if (product) {
+        setSellingPrice(String(product.sellingPrice));
+        setCostPrice(String(product.costPrice));
+      }
       setComboboxOpen(false);
   }
 
@@ -485,29 +488,36 @@ export default function RegularSalesPage() {
                                 aria-expanded={comboboxOpen}
                                 className="w-full justify-between focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2 font-normal"
                             >
+                                <span className="truncate">
                                 {productName
-                                    ? productMaster.find((p) => p.name.toLowerCase() === productName.toLowerCase())?.name
+                                    ? productName
                                     : (isLoadingProducts ? "Memuat produk..." : "Pilih atau ketik produk...")}
+                                </span>
                                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                             </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                            <Command>
+                            <Command shouldFilter={false}>
                                 <CommandInput 
-                                  placeholder="Cari produk..." 
+                                  placeholder="Cari atau buat produk baru..." 
                                   value={productName}
                                   onValueChange={setProductName}
                                 />
                                 <CommandList>
                                   <CommandEmpty>
-                                    {isLoadingProducts ? 'Memuat...' : 'Produk tidak ditemukan. Produk baru akan disimpan.'}
+                                    <div className="p-4 text-sm">
+                                        Produk baru: "<strong>{productName}</strong>". <br />
+                                        Harga & modal akan disimpan.
+                                    </div>
                                   </CommandEmpty>
                                   <CommandGroup>
-                                      {productMaster.map((product) => (
+                                      {productMaster
+                                        .filter(p => p.name.toLowerCase().includes(productName.toLowerCase()))
+                                        .map((product) => (
                                           <CommandItem
                                               key={product.id}
                                               value={product.name}
-                                              onSelect={() => handleProductSelect(product)}
+                                              onSelect={handleProductSelect}
                                           >
                                               <Check
                                                   className={cn(
@@ -771,5 +781,3 @@ export default function RegularSalesPage() {
     </div>
   );
 }
-
-    
