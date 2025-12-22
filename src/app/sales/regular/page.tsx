@@ -168,12 +168,15 @@ export default function RegularSalesPage() {
     setDatetime(now.toISOString().slice(0, 16));
   };
   
-  const handleProductSelect = (productName: string) => {
-      const product = productMaster.find(p => p.name.toLowerCase() === productName.toLowerCase());
-      setProductName(productName);
+  const handleProductSelect = (value: string) => {
+      const product = productMaster.find(p => p.name.toLowerCase() === value.toLowerCase());
+      setProductName(value);
       if (product) {
         setSellingPrice(String(product.sellingPrice));
         setCostPrice(String(product.costPrice));
+      } else {
+        setSellingPrice('');
+        setCostPrice('');
       }
       setComboboxOpen(false);
   }
@@ -227,7 +230,9 @@ export default function RegularSalesPage() {
     const transactionsRef = ref(db, 'transaksi_reguler');
     push(transactionsRef, newTransaction)
       .then(() => {
-        saveToProductMaster({ name: productName, sellingPrice: price, costPrice: cost });
+        if (productName && price && cost) {
+          saveToProductMaster({ name: productName, sellingPrice: price, costPrice: cost });
+        }
 
         const fundSourceRef = ref(db, `keuangan/cards/${fundSourceCard.id}`);
         runTransaction(fundSourceRef, (card) => {
@@ -505,10 +510,13 @@ export default function RegularSalesPage() {
                                 />
                                 <CommandList>
                                   <CommandEmpty>
-                                    <div className="p-4 text-sm">
-                                        Produk baru: "<strong>{productName}</strong>". <br />
-                                        Harga & modal akan disimpan.
-                                    </div>
+                                    <button
+                                      type="button"
+                                      className="w-full text-left p-4 text-sm"
+                                      onClick={() => handleProductSelect(productName)}
+                                    >
+                                        Buat produk baru: "<strong>{productName}</strong>"
+                                    </button>
                                   </CommandEmpty>
                                   <CommandGroup>
                                       {productMaster
