@@ -35,6 +35,8 @@ import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { DetailModal } from '@/components/modals/detail-modal';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter, SheetClose } from "@/components/ui/sheet";
+import { useIsMobile } from '@/hooks/use-mobile';
 
 
 interface Transaction {
@@ -60,6 +62,7 @@ interface FinancialCard {
 
 export default function RegularSalesPage() {
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [datetime, setDatetime] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [productName, setProductName] = useState('');
@@ -173,7 +176,6 @@ export default function RegularSalesPage() {
     const transactionsRef = ref(db, 'transaksi_reguler');
     push(transactionsRef, newTransaction)
       .then(() => {
-        // Update balances
         const fundSourceRef = ref(db, `keuangan/cards/${fundSourceCard.id}`);
         runTransaction(fundSourceRef, (card) => {
             if (card) {
@@ -210,9 +212,39 @@ export default function RegularSalesPage() {
 
 
   const handleDelete = (id: string) => {
+    const transactionToDelete = transactions.find(t => t.id === id);
+    if (!transactionToDelete) {
+        toast({ variant: "destructive", title: "Error", description: "Transaksi tidak ditemukan." });
+        return;
+    }
+
+    const cost = Number(transactionToDelete.costPrice);
+    const price = Number(transactionToDelete.sellingPrice);
+    const fundSourceCardId = transactionToDelete.fundSourceId;
+    const paymentMethodCardId = transactionToDelete.paymentMethodId;
+
     const transactionRef = ref(db, `transaksi_reguler/${id}`);
     remove(transactionRef)
       .then(() => {
+        // Revert balance changes
+        if(fundSourceCardId){
+            const fundSourceRef = ref(db, `keuangan/cards/${fundSourceCardId}`);
+            runTransaction(fundSourceRef, (card) => {
+                if (card) {
+                    card.balance += cost;
+                }
+                return card;
+            });
+        }
+        if(paymentMethodCardId){
+            const paymentMethodRef = ref(db, `keuangan/cards/${paymentMethodCardId}`);
+            runTransaction(paymentMethodRef, (card) => {
+                if (card) {
+                    card.balance -= price;
+                }
+                return card;
+            });
+        }
         toast({
           title: "Sukses",
           description: "Transaksi berhasil dihapus.",
@@ -236,22 +268,90 @@ export default function RegularSalesPage() {
     setDetailTransaction(transaction);
     setIsDetailModalOpen(true);
   };
-
+  
   const handleUpdate = () => {
     if (!editingTransaction) return;
     setIsUpdating(true);
 
-    const { id, profit, ...dataToUpdate } = editingTransaction;
+    const { id, profit, createdAt, ...dataToUpdate } = editingTransaction;
+    const originalTransaction = transactions.find(t => t.id === id);
+
+    if(!originalTransaction){
+        toast({ variant: "destructive", title: "Error", description: "Transaksi asli tidak ditemukan untuk pembaruan."});
+        setIsUpdating(false);
+        return;
+    }
+
     const transactionRef = ref(db, `transaksi_reguler/${id}`);
     
     const plainData = {
         ...dataToUpdate,
         sellingPrice: Number(dataToUpdate.sellingPrice),
         costPrice: Number(dataToUpdate.costPrice),
-    }
+    };
 
     update(transactionRef, plainData)
       .then(() => {
+        const costDiff = plainData.costPrice - originalTransaction.costPrice;
+        const priceDiff = plainData.sellingPrice - originalTransaction.sellingPrice;
+
+        if (originalTransaction.fundSourceId === plainData.fundSourceId) {
+            if(costDiff !== 0 && originalTransaction.fundSourceId){
+                const fundSourceRef = ref(db, `keuangan/cards/${originalTransaction.fundSourceId}`);
+                runTransaction(fundSourceRef, (card) => {
+                    if (card) {
+                        card.balance -= costDiff;
+                    }
+                    return card;
+                });
+            }
+        } else {
+            // Revert old and apply new
+            if(originalTransaction.fundSourceId){
+                const oldFundRef = ref(db, `keuangan/cards/${originalTransaction.fundSourceId}`);
+                runTransaction(oldFundRef, (card) => {
+                    if (card) card.balance += originalTransaction.costPrice;
+                    return card;
+                });
+            }
+            if(plainData.fundSourceId){
+                const newFundRef = ref(db, `keuangan/cards/${plainData.fundSourceId}`);
+                runTransaction(newFundRef, (card) => {
+                    if (card) card.balance -= plainData.costPrice;
+                    return card;
+                });
+            }
+        }
+
+        // Handle payment method balance update
+        if(originalTransaction.paymentMethodId === plainData.paymentMethodId){
+            if(priceDiff !== 0 && originalTransaction.paymentMethodId){
+                const paymentMethodRef = ref(db, `keuangan/cards/${originalTransaction.paymentMethodId}`);
+                runTransaction(paymentMethodRef, (card) => {
+                    if (card) {
+                        card.balance += priceDiff;
+                    }
+                    return card;
+                });
+            }
+        } else {
+            // Revert old and apply new
+            if(originalTransaction.paymentMethodId){
+                const oldPaymentRef = ref(db, `keuangan/cards/${originalTransaction.paymentMethodId}`);
+                runTransaction(oldPaymentRef, (card) => {
+                    if(card) card.balance -= originalTransaction.sellingPrice;
+                    return card;
+                });
+            }
+            if(plainData.paymentMethodId){
+                const newPaymentRef = ref(db, `keuangan/cards/${plainData.paymentMethodId}`);
+                runTransaction(newPaymentRef, (card) => {
+                    if(card) card.balance += plainData.sellingPrice;
+                    return card;
+                });
+            }
+        }
+
         toast({
           title: "Sukses",
           description: "Transaksi berhasil diperbarui.",
@@ -284,25 +384,35 @@ export default function RegularSalesPage() {
         { label: 'Metode Pembayaran', value: trx.paymentMethod },
     ];
   };
+  
+  const EditDialogOrSheet = isMobile ? Sheet : Dialog;
+  const EditTrigger = isMobile ? (props: any) => <Button {...props} variant="outline" size="icon" className="h-9 w-9"><Edit className="h-4 w-4" /></Button> : (props: any) => <Button {...props} variant="outline" size="icon" className="h-8 w-8"><Edit className="h-4 w-4" /></Button>;
+  const EditContent = isMobile ? SheetContent : DialogContent;
+  const EditHeader = isMobile ? SheetHeader : DialogHeader;
+  const EditTitle = isMobile ? SheetTitle : DialogTitle;
+  const EditDescription = isMobile ? SheetDescription : DialogDescription;
+  const EditFooter = isMobile ? SheetFooter : DialogFooter;
+  const EditClose = isMobile ? SheetClose : DialogClose;
+
 
   return (
-    <div className="flex flex-col w-full min-h-screen bg-background">
-      <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-4 md:px-6">
+    <div className="flex flex-col w-full min-h-[100dvh] bg-background">
+      <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-4 sm:px-6">
         <SidebarTrigger className="md:hidden" />
         <div>
-          <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Pulsa, Token, &amp; Paket Data</h1>
-          <p className="text-sm text-muted-foreground">Proses transaksi baru untuk produk reguler.</p>
+          <h1 className="text-lg font-semibold tracking-tight md:text-2xl">Pulsa, Token, &amp; Paket Data</h1>
+          <p className="text-xs text-muted-foreground sm:text-sm">Proses transaksi baru untuk produk reguler.</p>
         </div>
       </header>
-      <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
-        <Card className="rounded-xl shadow-sm">
+      <main className="flex flex-1 flex-col gap-4 p-4 sm:gap-6 sm:p-6">
+        <Card className="rounded-xl shadow-sm w-full">
           <CardHeader>
             <CardTitle>Transaksi Baru</CardTitle>
             <CardDescription>Isi detail transaksi untuk penjualan Pulsa, Token Listrik, dan Paket Data.</CardDescription>
           </CardHeader>
           <form onSubmit={handleSubmit}>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="datetime">Tanggal &amp; Waktu</Label>
                   <Input id="datetime" type="datetime-local" value={datetime} onChange={(e) => setDatetime(e.target.value)} required 
@@ -369,31 +479,33 @@ export default function RegularSalesPage() {
           </form>
         </Card>
 
-        <Card className="rounded-xl shadow-sm">
+        <Card className="rounded-xl shadow-sm w-full">
           <CardHeader>
             <CardTitle>Riwayat Transaksi Reguler</CardTitle>
             <CardDescription>Daftar semua transaksi yang tercatat.</CardDescription>
           </CardHeader>
           <CardContent>
-             {/* Mobile View */}
             <div className="md:hidden space-y-4">
               {transactions.map((trx) => (
-                <Card key={trx.id} className="rounded-lg border">
-                  <CardHeader>
-                    <CardTitle className="text-base">{trx.productName}</CardTitle>
-                    <CardDescription>{trx.customerId}</CardDescription>
+                <Card key={trx.id} className="rounded-lg border w-full">
+                  <CardHeader className="pb-3">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <CardTitle className="text-base">{trx.productName}</CardTitle>
+                            <CardDescription>{trx.customerId}</CardDescription>
+                        </div>
+                        <Badge variant={trx.profit > 0 ? 'default' : 'destructive'} className="text-xs">Rp {trx.profit.toLocaleString('id-ID')}</Badge>
+                    </div>
                   </CardHeader>
-                  <CardContent className="space-y-2 text-sm">
-                    <div className="flex justify-between"><span>Waktu:</span> <span className="font-medium">{format(parseISO(trx.datetime), "d MMM y, HH:mm", { locale: id })}</span></div>
+                  <CardContent className="space-y-2 text-sm pb-3">
+                    <div className="flex justify-between"><span>Waktu:</span> <span className="font-medium text-right">{format(parseISO(trx.datetime), "d MMM y, HH:mm", { locale: id })}</span></div>
                     <div className="flex justify-between"><span>Harga Jual:</span> <span className="font-medium">Rp {trx.sellingPrice.toLocaleString('id-ID')}</span></div>
-                    <div className="flex justify-between"><span>Modal:</span> <span className="font-medium">Rp {trx.costPrice.toLocaleString('id-ID')}</span></div>
-                    <div className="flex justify-between items-center"><span>Laba:</span> <Badge variant={trx.profit > 0 ? 'default' : 'destructive'}>Rp {trx.profit.toLocaleString('id-ID')}</Badge></div>
-                    <div className="flex justify-between"><span>Sumber:</span> <span className="font-medium">{trx.fundSource || '-'}</span></div>
-                    <div className="flex justify-between"><span>Pembayaran:</span> <span className="font-medium">{trx.paymentMethod || '-'}</span></div>
                   </CardContent>
                   <CardFooter className="flex justify-end space-x-2">
                     <Button variant="outline" size="icon" onClick={() => handleDetailClick(trx)} className="h-9 w-9"><Eye className="h-4 w-4" /></Button>
-                    <Button variant="outline" size="icon" onClick={() => handleEditClick(trx)} className="h-9 w-9"><Edit className="h-4 w-4" /></Button>
+                    <EditDialogOrSheet open={editingTransaction?.id === trx.id} onOpenChange={(isOpen) => !isOpen && setEditingTransaction(null)}>
+                        <EditTrigger onClick={() => handleEditClick(trx)} />
+                    </EditDialogOrSheet>
                     <AlertDialog>
                       <AlertDialogTrigger asChild><Button variant="destructive" size="icon" className="h-9 w-9"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
                       <AlertDialogContent>
@@ -412,7 +524,6 @@ export default function RegularSalesPage() {
               ))}
             </div>
 
-             {/* Desktop View */}
             <div className="hidden md:block overflow-x-auto">
               <table className="min-w-full divide-y divide-border">
                 <thead className="bg-muted/50">
@@ -445,7 +556,9 @@ export default function RegularSalesPage() {
                       <td className="px-4 py-4 text-sm text-muted-foreground">{trx.paymentMethod || '-'}</td>
                       <td className="px-4 py-4 text-center space-x-1 whitespace-nowrap">
                         <Button variant="outline" size="icon" onClick={() => handleDetailClick(trx)} className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
-                        <Button variant="outline" size="icon" onClick={() => handleEditClick(trx)} className="h-8 w-8"><Edit className="h-4 w-4" /></Button>
+                         <EditDialogOrSheet open={editingTransaction?.id === trx.id} onOpenChange={(isOpen) => !isOpen && setEditingTransaction(null)}>
+                            <EditTrigger onClick={() => handleEditClick(trx)} />
+                         </EditDialogOrSheet>
                         <AlertDialog>
                           <AlertDialogTrigger asChild><Button variant="destructive" size="icon" className="h-8 w-8"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
                           <AlertDialogContent>
@@ -469,13 +582,12 @@ export default function RegularSalesPage() {
         </Card>
 
         {editingTransaction && (
-          <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Edit Transaksi</DialogTitle>
-                <DialogDescription>Perbarui detail transaksi dan klik simpan.</DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
+          <EditContent className={isMobile ? 'w-full' : ''}>
+              <EditHeader>
+                <EditTitle>Edit Transaksi</EditTitle>
+                <EditDescription>Perbarui detail transaksi dan klik simpan.</EditDescription>
+              </EditHeader>
+              <div className={`py-4 ${isMobile ? 'px-4 space-y-4' : 'grid gap-4'}`}>
                 <div className="space-y-2">
                   <Label htmlFor="edit-datetime">Tanggal &amp; Waktu</Label>
                   <Input id="edit-datetime" type="datetime-local" value={editingTransaction.datetime} onChange={(e) => setEditingTransaction({ ...editingTransaction, datetime: e.target.value })} />
@@ -543,15 +655,14 @@ export default function RegularSalesPage() {
                   </Select>
                 </div>
               </div>
-              <DialogFooter>
-                <DialogClose asChild><Button type="button" variant="secondary">Batal</Button></DialogClose>
+              <EditFooter>
+                <EditClose asChild><Button type="button" variant="secondary">Batal</Button></EditClose>
                 <Button onClick={handleUpdate} disabled={isUpdating}>
                   {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   {isUpdating ? 'Menyimpan...' : 'Simpan Perubahan'}
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              </EditFooter>
+            </EditContent>
         )}
 
         <DetailModal

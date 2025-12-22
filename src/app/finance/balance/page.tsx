@@ -5,7 +5,7 @@ import { db } from '@/firebase';
 import { ref, push, onValue, serverTimestamp } from 'firebase/database';
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +30,7 @@ const iconMap: { [key: string]: React.ElementType } = {
 
 const getIconForCard = (cardName: string) => {
     if (typeof cardName !== 'string') {
-        return 'DollarSign'; // Return a default icon if name is not a string
+        return 'DollarSign';
     }
     const lowerCaseName = cardName.toLowerCase();
     if (lowerCaseName.includes('bank')) return 'Landmark';
@@ -64,7 +64,6 @@ export default function BalancePage() {
                     }
                 }
             } else {
-                 // Create a default 'Cash' card if none exist
                 const defaultCard = {
                     name: 'Tunai',
                     balance: 0,
@@ -123,20 +122,20 @@ export default function BalancePage() {
     };
     
     return (
-        <div className="flex flex-col w-full min-h-screen bg-background">
-            <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-4 md:px-6">
+        <div className="flex flex-col w-full min-h-[100dvh] bg-background">
+            <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-4 sm:px-6">
                 <SidebarTrigger className="md:hidden" />
                 <div className="flex-1">
-                    <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Saldo Akun</h1>
-                    <p className="text-sm text-muted-foreground">Kelola semua sumber saldo dan akun keuangan Anda.</p>
+                    <h1 className="text-lg font-semibold tracking-tight md:text-2xl">Saldo Akun</h1>
+                    <p className="text-xs text-muted-foreground sm:text-sm">Kelola semua sumber saldo dan akun keuangan Anda.</p>
                 </div>
-                <Button onClick={() => setIsModalOpen(true)} className="transition-all duration-300 hover:scale-105">
+                <Button onClick={() => setIsModalOpen(true)} className="transition-all duration-300 hover:scale-105 text-xs sm:text-sm">
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Tambah Akun
                 </Button>
             </header>
-            <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
-                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <main className="flex flex-1 flex-col gap-4 p-4 sm:gap-6 sm:p-6">
+                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {cards.map((card, index) => {
                         const Icon = iconMap[card.icon] || DollarSign;
                         return (
@@ -168,7 +167,7 @@ export default function BalancePage() {
                 </div>
                 {cards.length === 0 && (
                     <div className="flex items-center justify-center h-64 border-2 border-dashed rounded-2xl">
-                        <p className="text-muted-foreground">Belum ada akun keuangan. Silakan tambahkan.</p>
+                        <p className="text-muted-foreground text-sm text-center">Belum ada akun keuangan. Silakan tambahkan.</p>
                     </div>
                 )}
             </main>
