@@ -1,17 +1,20 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '@/firebase';
-import { ref, push, onValue, serverTimestamp } from 'firebase/database';
+import { ref, push, onValue, serverTimestamp, runTransaction } from 'firebase/database';
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { DollarSign, Wallet, Landmark, CreditCard, PlusCircle, Loader2 } from 'lucide-react';
+import { DollarSign, Wallet, Landmark, CreditCard, PlusCircle, Loader2, ArrowUpCircle, ArrowDownCircle, Info } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { format } from 'date-fns';
+import { id } from 'date-fns/locale';
 
 interface FinancialCard {
   id: string;
@@ -20,6 +23,20 @@ interface FinancialCard {
   createdAt: number;
   icon: string;
 }
+
+interface Transaction {
+  id: string;
+  datetime: string;
+  productName: string;
+  sellingPrice: number;
+  costPrice: number;
+  fundSourceId?: string;
+  paymentMethodId?: string;
+  type: 'income' | 'expense';
+  amount: number;
+  description: string;
+}
+
 
 const iconMap: { [key: string]: React.ElementType } = {
   Wallet,
@@ -43,6 +60,9 @@ const getIconForCard = (cardName: string) => {
 export default function BalancePage() {
     const { toast } = useToast();
     const [cards, setCards] = useState<FinancialCard[]>([]);
+    const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
+    const [selectedCard, setSelectedCard] = useState<FinancialCard | null>(null);
+    const [isHistorySheetOpen, setIsHistorySheetOpen] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [newCardName, setNewCardName] = useState('');
     const [initialBalance, setInitialBalance] = useState('');
@@ -50,7 +70,7 @@ export default function BalancePage() {
 
     useEffect(() => {
         const cardsRef = ref(db, 'keuangan/cards');
-        const unsubscribe = onValue(cardsRef, (snapshot) => {
+        const unsubscribeCards = onValue(cardsRef, (snapshot) => {
             const data = snapshot.val();
             const loadedCards: FinancialCard[] = [];
             if (data) {
@@ -76,7 +96,23 @@ export default function BalancePage() {
             setCards(loadedCards);
         });
 
-        return () => unsubscribe();
+        const transactionsRef = ref(db, 'transaksi_reguler');
+        const unsubscribeTransactions = onValue(transactionsRef, (snapshot) => {
+            const data = snapshot.val();
+            const loadedTransactions: any[] = [];
+            if (data) {
+                for (const key in data) {
+                    loadedTransactions.push({ id: key, ...data[key] });
+                }
+            }
+            setAllTransactions(loadedTransactions);
+        });
+
+
+        return () => {
+            unsubscribeCards();
+            unsubscribeTransactions();
+        };
     }, []);
 
     const handleAddCard = (e: React.FormEvent) => {
@@ -93,7 +129,7 @@ export default function BalancePage() {
 
         const newCard = {
             name: newCardName,
-            balance: Number(initialBalance) || 0,
+            balance: initialBalance === '' ? 0 : Number(initialBalance),
             createdAt: serverTimestamp(),
             icon: getIconForCard(newCardName)
         };
@@ -121,6 +157,42 @@ export default function BalancePage() {
             });
     };
     
+    const handleCardClick = (card: FinancialCard) => {
+        setSelectedCard(card);
+        setIsHistorySheetOpen(true);
+    };
+
+    const filteredTransactions = useMemo(() => {
+        if (!selectedCard) return [];
+        
+        const relatedTransactions: Transaction[] = [];
+
+        allTransactions.forEach(trx => {
+            // Money out (cost)
+            if (trx.fundSourceId === selectedCard.id) {
+                relatedTransactions.push({
+                    ...trx,
+                    type: 'expense',
+                    amount: trx.costPrice,
+                    description: `Modal untuk ${trx.productName}`
+                });
+            }
+            // Money in (selling price)
+            if (trx.paymentMethodId === selectedCard.id) {
+                 relatedTransactions.push({
+                    ...trx,
+                    type: 'income',
+                    amount: trx.sellingPrice,
+                    description: `Pembayaran untuk ${trx.productName}`
+                });
+            }
+        });
+
+        // Add sorting by date, newest first
+        return relatedTransactions.sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime());
+
+    }, [selectedCard, allTransactions]);
+
     return (
         <div className="flex flex-col w-full min-h-[100dvh] bg-background">
             <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-4 sm:px-6">
@@ -144,8 +216,9 @@ export default function BalancePage() {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.3, delay: index * 0.05 }}
+                                onClick={() => handleCardClick(card)}
                             >
-                                <Card className="rounded-2xl shadow-sm border-white/20 bg-white/30 backdrop-blur-lg hover:shadow-lg transition-shadow duration-300 dark:bg-slate-800/30 dark:border-slate-700/50">
+                                <Card className="rounded-2xl shadow-sm border-white/20 bg-white/30 backdrop-blur-lg hover:shadow-lg transition-all duration-300 dark:bg-slate-800/30 dark:border-slate-700/50 cursor-pointer hover:scale-[1.02]">
                                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                         <CardTitle className="text-sm font-medium text-foreground/80">
                                             {card.name}
@@ -217,6 +290,50 @@ export default function BalancePage() {
                     </form>
                 </DialogContent>
             </Dialog>
+
+            <Sheet open={isHistorySheetOpen} onOpenChange={setIsHistorySheetOpen}>
+                <SheetContent className="w-full sm:max-w-lg">
+                    <SheetHeader className="pr-10">
+                        <SheetTitle>Riwayat Transaksi: {selectedCard?.name}</SheetTitle>
+                        <SheetDescription>
+                            Daftar semua transaksi yang terkait dengan akun ini.
+                        </SheetDescription>
+                    </SheetHeader>
+                    <div className="mt-4 h-[calc(100%-4rem)] overflow-y-auto pr-2">
+                        {filteredTransactions.length > 0 ? (
+                             <ul className="space-y-3">
+                                {filteredTransactions.map((trx, index) => (
+                                    <motion.li 
+                                        key={`${trx.id}-${index}`}
+                                        initial={{ opacity: 0, x: -10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        transition={{ duration: 0.3, delay: index * 0.05 }}
+                                        className="flex items-center space-x-4 p-3 rounded-lg bg-muted/50"
+                                    >
+                                        {trx.type === 'income' ? 
+                                            <ArrowUpCircle className="h-6 w-6 text-emerald-500 flex-shrink-0" /> :
+                                            <ArrowDownCircle className="h-6 w-6 text-red-500 flex-shrink-0" />
+                                        }
+                                        <div className="flex-1">
+                                            <p className="text-sm font-medium leading-tight">{trx.description}</p>
+                                            <p className="text-xs text-muted-foreground">{format(new Date(trx.datetime), "d MMM yyyy, HH:mm", { locale: id })}</p>
+                                        </div>
+                                        <div className={`text-sm font-bold whitespace-nowrap ${trx.type === 'income' ? 'text-emerald-600' : 'text-red-600'}`}>
+                                            {trx.type === 'income' ? '+' : '-'} Rp {trx.amount.toLocaleString('id-ID')}
+                                        </div>
+                                    </motion.li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-center">
+                                <Info className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                                <h3 className="text-lg font-semibold">Belum Ada Transaksi</h3>
+                                <p className="text-sm text-muted-foreground">Tidak ada riwayat transaksi yang ditemukan untuk akun ini.</p>
+                            </div>
+                        )}
+                    </div>
+                </SheetContent>
+            </Sheet>
         </div>
     );
 }
