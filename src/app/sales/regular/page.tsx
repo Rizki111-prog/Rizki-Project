@@ -1,15 +1,15 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '@/firebase';
-import { ref, push, onValue, remove, update, serverTimestamp, runTransaction } from 'firebase/database';
+import { ref, push, onValue, remove, update, serverTimestamp, runTransaction, query, orderByChild, equalTo, get } from 'firebase/database';
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Edit, Loader2, Eye } from 'lucide-react';
+import { Trash2, Edit, Loader2, Eye, Check, ChevronsUpDown } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +37,9 @@ import { id } from 'date-fns/locale';
 import { DetailModal } from '@/components/modals/detail-modal';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter, SheetClose } from "@/components/ui/sheet";
 import { useIsMobile } from '@/hooks/use-mobile';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { cn } from '@/lib/utils';
 
 
 interface Transaction {
@@ -60,6 +63,13 @@ interface FinancialCard {
     balance: number;
 }
 
+interface ProductMaster {
+    id: string;
+    name: string;
+    sellingPrice: number;
+    costPrice: number;
+}
+
 export default function RegularSalesPage() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -73,7 +83,9 @@ export default function RegularSalesPage() {
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [financialCards, setFinancialCards] = useState<FinancialCard[]>([]);
+  const [productMaster, setProductMaster] = useState<ProductMaster[]>([]);
   const [isLoadingCards, setIsLoadingCards] = useState(true);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
 
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -82,6 +94,9 @@ export default function RegularSalesPage() {
 
   const [detailTransaction, setDetailTransaction] = useState<Transaction | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
+  // For Combobox
+  const [comboboxOpen, setComboboxOpen] = useState(false);
 
   useEffect(() => {
     const now = new Date();
@@ -107,7 +122,7 @@ export default function RegularSalesPage() {
   
   useEffect(() => {
     const cardsRef = ref(db, 'keuangan/cards');
-    const unsubscribe = onValue(cardsRef, (snapshot) => {
+    const unsubscribeCards = onValue(cardsRef, (snapshot) => {
         const data = snapshot.val();
         const loadedCards: FinancialCard[] = [];
         if (data) {
@@ -122,7 +137,23 @@ export default function RegularSalesPage() {
         setIsLoadingCards(false);
     });
 
-    return () => unsubscribe();
+    const productsRef = ref(db, 'produk_master');
+    const unsubscribeProducts = onValue(productsRef, (snapshot) => {
+        const data = snapshot.val();
+        const loadedProducts: ProductMaster[] = [];
+        if (data) {
+            for (const key in data) {
+                loadedProducts.push({ id: key, ...data[key] });
+            }
+        }
+        setProductMaster(loadedProducts);
+        setIsLoadingProducts(false);
+    });
+
+    return () => {
+        unsubscribeCards();
+        unsubscribeProducts();
+    };
   }, []);
 
   const resetForm = () => {
@@ -136,6 +167,23 @@ export default function RegularSalesPage() {
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
     setDatetime(now.toISOString().slice(0, 16));
   };
+  
+  const handleProductSelect = (product: ProductMaster) => {
+      setProductName(product.name);
+      setSellingPrice(String(product.sellingPrice));
+      setCostPrice(String(product.costPrice));
+      setComboboxOpen(false);
+  }
+
+  const saveToProductMaster = useCallback(async (productData: Omit<ProductMaster, 'id'>) => {
+    const productsRef = query(ref(db, 'produk_master'), orderByChild('name'), equalTo(productData.name));
+    const snapshot = await get(productsRef);
+    if (!snapshot.exists()) {
+        const newProductRef = push(ref(db, 'produk_master'));
+        update(newProductRef, productData);
+    }
+  }, []);
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -176,6 +224,8 @@ export default function RegularSalesPage() {
     const transactionsRef = ref(db, 'transaksi_reguler');
     push(transactionsRef, newTransaction)
       .then(() => {
+        saveToProductMaster({ name: productName, sellingPrice: price, costPrice: cost });
+
         const fundSourceRef = ref(db, `keuangan/cards/${fundSourceCard.id}`);
         runTransaction(fundSourceRef, (card) => {
             if (card) {
@@ -292,6 +342,8 @@ export default function RegularSalesPage() {
 
     update(transactionRef, plainData)
       .then(() => {
+        saveToProductMaster({ name: plainData.productName, sellingPrice: plainData.sellingPrice, costPrice: plainData.costPrice });
+
         const costDiff = plainData.costPrice - originalTransaction.costPrice;
         const priceDiff = plainData.sellingPrice - originalTransaction.sellingPrice;
 
@@ -423,10 +475,54 @@ export default function RegularSalesPage() {
                   <Input id="customerId" placeholder="08123456789" value={customerId} onChange={(e) => setCustomerId(e.target.value)} required 
                          className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="productName">Nama Produk</Label>
-                  <Input id="productName" placeholder="Contoh: Pulsa 50k" value={productName} onChange={(e) => setProductName(e.target.value)} required 
-                         className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
+                <div className="space-y-2 md:col-span-2 lg:col-span-1">
+                    <Label htmlFor="productName">Nama Produk</Label>
+                    <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant="outline"
+                                role="combobox"
+                                aria-expanded={comboboxOpen}
+                                className="w-full justify-between focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2 font-normal"
+                            >
+                                {productName
+                                    ? productMaster.find((p) => p.name.toLowerCase() === productName.toLowerCase())?.name
+                                    : (isLoadingProducts ? "Memuat produk..." : "Pilih atau ketik produk...")}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                            <Command>
+                                <CommandInput 
+                                  placeholder="Cari produk..." 
+                                  value={productName}
+                                  onValueChange={setProductName}
+                                />
+                                <CommandList>
+                                  <CommandEmpty>
+                                    {isLoadingProducts ? 'Memuat...' : 'Produk tidak ditemukan. Produk baru akan disimpan.'}
+                                  </CommandEmpty>
+                                  <CommandGroup>
+                                      {productMaster.map((product) => (
+                                          <CommandItem
+                                              key={product.id}
+                                              value={product.name}
+                                              onSelect={() => handleProductSelect(product)}
+                                          >
+                                              <Check
+                                                  className={cn(
+                                                      "mr-2 h-4 w-4",
+                                                      productName.toLowerCase() === product.name.toLowerCase() ? "opacity-100" : "opacity-0"
+                                                  )}
+                                              />
+                                              {product.name}
+                                          </CommandItem>
+                                      ))}
+                                  </CommandGroup>
+                                </CommandList>
+                            </Command>
+                        </PopoverContent>
+                    </Popover>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="sellingPrice">Harga Jual</Label>
@@ -471,7 +567,7 @@ export default function RegularSalesPage() {
               </div>
             </CardContent>
             <CardFooter className="border-t px-6 py-4">
-              <Button type="submit" disabled={isSubmitting || isLoadingCards} className="transition-all duration-300 hover:scale-105">
+              <Button type="submit" disabled={isSubmitting || isLoadingCards || isLoadingProducts} className="transition-all duration-300 hover:scale-105">
                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {isSubmitting ? 'Menyimpan...' : 'Simpan Transaksi'}
               </Button>
@@ -675,3 +771,5 @@ export default function RegularSalesPage() {
     </div>
   );
 }
+
+    
