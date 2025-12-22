@@ -23,6 +23,7 @@ import {
   SidebarMenuButton,
   SidebarContent,
   SidebarTrigger,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 import React from 'react';
@@ -53,8 +54,15 @@ const menuItems = [
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const { isMobile, setOpenMobile } = useSidebar();
   const [openSales, setOpenSales] = React.useState(pathname.startsWith('/sales'));
   const [openFinance, setOpenFinance] = React.useState(pathname.startsWith('/finance'));
+
+  const handleLinkClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
 
   return (
     <>
@@ -99,6 +107,7 @@ export function AppSidebar() {
                            variant="ghost"
                            isActive={pathname === submenu.href || (submenu.href === '/finance' && pathname === '/finance/balance')}
                            tooltip={{ children: submenu.label, side: 'right' }}
+                           onClick={handleLinkClick}
                          >
                            <Link href={submenu.href}>
                               {submenu.icon && <submenu.icon className="h-4 w-4" />}
@@ -114,6 +123,7 @@ export function AppSidebar() {
                   asChild
                   isActive={pathname === item.href}
                   tooltip={{ children: item.label, side: 'right' }}
+                  onClick={handleLinkClick}
                 >
                   <Link href={item.href}>
                     <item.icon />
