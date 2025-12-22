@@ -387,15 +387,15 @@ export default function RegularSalesPage() {
                     <div className="flex justify-between"><span>Waktu:</span> <span className="font-medium">{format(parseISO(trx.datetime), "d MMM y, HH:mm", { locale: id })}</span></div>
                     <div className="flex justify-between"><span>Harga Jual:</span> <span className="font-medium">Rp {trx.sellingPrice.toLocaleString('id-ID')}</span></div>
                     <div className="flex justify-between"><span>Modal:</span> <span className="font-medium">Rp {trx.costPrice.toLocaleString('id-ID')}</span></div>
-                    <div className="flex justify-between"><span>Laba:</span> <Badge variant={trx.profit > 0 ? 'default' : 'destructive'}>Rp {trx.profit.toLocaleString('id-ID')}</Badge></div>
+                    <div className="flex justify-between items-center"><span>Laba:</span> <Badge variant={trx.profit > 0 ? 'default' : 'destructive'}>Rp {trx.profit.toLocaleString('id-ID')}</Badge></div>
                     <div className="flex justify-between"><span>Sumber:</span> <span className="font-medium">{trx.fundSource || '-'}</span></div>
                     <div className="flex justify-between"><span>Pembayaran:</span> <span className="font-medium">{trx.paymentMethod || '-'}</span></div>
                   </CardContent>
                   <CardFooter className="flex justify-end space-x-2">
-                    <Button variant="outline" size="icon" onClick={() => handleDetailClick(trx)}><Eye className="h-4 w-4" /></Button>
-                    <Button variant="outline" size="icon" onClick={() => handleEditClick(trx)}><Edit className="h-4 w-4" /></Button>
+                    <Button variant="outline" size="icon" onClick={() => handleDetailClick(trx)} className="h-9 w-9"><Eye className="h-4 w-4" /></Button>
+                    <Button variant="outline" size="icon" onClick={() => handleEditClick(trx)} className="h-9 w-9"><Edit className="h-4 w-4" /></Button>
                     <AlertDialog>
-                      <AlertDialogTrigger asChild><Button variant="destructive" size="icon"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
+                      <AlertDialogTrigger asChild><Button variant="destructive" size="icon" className="h-9 w-9"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
                           <AlertDialogTitle>Konfirmasi Hapus</AlertDialogTitle>
