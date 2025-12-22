@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Edit, Loader2 } from 'lucide-react';
+import { Trash2, Edit, Loader2, Eye } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,6 +34,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from 'date-fns';
 import { id } from 'date-fns/locale';
+import { DetailModal } from '@/components/modals/detail-modal';
 
 
 interface Transaction {
@@ -75,6 +76,9 @@ export default function RegularSalesPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+
+  const [detailTransaction, setDetailTransaction] = useState<Transaction | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   useEffect(() => {
     const now = new Date();
@@ -228,6 +232,11 @@ export default function RegularSalesPage() {
     setIsEditDialogOpen(true);
   };
   
+  const handleDetailClick = (transaction: Transaction) => {
+    setDetailTransaction(transaction);
+    setIsDetailModalOpen(true);
+  };
+
   const handleUpdate = () => {
     if (!editingTransaction) return;
     setIsUpdating(true);
@@ -262,6 +271,19 @@ export default function RegularSalesPage() {
       });
   };
 
+  const getDetailData = (trx: Transaction | null) => {
+    if (!trx) return [];
+    return [
+        { label: 'Waktu Transaksi', value: format(parseISO(trx.datetime), "d MMMM yyyy, HH:mm:ss", { locale: id }) },
+        { label: 'ID Pelanggan', value: trx.customerId },
+        { label: 'Nama Produk', value: trx.productName },
+        { label: 'Harga Jual', value: `Rp ${trx.sellingPrice.toLocaleString('id-ID')}` },
+        { label: 'Harga Modal', value: `Rp ${trx.costPrice.toLocaleString('id-ID')}` },
+        { label: 'Laba', value: `Rp ${trx.profit.toLocaleString('id-ID')}`, badge: trx.profit > 0 ? 'default' : 'destructive' },
+        { label: 'Sumber Modal', value: trx.fundSource },
+        { label: 'Metode Pembayaran', value: trx.paymentMethod },
+    ];
+  };
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-background">
@@ -370,6 +392,7 @@ export default function RegularSalesPage() {
                     <div className="flex justify-between"><span>Pembayaran:</span> <span className="font-medium">{trx.paymentMethod || '-'}</span></div>
                   </CardContent>
                   <CardFooter className="flex justify-end space-x-2">
+                    <Button variant="outline" size="icon" onClick={() => handleDetailClick(trx)}><Eye className="h-4 w-4" /></Button>
                     <Button variant="outline" size="icon" onClick={() => handleEditClick(trx)}><Edit className="h-4 w-4" /></Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild><Button variant="destructive" size="icon"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
@@ -420,7 +443,8 @@ export default function RegularSalesPage() {
                       </td>
                       <td className="px-4 py-4 text-sm text-muted-foreground">{trx.fundSource || '-'}</td>
                       <td className="px-4 py-4 text-sm text-muted-foreground">{trx.paymentMethod || '-'}</td>
-                      <td className="px-4 py-4 text-center space-x-2 whitespace-nowrap">
+                      <td className="px-4 py-4 text-center space-x-1 whitespace-nowrap">
+                        <Button variant="outline" size="icon" onClick={() => handleDetailClick(trx)} className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
                         <Button variant="outline" size="icon" onClick={() => handleEditClick(trx)} className="h-8 w-8"><Edit className="h-4 w-4" /></Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild><Button variant="destructive" size="icon" className="h-8 w-8"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
@@ -529,6 +553,13 @@ export default function RegularSalesPage() {
             </DialogContent>
           </Dialog>
         )}
+
+        <DetailModal
+            isOpen={isDetailModalOpen}
+            onClose={() => setIsDetailModalOpen(false)}
+            title="Detail Transaksi"
+            data={getDetailData(detailTransaction)}
+        />
       </main>
     </div>
   );
