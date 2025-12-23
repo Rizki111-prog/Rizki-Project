@@ -85,6 +85,7 @@ export default function RegularSalesPage() {
   const [fundSource, setFundSource] = useState('');
 
   const [payments, setPayments] = useState<Payment[]>([{ method: '', cardId: '', amount: 0, debtorName: '' }]);
+  const [isPaymentAmountManuallySet, setIsPaymentAmountManuallySet] = useState(false);
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [financialCards, setFinancialCards] = useState<FinancialCard[]>([]);
@@ -176,10 +177,36 @@ export default function RegularSalesPage() {
     };
   }, []);
 
+  // Effect to handle default payment and dynamic sync with selling price
+  useEffect(() => {
+      const price = cleanRupiah(sellingPrice);
+      const cashCard = financialCards.find(c => c.name.toLowerCase() === 'tunai');
+
+      if (payments.length === 1 && !isPaymentAmountManuallySet) {
+          const newPayments = [...payments];
+          
+          if (price > 0) {
+              newPayments[0].amount = price;
+          }
+
+          if (cashCard) {
+              newPayments[0].method = cashCard.name;
+              newPayments[0].cardId = cashCard.id;
+          }
+          setPayments(newPayments);
+      }
+  }, [sellingPrice, financialCards, isPaymentAmountManuallySet, payments.length]);
+
+
   const handlePriceChange = (setter: React.Dispatch<React.SetStateAction<string>>) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const { value } = e.target;
     const cleanedValue = value.replace(/[^0-9]/g, '');
     setter(formatRupiah(cleanedValue));
+
+    // When selling price changes, reset manual payment flag to allow sync
+    if (setter === setSellingPrice) {
+        setIsPaymentAmountManuallySet(false);
+    }
   };
   
   const handlePaymentAmountChange = (index: number, value: string) => {
@@ -187,6 +214,10 @@ export default function RegularSalesPage() {
       const cleanedValue = value.replace(/[^0-9]/g, '');
       newPayments[index].amount = cleanRupiah(cleanedValue);
       setPayments(newPayments);
+      // If user edits the amount, we mark it as manually set
+      if (index === 0) {
+          setIsPaymentAmountManuallySet(true);
+      }
   };
   
   const handlePaymentMethodChange = (index: number, value: string) => {
@@ -210,6 +241,7 @@ export default function RegularSalesPage() {
   };
 
   const addPayment = () => {
+      setIsPaymentAmountManuallySet(true); // Prevent auto-sync when adding more payments
       setPayments([...payments, { method: '', cardId: '', amount: 0, debtorName: '' }]);
   };
 
@@ -229,6 +261,7 @@ export default function RegularSalesPage() {
     setCostPrice('');
     setFundSource('');
     setPayments([{ method: '', cardId: '', amount: 0, debtorName: '' }]);
+    setIsPaymentAmountManuallySet(false);
     const now = new Date();
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
     setDatetime(now.toISOString().slice(0, 16));
@@ -239,6 +272,7 @@ export default function RegularSalesPage() {
       setSellingPrice(formatRupiah(String(product.sellingPrice)));
       setCostPrice(formatRupiah(String(product.costPrice)));
       setShowSuggestions(false);
+      setIsPaymentAmountManuallySet(false); // Allow price sync
   }
 
   const saveToProductMaster = useCallback(async (productData: Omit<ProductMaster, 'id'>) => {
