@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { db } from '@/firebase';
 import { ref, push, onValue, remove, update, serverTimestamp, runTransaction, query, orderByChild, equalTo, get } from 'firebase/database';
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Edit, Loader2, Eye, Check, ChevronsUpDown } from 'lucide-react';
+import { Trash2, Edit, Loader2, Eye } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,9 +37,6 @@ import { id } from 'date-fns/locale';
 import { DetailModal } from '@/components/modals/detail-modal';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter, SheetClose } from "@/components/ui/sheet";
 import { useIsMobile } from '@/hooks/use-mobile';
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { cn } from '@/lib/utils';
 
 
 interface Transaction {
@@ -95,8 +92,10 @@ export default function RegularSalesPage() {
   const [detailTransaction, setDetailTransaction] = useState<Transaction | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
-  // For Combobox
-  const [comboboxOpen, setComboboxOpen] = useState(false);
+  // For Suggestion List
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const productNameInputRef = useRef<HTMLDivElement>(null);
+
 
   useEffect(() => {
     const now = new Date();
@@ -156,6 +155,19 @@ export default function RegularSalesPage() {
     };
   }, []);
 
+  // Close suggestion list when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+        if (productNameInputRef.current && !productNameInputRef.current.contains(event.target as Node)) {
+            setShowSuggestions(false);
+        }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   const resetForm = () => {
     setCustomerId('');
     setProductName('');
@@ -168,17 +180,11 @@ export default function RegularSalesPage() {
     setDatetime(now.toISOString().slice(0, 16));
   };
   
-  const handleProductSelect = (value: string) => {
-      const product = productMaster.find(p => p.name.toLowerCase() === value.toLowerCase());
-      setProductName(value);
-      if (product) {
-        setSellingPrice(String(product.sellingPrice));
-        setCostPrice(String(product.costPrice));
-      } else {
-        setSellingPrice('');
-        setCostPrice('');
-      }
-      setComboboxOpen(false);
+  const handleProductSelect = (product: ProductMaster) => {
+      setProductName(product.name);
+      setSellingPrice(String(product.sellingPrice));
+      setCostPrice(String(product.costPrice));
+      setShowSuggestions(false);
   }
 
   const saveToProductMaster = useCallback(async (productData: Omit<ProductMaster, 'id'>) => {
@@ -483,64 +489,33 @@ export default function RegularSalesPage() {
                   <Input id="customerId" placeholder="08123456789" value={customerId} onChange={(e) => setCustomerId(e.target.value)} required 
                          className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
                 </div>
-                <div className="space-y-2 md:col-span-2 lg:col-span-1">
+                <div className="space-y-2 md:col-span-2 lg:col-span-1 relative" ref={productNameInputRef}>
                     <Label htmlFor="productName">Nama Produk</Label>
-                    <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
-                        <PopoverTrigger asChild>
-                            <Button
-                                variant="outline"
-                                role="combobox"
-                                aria-expanded={comboboxOpen}
-                                className="w-full justify-between focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2 font-normal"
-                            >
-                                <span className="truncate">
-                                {productName
-                                    ? productName
-                                    : (isLoadingProducts ? "Memuat produk..." : "Pilih atau ketik produk...")}
-                                </span>
-                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                            <Command shouldFilter={false}>
-                                <CommandInput 
-                                  placeholder="Cari atau buat produk baru..." 
-                                  value={productName}
-                                  onValueChange={setProductName}
-                                />
-                                <CommandList>
-                                  <CommandEmpty>
-                                    <button
-                                      type="button"
-                                      className="w-full text-left p-4 text-sm"
-                                      onClick={() => handleProductSelect(productName)}
-                                    >
-                                        Buat produk baru: "<strong>{productName}</strong>"
-                                    </button>
-                                  </CommandEmpty>
-                                  <CommandGroup>
-                                      {productMaster
-                                        .filter(p => p.name.toLowerCase().includes(productName.toLowerCase()))
-                                        .map((product) => (
-                                          <CommandItem
-                                              key={product.id}
-                                              value={product.name}
-                                              onSelect={handleProductSelect}
-                                          >
-                                              <Check
-                                                  className={cn(
-                                                      "mr-2 h-4 w-4",
-                                                      productName.toLowerCase() === product.name.toLowerCase() ? "opacity-100" : "opacity-0"
-                                                  )}
-                                              />
-                                              {product.name}
-                                          </CommandItem>
-                                      ))}
-                                  </CommandGroup>
-                                </CommandList>
-                            </Command>
-                        </PopoverContent>
-                    </Popover>
+                    <Input 
+                      id="productName"
+                      placeholder={isLoadingProducts ? "Memuat produk..." : "Ketik nama produk"}
+                      value={productName}
+                      onChange={(e) => setProductName(e.target.value)}
+                      onFocus={() => setShowSuggestions(true)}
+                      autoComplete="off"
+                      required
+                      className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"
+                    />
+                    {showSuggestions && productMaster.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-card border border-border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                            {productMaster
+                              .filter(p => p.name.toLowerCase().includes(productName.toLowerCase()))
+                              .map((product) => (
+                                <div
+                                    key={product.id}
+                                    className="p-2 hover:bg-accent cursor-pointer text-sm"
+                                    onClick={() => handleProductSelect(product)}
+                                >
+                                    {product.name}
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="sellingPrice">Harga Jual</Label>
