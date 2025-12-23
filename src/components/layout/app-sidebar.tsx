@@ -10,6 +10,7 @@ import {
   LineChart,
   ShoppingCart,
   Wallet,
+  BookUser,
 } from 'lucide-react';
 import {
   Collapsible,
@@ -40,6 +41,7 @@ const menuItems = [
     ] 
   },
   { href: '/expenses', label: 'Pengeluaran', icon: Wallet },
+  { href: '/hutang', label: 'Hutang', icon: BookUser },
   { 
     href: '/finance', 
     label: 'Keuangan', 
@@ -138,3 +140,5 @@ export function AppSidebar() {
     </>
   );
 }
+
+    

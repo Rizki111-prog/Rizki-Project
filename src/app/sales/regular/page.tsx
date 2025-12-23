@@ -78,6 +78,7 @@ export default function RegularSalesPage() {
   const [costPrice, setCostPrice] = useState('');
   const [fundSource, setFundSource] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
+  const [debtorName, setDebtorName] = useState('');
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [financialCards, setFinancialCards] = useState<FinancialCard[]>([]);
@@ -95,7 +96,6 @@ export default function RegularSalesPage() {
   const [detailTransaction, setDetailTransaction] = useState<Transaction | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
-  // For Suggestion List
   const [showSuggestions, setShowSuggestions] = useState(false);
   const productNameInputRef = useRef<HTMLDivElement>(null);
 
@@ -158,7 +158,6 @@ export default function RegularSalesPage() {
     };
   }, []);
 
-  // Close suggestion list when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
         if (productNameInputRef.current && !productNameInputRef.current.contains(event.target as Node)) {
@@ -184,6 +183,7 @@ export default function RegularSalesPage() {
     setCostPrice('');
     setFundSource('');
     setPaymentMethod('');
+    setDebtorName('');
     const now = new Date();
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
     setDatetime(now.toISOString().slice(0, 16));
@@ -208,7 +208,8 @@ export default function RegularSalesPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customerId || !productName || !sellingPrice || !costPrice || !fundSource || !paymentMethod) {
+    const isDebt = paymentMethod === 'Hutang';
+    if (!customerId || !productName || !sellingPrice || !costPrice || !fundSource || !paymentMethod || (isDebt && !debtorName)) {
       toast({
         variant: "destructive",
         title: "Gagal",
@@ -221,10 +222,18 @@ export default function RegularSalesPage() {
     const cost = cleanRupiah(costPrice);
     const price = cleanRupiah(sellingPrice);
     const fundSourceCard = financialCards.find(c => c.id === fundSource);
-    const paymentMethodCard = financialCards.find(c => c.id === paymentMethod);
+    
+    if (!fundSourceCard) {
+        toast({ variant: "destructive", title: "Gagal", description: "Sumber dana tidak valid." });
+        setIsSubmitting(false);
+        return;
+    }
+    
+    const paymentMethodName = isDebt ? 'Hutang' : financialCards.find(c => c.id === paymentMethod)?.name;
+    const paymentMethodId = isDebt ? undefined : paymentMethod;
 
-    if (!fundSourceCard || !paymentMethodCard) {
-        toast({ variant: "destructive", title: "Gagal", description: "Sumber dana atau metode pembayaran tidak valid." });
+    if (!isDebt && !paymentMethodName) {
+        toast({ variant: "destructive", title: "Gagal", description: "Metode pembayaran tidak valid." });
         setIsSubmitting(false);
         return;
     }
@@ -237,14 +246,18 @@ export default function RegularSalesPage() {
       costPrice: cost,
       fundSource: fundSourceCard.name,
       fundSourceId: fundSourceCard.id,
-      paymentMethod: paymentMethodCard.name,
-      paymentMethodId: paymentMethodCard.id,
+      paymentMethod: paymentMethodName,
+      paymentMethodId: paymentMethodId,
       createdAt: serverTimestamp()
     };
 
     const transactionsRef = ref(db, 'transaksi_reguler');
-    push(transactionsRef, newTransaction)
+    const newTransactionRef = push(transactionsRef);
+    
+    update(newTransactionRef, newTransaction)
       .then(() => {
+        const transactionId = newTransactionRef.key;
+
         if (productName && price && cost) {
           saveToProductMaster({ name: productName, sellingPrice: price, costPrice: cost });
         }
@@ -257,13 +270,26 @@ export default function RegularSalesPage() {
             return card;
         });
 
-        const paymentMethodRef = ref(db, `keuangan/cards/${paymentMethodCard.id}`);
-        runTransaction(paymentMethodRef, (card) => {
-            if (card) {
-                card.balance += price;
-            }
-            return card;
-        });
+        if (!isDebt && paymentMethodId) {
+            const paymentMethodRef = ref(db, `keuangan/cards/${paymentMethodId}`);
+            runTransaction(paymentMethodRef, (card) => {
+                if (card) {
+                    card.balance += price;
+                }
+                return card;
+            });
+        }
+
+        if (isDebt && transactionId) {
+            const debtRef = ref(db, 'hutang');
+            push(debtRef, {
+                nama: debtorName,
+                nominal: price,
+                tanggal: datetime,
+                status: 'Belum Lunas',
+                transactionId: transactionId
+            });
+        }
 
         toast({
           title: "Sukses",
@@ -299,7 +325,6 @@ export default function RegularSalesPage() {
     const transactionRef = ref(db, `transaksi_reguler/${id}`);
     remove(transactionRef)
       .then(() => {
-        // Revert balance changes
         if(fundSourceCardId){
             const fundSourceRef = ref(db, `keuangan/cards/${fundSourceCardId}`);
             runTransaction(fundSourceRef, (card) => {
@@ -309,7 +334,7 @@ export default function RegularSalesPage() {
                 return card;
             });
         }
-        if(paymentMethodCardId){
+        if(paymentMethodCardId && transactionToDelete.paymentMethod !== 'Hutang'){
             const paymentMethodRef = ref(db, `keuangan/cards/${paymentMethodCardId}`);
             runTransaction(paymentMethodRef, (card) => {
                 if (card) {
@@ -318,6 +343,17 @@ export default function RegularSalesPage() {
                 return card;
             });
         }
+
+        // Also remove related debt if exists
+        const debtQuery = query(ref(db, 'hutang'), orderByChild('transactionId'), equalTo(id));
+        get(debtQuery).then(snapshot => {
+            if(snapshot.exists()) {
+                snapshot.forEach(childSnapshot => {
+                    remove(childSnapshot.ref);
+                });
+            }
+        });
+
         toast({
           title: "Sukses",
           description: "Transaksi berhasil dihapus.",
@@ -387,7 +423,6 @@ export default function RegularSalesPage() {
                 });
             }
         } else {
-            // Revert old and apply new
             if(originalTransaction.fundSourceId){
                 const oldFundRef = ref(db, `keuangan/cards/${originalTransaction.fundSourceId}`);
                 runTransaction(oldFundRef, (card) => {
@@ -404,9 +439,8 @@ export default function RegularSalesPage() {
             }
         }
 
-        // Handle payment method balance update
         if(originalTransaction.paymentMethodId === plainData.paymentMethodId){
-            if(priceDiff !== 0 && originalTransaction.paymentMethodId){
+            if(priceDiff !== 0 && originalTransaction.paymentMethodId && originalTransaction.paymentMethod !== 'Hutang'){
                 const paymentMethodRef = ref(db, `keuangan/cards/${originalTransaction.paymentMethodId}`);
                 runTransaction(paymentMethodRef, (card) => {
                     if (card) {
@@ -416,15 +450,14 @@ export default function RegularSalesPage() {
                 });
             }
         } else {
-            // Revert old and apply new
-            if(originalTransaction.paymentMethodId){
+             if(originalTransaction.paymentMethodId && originalTransaction.paymentMethod !== 'Hutang'){
                 const oldPaymentRef = ref(db, `keuangan/cards/${originalTransaction.paymentMethodId}`);
                 runTransaction(oldPaymentRef, (card) => {
                     if(card) card.balance -= originalTransaction.sellingPrice;
                     return card;
                 });
             }
-            if(plainData.paymentMethodId){
+            if(plainData.paymentMethodId && plainData.paymentMethod !== 'Hutang'){
                 const newPaymentRef = ref(db, `keuangan/cards/${plainData.paymentMethodId}`);
                 runTransaction(newPaymentRef, (card) => {
                     if(card) card.balance += plainData.sellingPrice;
@@ -432,6 +465,18 @@ export default function RegularSalesPage() {
                 });
             }
         }
+
+        if (plainData.paymentMethod === 'Hutang' && plainData.sellingPrice !== originalTransaction.sellingPrice) {
+            const debtQuery = query(ref(db, 'hutang'), orderByChild('transactionId'), equalTo(id));
+            get(debtQuery).then(snapshot => {
+                if (snapshot.exists()) {
+                    snapshot.forEach(childSnapshot => {
+                        update(childSnapshot.ref, { nominal: plainData.sellingPrice });
+                    });
+                }
+            });
+        }
+
 
         toast({
           title: "Sukses",
@@ -558,20 +603,34 @@ export default function RegularSalesPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="paymentMethod">Metode Pembayaran</Label>
-                   <Select value={paymentMethod} onValueChange={setPaymentMethod} required>
-                    <SelectTrigger className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2">
-                        <SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih metode pembayaran"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {financialCards.map(card => (
-                            <SelectItem key={card.id} value={card.id}>
-                                {card.name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                    <Label htmlFor="paymentMethod">Metode Pembayaran</Label>
+                    <Select value={paymentMethod} onValueChange={setPaymentMethod} required>
+                        <SelectTrigger className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2">
+                            <SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih metode pembayaran"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="Hutang">Hutang</SelectItem>
+                            {financialCards.map(card => (
+                                <SelectItem key={card.id} value={card.id}>
+                                    {card.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
+                {paymentMethod === 'Hutang' && (
+                    <div className="space-y-2">
+                        <Label htmlFor="debtorName">Nama Penghutang</Label>
+                        <Input 
+                            id="debtorName" 
+                            placeholder="Masukkan nama penghutang" 
+                            value={debtorName} 
+                            onChange={(e) => setDebtorName(e.target.value)} 
+                            required 
+                            className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"
+                        />
+                    </div>
+                )}
               </div>
             </CardContent>
             <CardFooter className="border-t px-6 py-4">
@@ -738,11 +797,15 @@ export default function RegularSalesPage() {
                 <div className="space-y-2">
                   <Label htmlFor="edit-paymentMethod">Metode Pembayaran</Label>
                   <Select 
-                      value={editingTransaction.paymentMethodId || financialCards.find(c => c.name === editingTransaction.paymentMethod)?.id} 
+                      value={editingTransaction.paymentMethod === 'Hutang' ? 'Hutang' : (editingTransaction.paymentMethodId || financialCards.find(c => c.name === editingTransaction.paymentMethod)?.id)} 
                       onValueChange={(value) => {
-                          const card = financialCards.find(c => c.id === value);
-                          if (card) {
-                            setEditingTransaction({ ...editingTransaction, paymentMethodId: card.id, paymentMethod: card.name });
+                          if (value === 'Hutang') {
+                               setEditingTransaction({ ...editingTransaction, paymentMethodId: undefined, paymentMethod: 'Hutang' });
+                          } else {
+                              const card = financialCards.find(c => c.id === value);
+                              if (card) {
+                                setEditingTransaction({ ...editingTransaction, paymentMethodId: card.id, paymentMethod: card.name });
+                              }
                           }
                       }}
                     >
@@ -750,6 +813,7 @@ export default function RegularSalesPage() {
                         <SelectValue placeholder="Pilih metode pembayaran" />
                     </SelectTrigger>
                     <SelectContent>
+                        <SelectItem value="Hutang">Hutang</SelectItem>
                         {financialCards.map(card => (
                             <SelectItem key={card.id} value={card.id}>
                                 {card.name}
@@ -779,3 +843,5 @@ export default function RegularSalesPage() {
     </div>
   );
 }
+
+    
