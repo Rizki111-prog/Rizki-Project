@@ -141,6 +141,15 @@ export default function RegularSalesPage() {
         }
         setFinancialCards(loadedCards);
         setIsLoadingCards(false);
+
+        // Set default fund source after cards are loaded
+        const agenPulsaCard = loadedCards.find(card => card.name === 'Agen Pulsa');
+        if (agenPulsaCard) {
+            setFundSource(agenPulsaCard.id);
+        } else if (loadedCards.length > 0) {
+            setFundSource(loadedCards[0].id); // Fallback to the first card
+        }
+
     }, (error) => {
         console.error("Firebase read failed: " + error.message);
         setIsLoadingCards(false);
@@ -165,14 +174,6 @@ export default function RegularSalesPage() {
     };
   }, []);
 
-  useEffect(() => {
-    if (financialCards.length > 0 && !fundSource) {
-      const agenPulsaCard = financialCards.find(card => card.name === 'Agen Pulsa');
-      if (agenPulsaCard) {
-        setFundSource(agenPulsaCard.id);
-      }
-    }
-  }, [financialCards, fundSource]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
