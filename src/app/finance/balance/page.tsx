@@ -26,6 +26,13 @@ interface FinancialCard {
   icon: string;
 }
 
+interface Payment {
+  method: string;
+  cardId?: string;
+  amount: number;
+  debtorName?: string;
+}
+
 interface Transaction {
   id: string;
   datetime: string;
@@ -33,7 +40,7 @@ interface Transaction {
   sellingPrice: number;
   costPrice: number;
   fundSourceId?: string;
-  paymentMethodId?: string;
+  payments?: Payment[];
   type: 'income' | 'expense';
   amount: number;
   description: string;
@@ -181,15 +188,17 @@ export default function BalancePage() {
                     description: `Modal untuk ${trx.productName}`
                 });
             }
-            // Money in (selling price)
-            if (trx.paymentMethodId === selectedCard.id) {
-                 relatedTransactions.push({
-                    ...trx,
-                    type: 'income',
-                    amount: trx.sellingPrice,
-                    description: `Pembayaran untuk ${trx.productName}`
-                });
-            }
+            // Money in (selling price from payments)
+            trx.payments?.forEach(payment => {
+                if (payment.cardId === selectedCard.id) {
+                    relatedTransactions.push({
+                       ...trx,
+                       type: 'income',
+                       amount: payment.amount,
+                       description: `Pembayaran untuk ${trx.productName}`
+                   });
+                }
+            })
         });
 
         // Add sorting by date, newest first
@@ -237,7 +246,7 @@ export default function BalancePage() {
                                     </CardHeader>
                                     <CardContent>
                                         <div className="text-2xl font-bold tracking-tight">
-                                            Rp {card.balance.toLocaleString('id-ID')}
+                                            {formatRupiah(card.balance)}
                                         </div>
                                         <p className="text-xs text-muted-foreground">
                                             Saldo saat ini
@@ -329,7 +338,7 @@ export default function BalancePage() {
                                             <p className="text-xs text-muted-foreground">{format(new Date(trx.datetime), "d MMM yyyy, HH:mm", { locale: id })}</p>
                                         </div>
                                         <div className={`text-sm font-bold whitespace-nowrap ${trx.type === 'income' ? 'text-emerald-600' : 'text-red-600'}`}>
-                                            {trx.type === 'income' ? '+' : '-'} Rp {trx.amount.toLocaleString('id-ID')}
+                                            {trx.type === 'income' ? '+' : '-'} {formatRupiah(trx.amount)}
                                         </div>
                                     </motion.li>
                                 ))}
