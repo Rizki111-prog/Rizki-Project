@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { db } from '@/firebase';
-import { ref, onValue, update, runTransaction } from 'firebase/database';
+import { ref, onValue, update, runTransaction, get } from 'firebase/database';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,7 @@ interface Debt {
   tanggal: string;
   status: 'Belum Lunas' | 'Lunas';
   transactionId: string;
+  tanggal_pelunasan?: string;
 }
 
 interface FinancialCard {
@@ -50,7 +51,12 @@ export default function HutangPage() {
             for (const key in data) {
                 loadedDebts.push({ id: key, ...data[key] });
             }
-            loadedDebts.sort((a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime());
+            loadedDebts.sort((a, b) => {
+                if (a.status === b.status) {
+                    return new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime();
+                }
+                return a.status === 'Lunas' ? 1 : -1;
+            });
             setDebts(loadedDebts);
             setIsLoadingData(false);
         });
@@ -76,7 +82,7 @@ export default function HutangPage() {
         setIsModalOpen(true);
     };
 
-    const handleConfirmPayment = () => {
+    const handleConfirmPayment = async () => {
         if (!selectedDebt || !paymentMethod) {
             toast({
                 variant: "destructive",
@@ -87,35 +93,70 @@ export default function HutangPage() {
         }
         setIsSubmitting(true);
 
-        const debtRef = ref(db, `hutang/${selectedDebt.id}`);
-        update(debtRef, { status: 'Lunas' })
-            .then(() => {
-                const paymentCardRef = ref(db, `keuangan/cards/${paymentMethod}`);
-                runTransaction(paymentCardRef, (card) => {
-                    if (card) {
-                        card.balance += selectedDebt.nominal;
-                    }
-                    return card;
-                });
-                toast({
-                    title: "Sukses",
-                    description: `Hutang an. ${selectedDebt.nama} telah lunas.`,
-                });
-                setIsModalOpen(false);
-                setSelectedDebt(null);
-                setPaymentMethod('');
-            })
-            .catch((error) => {
-                toast({
-                    variant: "destructive",
-                    title: "Gagal",
-                    description: `Terjadi kesalahan: ${error.message}`,
-                });
-            })
-            .finally(() => {
-                setIsSubmitting(false);
+        try {
+            const settlementDate = new Date().toISOString();
+            const paymentCard = financialCards.find(card => card.id === paymentMethod);
+            if (!paymentCard) {
+                throw new Error("Metode pembayaran tidak valid.");
+            }
+
+            // 1. Get the original transaction
+            const transactionRef = ref(db, `transaksi_reguler/${selectedDebt.transactionId}`);
+            const transactionSnapshot = await get(transactionRef);
+            if (!transactionSnapshot.exists()) {
+                throw new Error("Transaksi asli tidak ditemukan.");
+            }
+            const transactionData = transactionSnapshot.val();
+            const paymentIndex = transactionData.payments.findIndex((p: any) => p.method === 'Hutang' && p.debtorName === selectedDebt.nama);
+
+            if (paymentIndex === -1) {
+                throw new Error("Pembayaran hutang tidak ditemukan di transaksi asli.");
+            }
+            
+            // 2. Prepare multi-path update
+            const updates: { [key: string]: any } = {};
+
+            // Update for /hutang/{debtId}
+            updates[`/hutang/${selectedDebt.id}/status`] = 'Lunas';
+            updates[`/hutang/${selectedDebt.id}/tanggal_pelunasan`] = settlementDate;
+            
+            // Update for original transaction in /transaksi_reguler/{transactionId}
+            updates[`/transaksi_reguler/${selectedDebt.transactionId}/payments/${paymentIndex}/method`] = paymentCard.name;
+            updates[`/transaksi_reguler/${selectedDebt.transactionId}/payments/${paymentIndex}/cardId`] = paymentCard.id;
+            updates[`/transaksi_reguler/${selectedDebt.transactionId}/tanggal_pelunasan`] = settlementDate;
+
+
+            // 3. Execute the multi-path update
+            await update(ref(db), updates);
+
+            // 4. Update the balance of the payment card
+            const paymentCardRef = ref(db, `keuangan/cards/${paymentMethod}`);
+            await runTransaction(paymentCardRef, (card) => {
+                if (card) {
+                    card.balance += selectedDebt.nominal;
+                }
+                return card;
             });
+            
+            toast({
+                title: "Sukses",
+                description: `Hutang lunas dan metode pembayaran transaksi telah diperbarui.`,
+            });
+
+        } catch (error: any) {
+            toast({
+                variant: "destructive",
+                title: "Gagal",
+                description: `Terjadi kesalahan: ${error.message}`,
+            });
+        } finally {
+            setIsSubmitting(false);
+            setIsModalOpen(false);
+            setSelectedDebt(null);
+            setPaymentMethod('');
+        }
     };
+
 
     return (
         <div className="flex flex-col w-full min-h-screen bg-background">
@@ -134,18 +175,23 @@ export default function HutangPage() {
                 ) : debts.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                         {debts.map((debt) => (
-                            <Card key={debt.id} className="rounded-xl shadow-sm">
+                            <Card key={debt.id} className={`rounded-xl shadow-sm ${debt.status === 'Lunas' ? 'bg-muted/50' : ''}`}>
                                 <CardHeader>
                                     <div className="flex justify-between items-start">
-                                        <CardTitle className="text-lg">{debt.nama}</CardTitle>
-                                        <Badge variant={debt.status === 'Lunas' ? 'default' : 'destructive'}>
+                                        <CardTitle className={`text-lg ${debt.status === 'Lunas' ? 'text-muted-foreground' : ''}`}>{debt.nama}</CardTitle>
+                                        <Badge variant={debt.status === 'Lunas' ? 'secondary' : 'destructive'}>
                                             {debt.status}
                                         </Badge>
                                     </div>
                                     <CardDescription>{format(parseISO(debt.tanggal), "d MMMM yyyy, HH:mm", { locale: id })}</CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    <p className="text-2xl font-bold tracking-tight">Rp {formatRupiah(debt.nominal)}</p>
+                                    <p className={`text-2xl font-bold tracking-tight ${debt.status === 'Lunas' ? 'text-muted-foreground' : ''}`}>{formatRupiah(debt.nominal)}</p>
+                                    {debt.status === 'Lunas' && debt.tanggal_pelunasan && (
+                                        <p className="text-xs text-muted-foreground mt-2">
+                                            Lunas pada: {format(parseISO(debt.tanggal_pelunasan), "d MMM yyyy", { locale: id })}
+                                        </p>
+                                    )}
                                 </CardContent>
                                 <CardFooter>
                                     {debt.status === 'Belum Lunas' && (
@@ -174,7 +220,7 @@ export default function HutangPage() {
                     <DialogHeader>
                         <DialogTitle>Pelunasan Hutang</DialogTitle>
                         <DialogDescription>
-                            Pilih metode pembayaran untuk melunasi hutang an. <strong>{selectedDebt?.nama}</strong> sebesar <strong>Rp {formatRupiah(selectedDebt?.nominal || 0)}</strong>.
+                            Pilih metode pembayaran untuk melunasi hutang an. <strong>{selectedDebt?.nama}</strong> sebesar <strong>{formatRupiah(selectedDebt?.nominal || 0)}</strong>.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="py-4 space-y-4">
@@ -208,5 +254,3 @@ export default function HutangPage() {
         </div>
     );
 }
-
-    
