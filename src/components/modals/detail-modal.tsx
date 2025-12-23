@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogClose,
 } from '@/components/ui/dialog';
 import {
   Sheet,
@@ -81,5 +82,3 @@ export function DetailModal({ isOpen, onClose, title, description, data }: Detai
     </ModalComponent>
   );
 }
-
-    
