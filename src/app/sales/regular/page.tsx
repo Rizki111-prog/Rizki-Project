@@ -179,23 +179,28 @@ export default function RegularSalesPage() {
 
   // Effect to handle default payment and dynamic sync with selling price
   useEffect(() => {
-      const price = cleanRupiah(sellingPrice);
-      const cashCard = financialCards.find(c => c.name.toLowerCase() === 'tunai');
+    if (isLoadingCards) return;
 
-      if (payments.length === 1 && !isPaymentAmountManuallySet) {
-          const newPayments = [...payments];
-          
-          if (price > 0) {
-              newPayments[0].amount = price;
-          }
+    const price = cleanRupiah(sellingPrice);
+    
+    if (payments.length === 1 && !isPaymentAmountManuallySet) {
+        const newPayments = [...payments];
+        const cashCard = financialCards.find(c => c.name.toLowerCase() === 'tunai');
+        const defaultCard = cashCard || financialCards[0];
 
-          if (cashCard) {
-              newPayments[0].method = cashCard.name;
-              newPayments[0].cardId = cashCard.id;
-          }
-          setPayments(newPayments);
-      }
-  }, [sellingPrice, financialCards, isPaymentAmountManuallySet, payments.length]);
+        if (price > 0) {
+            newPayments[0].amount = price;
+        } else {
+            newPayments[0].amount = 0;
+        }
+
+        if (defaultCard) {
+            newPayments[0].method = defaultCard.name;
+            newPayments[0].cardId = defaultCard.id;
+        }
+        setPayments(newPayments);
+    }
+  }, [sellingPrice, financialCards, isPaymentAmountManuallySet, payments.length, isLoadingCards]);
 
 
   const handlePriceChange = (setter: React.Dispatch<React.SetStateAction<string>>) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -203,7 +208,6 @@ export default function RegularSalesPage() {
     const cleanedValue = value.replace(/[^0-9]/g, '');
     setter(formatRupiah(cleanedValue));
 
-    // When selling price changes, reset manual payment flag to allow sync
     if (setter === setSellingPrice) {
         setIsPaymentAmountManuallySet(false);
     }
@@ -214,10 +218,8 @@ export default function RegularSalesPage() {
       const cleanedValue = value.replace(/[^0-9]/g, '');
       newPayments[index].amount = cleanRupiah(cleanedValue);
       setPayments(newPayments);
-      // If user edits the amount, we mark it as manually set
-      if (index === 0) {
-          setIsPaymentAmountManuallySet(true);
-      }
+      
+      setIsPaymentAmountManuallySet(true);
   };
   
   const handlePaymentMethodChange = (index: number, value: string) => {
@@ -241,13 +243,17 @@ export default function RegularSalesPage() {
   };
 
   const addPayment = () => {
-      setIsPaymentAmountManuallySet(true); // Prevent auto-sync when adding more payments
-      setPayments([...payments, { method: '', cardId: '', amount: 0, debtorName: '' }]);
+      setIsPaymentAmountManuallySet(true); 
+      const remaining = cleanRupiah(sellingPrice) - payments.reduce((acc, p) => acc + p.amount, 0);
+      setPayments([...payments, { method: '', cardId: '', amount: remaining > 0 ? remaining : 0, debtorName: '' }]);
   };
 
   const removePayment = (index: number) => {
       const newPayments = payments.filter((_, i) => i !== index);
       setPayments(newPayments);
+      if (newPayments.length === 1) {
+          setIsPaymentAmountManuallySet(false);
+      }
   };
   
   const totalPaid = payments.reduce((acc, p) => acc + p.amount, 0);
@@ -272,7 +278,7 @@ export default function RegularSalesPage() {
       setSellingPrice(formatRupiah(String(product.sellingPrice)));
       setCostPrice(formatRupiah(String(product.costPrice)));
       setShowSuggestions(false);
-      setIsPaymentAmountManuallySet(false); // Allow price sync
+      setIsPaymentAmountManuallySet(false); 
   }
 
   const saveToProductMaster = useCallback(async (productData: Omit<ProductMaster, 'id'>) => {
@@ -287,8 +293,8 @@ export default function RegularSalesPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!customerId || !productName || !sellingPrice || !costPrice || !fundSource) {
-      toast({ variant: "destructive", title: "Gagal", description: "Harap isi semua field data transaksi." });
+    if (!productName || !sellingPrice || !costPrice || !fundSource) {
+      toast({ variant: "destructive", title: "Gagal", description: "Harap isi semua field data transaksi, kecuali ID Pelanggan." });
       return;
     }
     
@@ -316,7 +322,7 @@ export default function RegularSalesPage() {
     
     const newTransaction = {
       datetime,
-      customerId,
+      customerId: customerId || '',
       productName,
       sellingPrice: price,
       costPrice: cost,
@@ -425,7 +431,6 @@ export default function RegularSalesPage() {
             }
         });
 
-        // Also remove related debt if exists
         const debtQuery = query(ref(db, 'hutang'), orderByChild('transactionId'), equalTo(id));
         get(debtQuery).then(snapshot => {
             if(snapshot.exists()) {
@@ -462,9 +467,6 @@ export default function RegularSalesPage() {
   };
   
   const handleUpdate = () => {
-    // Note: Update logic needs to be significantly refactored to support multi-payment.
-    // This is a complex operation involving reversing old payments and applying new ones.
-    // For now, we will leave the update logic as is, focusing on the add/delete flow.
     toast({
         title: "Info",
         description: "Fungsi edit untuk transaksi multi-payment sedang dalam pengembangan."
@@ -482,7 +484,7 @@ export default function RegularSalesPage() {
     if (!trx) return [];
     let details: any[] = [
         { label: 'Waktu Transaksi', value: format(parseISO(trx.datetime), "d MMMM yyyy, HH:mm:ss", { locale: id }) },
-        { label: 'ID Pelanggan', value: trx.customerId },
+        { label: 'ID Pelanggan', value: trx.customerId || '-' },
         { label: 'Nama Produk', value: trx.productName },
         { label: 'Harga Jual', value: `Rp ${trx.sellingPrice.toLocaleString('id-ID')}` },
         { label: 'Harga Modal', value: `Rp ${trx.costPrice.toLocaleString('id-ID')}` },
@@ -534,7 +536,7 @@ export default function RegularSalesPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="customerId">Nomor HP / ID Pelanggan</Label>
-                  <Input id="customerId" placeholder="08123456789" value={customerId} onChange={(e) => setCustomerId(e.target.value)} required 
+                  <Input id="customerId" placeholder="ID Pelanggan (Opsional)" value={customerId} onChange={(e) => setCustomerId(e.target.value)}
                          className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
                 </div>
                 <div className="space-y-2 md:col-span-2 lg:col-span-1 relative" ref={productNameInputRef}>
@@ -683,7 +685,7 @@ export default function RegularSalesPage() {
                     <div className="flex justify-between items-start">
                         <div>
                             <CardTitle className="text-base">{trx.productName}</CardTitle>
-                            <CardDescription>{trx.customerId}</CardDescription>
+                            <CardDescription>{trx.customerId || 'Tanpa ID'}</CardDescription>
                         </div>
                         <Badge variant={trx.profit > 0 ? 'default' : 'destructive'} className="text-xs">Rp {trx.profit.toLocaleString('id-ID')}</Badge>
                     </div>
@@ -734,7 +736,7 @@ export default function RegularSalesPage() {
                   {transactions.map((trx) => (
                     <tr key={trx.id} className="hover:bg-muted/50 transition-colors">
                       <td className="px-4 py-4 text-sm text-muted-foreground whitespace-nowrap">{format(parseISO(trx.datetime), "d MMM y, HH:mm", { locale: id })}</td>
-                      <td className="px-4 py-4 text-sm text-foreground">{trx.customerId}</td>
+                      <td className="px-4 py-4 text-sm text-foreground">{trx.customerId || '-'}</td>
                       <td className="px-4 py-4 text-sm font-medium text-foreground">{trx.productName}</td>
                       <td className="px-4 py-4 text-sm text-right text-foreground whitespace-nowrap">Rp {trx.sellingPrice.toLocaleString('id-ID')}</td>
                       <td className="px-4 py-4 text-sm text-right text-muted-foreground whitespace-nowrap">Rp {trx.costPrice.toLocaleString('id-ID')}</td>
@@ -801,3 +803,5 @@ export default function RegularSalesPage() {
     </div>
   );
 }
+
+    
