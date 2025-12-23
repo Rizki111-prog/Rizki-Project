@@ -287,7 +287,12 @@ export default function RegularSalesPage() {
       costPrice: cost,
       fundSource: fundSourceCard.name,
       fundSourceId: fundSourceCard.id,
-      payments: payments.map(({amount, method, cardId, debtorName}) => ({amount, method, cardId, debtorName})),
+      payments: payments.map(({amount, method, cardId, debtorName}) => {
+        const paymentData: any = { amount, method };
+        if (cardId) paymentData.cardId = cardId;
+        if (debtorName) paymentData.debtorName = debtorName;
+        return paymentData;
+      }),
       createdAt: serverTimestamp()
     };
 
@@ -503,7 +508,10 @@ export default function RegularSalesPage() {
                       id="productName"
                       placeholder={isLoadingProducts ? "Memuat produk..." : "Ketik nama produk"}
                       value={productName}
-                      onChange={(e) => setProductName(e.target.value)}
+                      onChange={(e) => {
+                        setProductName(e.target.value)
+                        if (!showSuggestions) setShowSuggestions(true);
+                      }}
                       onFocus={() => setShowSuggestions(true)}
                       autoComplete="off"
                       required
