@@ -37,6 +37,7 @@ import { id } from 'date-fns/locale';
 import { DetailModal } from '@/components/modals/detail-modal';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter, SheetClose } from "@/components/ui/sheet";
 import { useIsMobile } from '@/hooks/use-mobile';
+import { formatRupiah, cleanRupiah } from '@/lib/utils';
 
 
 interface Transaction {
@@ -85,6 +86,8 @@ export default function RegularSalesPage() {
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
 
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [editSellingPrice, setEditSellingPrice] = useState('');
+  const [editCostPrice, setEditCostPrice] = useState('');
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -168,6 +171,12 @@ export default function RegularSalesPage() {
     };
   }, []);
 
+  const handlePriceChange = (setter: React.Dispatch<React.SetStateAction<string>>) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { value } = e.target;
+    const cleanedValue = value.replace(/[^0-9]/g, '');
+    setter(formatRupiah(cleanedValue));
+  };
+
   const resetForm = () => {
     setCustomerId('');
     setProductName('');
@@ -182,8 +191,8 @@ export default function RegularSalesPage() {
   
   const handleProductSelect = (product: ProductMaster) => {
       setProductName(product.name);
-      setSellingPrice(String(product.sellingPrice));
-      setCostPrice(String(product.costPrice));
+      setSellingPrice(formatRupiah(String(product.sellingPrice)));
+      setCostPrice(formatRupiah(String(product.costPrice)));
       setShowSuggestions(false);
   }
 
@@ -209,8 +218,8 @@ export default function RegularSalesPage() {
     }
     setIsSubmitting(true);
 
-    const cost = Number(costPrice);
-    const price = Number(sellingPrice);
+    const cost = cleanRupiah(costPrice);
+    const price = cleanRupiah(sellingPrice);
     const fundSourceCard = financialCards.find(c => c.id === fundSource);
     const paymentMethodCard = financialCards.find(c => c.id === paymentMethod);
 
@@ -325,6 +334,8 @@ export default function RegularSalesPage() {
 
   const handleEditClick = (transaction: Transaction) => {
     setEditingTransaction(transaction);
+    setEditSellingPrice(formatRupiah(String(transaction.sellingPrice)));
+    setEditCostPrice(formatRupiah(String(transaction.costPrice)));
     setIsEditDialogOpen(true);
   };
   
@@ -337,7 +348,17 @@ export default function RegularSalesPage() {
     if (!editingTransaction) return;
     setIsUpdating(true);
 
-    const { id, profit, createdAt, ...dataToUpdate } = editingTransaction;
+    const updatedCostPrice = cleanRupiah(editCostPrice);
+    const updatedSellingPrice = cleanRupiah(editSellingPrice);
+
+    const dataToUpdate = { 
+        ...editingTransaction,
+        sellingPrice: updatedSellingPrice,
+        costPrice: updatedCostPrice,
+    };
+    
+    const { id, profit, createdAt, ...plainData } = dataToUpdate;
+
     const originalTransaction = transactions.find(t => t.id === id);
 
     if(!originalTransaction){
@@ -348,12 +369,6 @@ export default function RegularSalesPage() {
 
     const transactionRef = ref(db, `transaksi_reguler/${id}`);
     
-    const plainData = {
-        ...dataToUpdate,
-        sellingPrice: Number(dataToUpdate.sellingPrice),
-        costPrice: Number(dataToUpdate.costPrice),
-    };
-
     update(transactionRef, plainData)
       .then(() => {
         saveToProductMaster({ name: plainData.productName, sellingPrice: plainData.sellingPrice, costPrice: plainData.costPrice });
@@ -519,12 +534,12 @@ export default function RegularSalesPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="sellingPrice">Harga Jual</Label>
-                  <Input id="sellingPrice" type="number" placeholder="52000" value={sellingPrice} onChange={(e) => setSellingPrice(e.target.value)} required 
+                  <Input id="sellingPrice" type="text" placeholder="52.000" value={sellingPrice} onChange={handlePriceChange(setSellingPrice)} required 
                          className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="costPrice">Modal</Label>
-                  <Input id="costPrice" type="number" placeholder="50500" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} required 
+                  <Input id="costPrice" type="text" placeholder="50.500" value={costPrice} onChange={handlePriceChange(setCostPrice)} required 
                          className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
                 </div>
                 <div className="space-y-2">
@@ -691,11 +706,11 @@ export default function RegularSalesPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-sellingPrice">Harga Jual</Label>
-                  <Input id="edit-sellingPrice" type="number" value={editingTransaction.sellingPrice} onChange={(e) => setEditingTransaction({ ...editingTransaction, sellingPrice: Number(e.target.value) })} />
+                  <Input id="edit-sellingPrice" type="text" value={editSellingPrice} onChange={handlePriceChange(setEditSellingPrice)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-costPrice">Modal</Label>
-                  <Input id="edit-costPrice" type="number" value={editingTransaction.costPrice} onChange={(e) => setEditingTransaction({ ...editingTransaction, costPrice: Number(e.target.value) })} />
+                  <Input id="edit-costPrice" type="text" value={editCostPrice} onChange={handlePriceChange(setEditCostPrice)} />
                 </div>
                  <div className="space-y-2">
                   <Label htmlFor="edit-fundSource">Sumber Modal</Label>

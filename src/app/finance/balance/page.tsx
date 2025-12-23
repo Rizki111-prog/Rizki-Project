@@ -15,6 +15,8 @@ import { DollarSign, Wallet, Landmark, CreditCard, PlusCircle, Loader2, ArrowUpC
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
+import { formatRupiah, cleanRupiah } from '@/lib/utils';
+
 
 interface FinancialCard {
   id: string;
@@ -127,9 +129,11 @@ export default function BalancePage() {
         }
         setIsSubmitting(true);
 
+        const balance = initialBalance === '' ? 0 : cleanRupiah(initialBalance);
+
         const newCard = {
             name: newCardName,
-            balance: initialBalance === '' ? 0 : Number(initialBalance),
+            balance: balance,
             createdAt: serverTimestamp(),
             icon: getIconForCard(newCardName)
         };
@@ -192,6 +196,12 @@ export default function BalancePage() {
         return relatedTransactions.sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime());
 
     }, [selectedCard, allTransactions]);
+
+    const handleBalanceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { value } = e.target;
+        const cleanedValue = value.replace(/[^0-9]/g, '');
+        setInitialBalance(formatRupiah(cleanedValue));
+    };
 
     return (
         <div className="flex flex-col w-full min-h-[100dvh] bg-background">
@@ -270,9 +280,9 @@ export default function BalancePage() {
                                 <Label htmlFor="initial-balance">Saldo Awal</Label>
                                 <Input
                                     id="initial-balance"
-                                    type="number"
+                                    type="text"
                                     value={initialBalance}
-                                    onChange={(e) => setInitialBalance(e.target.value)}
+                                    onChange={handleBalanceChange}
                                     placeholder="0 (Opsional)"
                                     className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"
                                 />
