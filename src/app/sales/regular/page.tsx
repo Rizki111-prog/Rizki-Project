@@ -166,6 +166,15 @@ export default function RegularSalesPage() {
   }, []);
 
   useEffect(() => {
+    if (financialCards.length > 0 && !fundSource) {
+      const agenPulsaCard = financialCards.find(card => card.name === 'Agen Pulsa');
+      if (agenPulsaCard) {
+        setFundSource(agenPulsaCard.id);
+      }
+    }
+  }, [financialCards, fundSource]);
+
+  useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
         if (productNameInputRef.current && !productNameInputRef.current.contains(event.target as Node)) {
             setShowSuggestions(false);
@@ -228,6 +237,7 @@ export default function RegularSalesPage() {
       if (value === 'Hutang') {
           newPayments[index].method = 'Hutang';
           newPayments[index].cardId = undefined;
+          newPayments[index].debtorName = ''; 
       } else if (card) {
           newPayments[index].method = card.name;
           newPayments[index].cardId = card.id;
@@ -265,12 +275,18 @@ export default function RegularSalesPage() {
     setProductName('');
     setSellingPrice('');
     setCostPrice('');
-    setFundSource('');
     setPayments([{ method: '', cardId: '', amount: 0, debtorName: '' }]);
     setIsPaymentAmountManuallySet(false);
     const now = new Date();
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
     setDatetime(now.toISOString().slice(0, 16));
+
+    const agenPulsaCard = financialCards.find(card => card.name === 'Agen Pulsa');
+    if (agenPulsaCard) {
+      setFundSource(agenPulsaCard.id);
+    } else {
+      setFundSource('');
+    }
   };
   
   const handleProductSelect = (product: ProductMaster) => {
@@ -803,5 +819,3 @@ export default function RegularSalesPage() {
     </div>
   );
 }
-
-    

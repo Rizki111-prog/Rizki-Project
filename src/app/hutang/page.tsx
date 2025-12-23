@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '@/firebase';
 import { ref, onValue, update, runTransaction, get } from 'firebase/database';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -35,7 +35,7 @@ interface FinancialCard {
 
 export default function HutangPage() {
     const { toast } = useToast();
-    const [debts, setDebts] = useState<Debt[]>([]);
+    const [allDebts, setAllDebts] = useState<Debt[]>([]);
     const [financialCards, setFinancialCards] = useState<FinancialCard[]>([]);
     const [selectedDebt, setSelectedDebt] = useState<Debt | null>(null);
     const [paymentMethod, setPaymentMethod] = useState('');
@@ -51,13 +51,7 @@ export default function HutangPage() {
             for (const key in data) {
                 loadedDebts.push({ id: key, ...data[key] });
             }
-            loadedDebts.sort((a, b) => {
-                if (a.status === b.status) {
-                    return new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime();
-                }
-                return a.status === 'Lunas' ? 1 : -1;
-            });
-            setDebts(loadedDebts);
+            setAllDebts(loadedDebts);
             setIsLoadingData(false);
         });
 
@@ -76,6 +70,12 @@ export default function HutangPage() {
             unsubscribeCards();
         };
     }, []);
+
+    const activeDebts = useMemo(() => {
+        return allDebts
+            .filter(debt => debt.status === 'Belum Lunas')
+            .sort((a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime());
+    }, [allDebts]);
 
     const handleMarkAsPaidClick = (debt: Debt) => {
         setSelectedDebt(debt);
@@ -172,9 +172,9 @@ export default function HutangPage() {
                     <div className="flex items-center justify-center h-64">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     </div>
-                ) : debts.length > 0 ? (
+                ) : activeDebts.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {debts.map((debt) => (
+                        {activeDebts.map((debt) => (
                             <Card key={debt.id} className={`rounded-xl shadow-sm ${debt.status === 'Lunas' ? 'bg-muted/50' : ''}`}>
                                 <CardHeader>
                                     <div className="flex justify-between items-start">
