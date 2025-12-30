@@ -1,0 +1,31 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "transaksi_reguler": {
+      ".read": true,
+      ".write": true
+    },
+    "transaksi_akrab": {
+      ".read": true,
+      ".write": true
+    },
+    "pelanggan_akrab": {
+      ".read": true,
+      ".write": true
+    },
+    "produk_master": {
+      ".read": true,
+      ".write": true
+    },
+    "keuangan": {
+      ".read": true,
+      ".write": true
+    },
+    "hutang": {
+      ".read": true,
+      ".write": true,
+      ".indexOn": "transactionId"
+    }
+  }
+}
