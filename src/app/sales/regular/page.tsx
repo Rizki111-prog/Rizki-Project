@@ -421,23 +421,25 @@ export default function RegularSalesPage() {
 
   const handleDelete = (id: string) => {
     const transactionToDelete = transactions.find(t => t.id === id);
-    if (!transactionToDelete) {
-        toast({ variant: "destructive", title: "Error", description: "Transaksi tidak ditemukan." });
-        return;
-    }
-
-    const cost = Number(transactionToDelete.costPrice) || 0;
-    const fundSourceCardId = transactionToDelete.fundSourceId;
-
-    const transactionRef = ref(db, `transaksi_reguler/${id}`);
-    remove(transactionRef)
-      .then(() => {
+    if (!transactionToDelete) return;
+  
+    const updates: { [key: string]: any } = {};
+    updates[`/transaksi_reguler/${id}`] = null;
+  
+    get(query(ref(db, 'hutang'), orderByChild('transactionId'), equalTo(id))).then(snapshot => {
+      if (snapshot.exists()) {
+        snapshot.forEach(child => {
+          updates[`/hutang/${child.key}`] = null;
+        });
+      }
+  
+      update(ref(db), updates).then(() => {
+        const cost = Number(transactionToDelete.costPrice) || 0;
+        const fundSourceCardId = transactionToDelete.fundSourceId;
         if(fundSourceCardId && cost > 0){
             const fundSourceRef = ref(db, `keuangan/cards/${fundSourceCardId}`);
             runTransaction(fundSourceRef, (card) => {
-                if (card) {
-                    card.balance += cost;
-                }
+                if (card) { card.balance += cost; }
                 return card;
             });
         }
@@ -446,35 +448,17 @@ export default function RegularSalesPage() {
             if (payment.cardId && payment.amount > 0) {
                 const paymentMethodRef = ref(db, `keuangan/cards/${payment.cardId}`);
                 runTransaction(paymentMethodRef, (card) => {
-                    if (card) {
-                        card.balance -= payment.amount;
-                    }
+                    if (card) { card.balance -= payment.amount; }
                     return card;
                 });
             }
         });
-
-        const debtQuery = query(ref(db, 'hutang'), orderByChild('transactionId'), equalTo(id));
-        get(debtQuery).then(snapshot => {
-            if(snapshot.exists()) {
-                snapshot.forEach(childSnapshot => {
-                    remove(childSnapshot.ref);
-                });
-            }
-        });
-
-        toast({
-          title: "Sukses",
-          description: "Transaksi berhasil dihapus.",
-        });
-      })
-      .catch((error) => {
-        toast({
-          variant: "destructive",
-          title: "Gagal Menghapus",
-          description: `Terjadi kesalahan: ${error.message}`,
-        });
+  
+        toast({ title: "Sukses", description: "Transaksi dan catatan hutang terkait berhasil dihapus." });
+      }).catch((error) => {
+        toast({ variant: "destructive", title: "Gagal Menghapus", description: `Terjadi kesalahan: ${error.message}` });
       });
+    });
   };
 
   const handleEditClick = (transaction: Transaction) => {

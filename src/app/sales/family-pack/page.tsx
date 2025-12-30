@@ -317,7 +317,11 @@ export default function FamilyPackSalesPage() {
   
   const handleDatetimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setDatetime(e.target.value);
-    isExpiryDateManuallySet.current = false;
+    if (e.target.value) {
+        const transactionDate = new Date(e.target.value);
+        isExpiryDateManuallySet.current = false; // Allow auto-update
+        setTanggalKadaluarsa(getThirtyDaysFromDate(transactionDate));
+    }
   }
 
   const addPayment = () => {
@@ -471,8 +475,17 @@ export default function FamilyPackSalesPage() {
     const transactionToDelete = transactions.find(t => t.id === id);
     if (!transactionToDelete) return;
 
-    remove(ref(db, `transaksi_akrab/${id}`))
-      .then(() => {
+    const updates: { [key: string]: any } = {};
+    updates[`/transaksi_akrab/${id}`] = null;
+
+    get(query(ref(db, 'hutang'), orderByChild('transactionId'), equalTo(id))).then(snapshot => {
+      if (snapshot.exists()) {
+        snapshot.forEach(child => {
+          updates[`/hutang/${child.key}`] = null;
+        });
+      }
+
+      update(ref(db), updates).then(() => {
         transactionToDelete.fundSources?.forEach(source => {
             if(source.cardId && source.amount > 0){
                 const fundSourceRef = ref(db, `keuangan/cards/${source.cardId}`);
@@ -493,15 +506,11 @@ export default function FamilyPackSalesPage() {
             }
         });
 
-        get(query(ref(db, 'hutang'), orderByChild('transactionId'), equalTo(id))).then(snapshot => {
-            if(snapshot.exists()) { snapshot.forEach(child => remove(child.ref)); }
-        });
-
-        toast({ title: "Sukses", description: "Transaksi berhasil dihapus." });
-      })
-      .catch((error) => {
+        toast({ title: "Sukses", description: "Transaksi dan catatan hutang terkait berhasil dihapus." });
+      }).catch((error) => {
         toast({ variant: "destructive", title: "Gagal Menghapus", description: `Terjadi kesalahan: ${error.message}` });
       });
+    });
   };
 
   const handleDetailClick = (transaction: Transaction) => {
