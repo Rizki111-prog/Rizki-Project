@@ -26,6 +26,10 @@
       ".read": true,
       ".write": true,
       ".indexOn": "transactionId"
+    },
+    "pengeluaran": {
+      ".read": true,
+      ".write": true
     }
   }
 }

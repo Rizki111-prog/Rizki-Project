@@ -111,14 +111,14 @@ export function AppSidebar() {
                      <div className="ml-7 mt-1 flex flex-col gap-1 border-l pl-3 py-1">
                        {item.submenus.map((submenu) => {
                           const Icon = getSubmenuIcon(submenu.href);
-                          const isActive = pathname === submenu.href || (submenu.href === '/finance' && pathname === '/finance/balance');
+                           const isSubmenuActive = pathname === submenu.href || (submenu.href === '/finance' && pathname.startsWith('/finance/'));
                           return (
                             <SidebarMenuButton
                               key={submenu.href}
                               asChild
                               size="sm"
                               variant="ghost"
-                              isActive={isActive}
+                              isActive={isSubmenuActive}
                               tooltip={{ children: submenu.label, side: 'right' }}
                               onClick={handleLinkClick}
                             >

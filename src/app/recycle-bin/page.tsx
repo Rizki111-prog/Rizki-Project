@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { db } from '@/firebase';
-import { ref, onValue, update, get, query, orderByChild, equalTo } from 'firebase/database';
+import { ref, onValue, update, get, query, orderByChild, equalTo, serverTimestamp, runTransaction } from 'firebase/database';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +22,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { formatRupiah } from '@/lib/utils';
+
 
 interface DeletedItem {
   id: string;
@@ -30,11 +32,14 @@ interface DeletedItem {
     productName?: string;
     customerName?: string;
     nama?: string;
+    nominal?: number;
     datetime?: string;
     tanggal?: string;
+    date?: string;
     deletedAt: number | string;
     transactionId?: string;
     sourcePath?: string;
+    fundSourceId?: string;
     [key: string]: any;
   };
 }
@@ -45,7 +50,7 @@ export default function RecycleBinPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const paths = ['transaksi_reguler', 'transaksi_akrab', 'hutang'];
+    const paths = ['transaksi_reguler', 'transaksi_akrab', 'hutang', 'pengeluaran'];
     const unsubscribes = paths.map(path => {
       const dbRef = query(ref(db, path), orderByChild('isDeleted'), equalTo(true));
       return onValue(dbRef, (snapshot) => {
@@ -87,26 +92,37 @@ export default function RecycleBinPage() {
     updates[`${path}/isDeleted`] = null;
     updates[`${path}/deletedAt`] = null;
 
-    if (item.path === 'hutang' && item.data.transactionId && item.data.sourcePath) {
-      const trxPath = `${item.data.sourcePath}/${item.data.transactionId}`;
-      updates[`${trxPath}/isDeleted`] = null;
-      updates[`${trxPath}/deletedAt`] = null;
-    } else if (item.path.startsWith('transaksi')) {
-      const debtSnapshot = await get(query(ref(db, 'hutang'), orderByChild('transactionId'), equalTo(item.id)));
-      if (debtSnapshot.exists()) {
-        debtSnapshot.forEach(child => {
-          const debtPath = `hutang/${child.key}`;
-          updates[`${debtPath}/isDeleted`] = null;
-          updates[`${debtPath}/deletedAt`] = null;
-        });
-      }
-    }
-    
     try {
-      await update(ref(db), updates);
-      toast({ title: "Sukses", description: "Item berhasil dipulihkan." });
+        // Restore linked items first or simultaneously
+        if (item.path === 'hutang' && item.data.transactionId && item.data.sourcePath) {
+            const trxPath = `${item.data.sourcePath}/${item.data.transactionId}`;
+            updates[`${trxPath}/isDeleted`] = null;
+            updates[`${trxPath}/deletedAt`] = null;
+        } else if (item.path.startsWith('transaksi')) {
+            const debtSnapshot = await get(query(ref(db, 'hutang'), orderByChild('transactionId'), equalTo(item.id)));
+            if (debtSnapshot.exists()) {
+                debtSnapshot.forEach(child => {
+                const debtPath = `hutang/${child.key}`;
+                updates[`${debtPath}/isDeleted`] = null;
+                updates[`${debtPath}/deletedAt`] = null;
+                });
+            }
+        }
+
+        // Reverse financial impact
+        if (item.path === 'pengeluaran' && item.data.fundSourceId && item.data.nominal) {
+            const fundSourceRef = ref(db, `keuangan/cards/${item.data.fundSourceId}`);
+            await runTransaction(fundSourceRef, (card) => {
+                if (card) { card.balance -= item.data.nominal; }
+                return card;
+            });
+        }
+        
+        // Execute all updates
+        await update(ref(db), updates);
+        toast({ title: "Sukses", description: "Item berhasil dipulihkan." });
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Gagal", description: `Tidak dapat memulihkan item: ${error.message}` });
+        toast({ variant: "destructive", title: "Gagal", description: `Tidak dapat memulihkan item: ${error.message}` });
     }
   };
 
@@ -136,14 +152,14 @@ export default function RecycleBinPage() {
     if (item.path.startsWith('transaksi')) {
       return item.data.productName || item.data.customerName || 'Transaksi Tanpa Nama';
     }
-    if (item.path === 'hutang') {
-      return `Hutang an. ${item.data.nama}`;
+    if (item.path === 'hutang' || item.path === 'pengeluaran') {
+      return item.data.name || item.data.nama || 'Item Tanpa Nama';
     }
     return 'Item Tidak Dikenali';
   };
   
   const getItemDate = (item: DeletedItem) => {
-    const dateValue = item.data.datetime || item.data.tanggal;
+    const dateValue = item.data.datetime || item.data.tanggal || item.data.date;
     return dateValue ? format(parseISO(dateValue), "d MMM y, HH:mm", { locale: id }) : 'Tanggal tidak ada';
   }
   
@@ -157,6 +173,7 @@ export default function RecycleBinPage() {
     if (path.includes('reguler')) return 'Transaksi Reguler';
     if (path.includes('akrab')) return 'Transaksi Akrab';
     if (path.includes('hutang')) return 'Catatan Hutang';
+    if (path.includes('pengeluaran')) return 'Pengeluaran';
     return 'Item';
   }
 
@@ -185,6 +202,7 @@ export default function RecycleBinPage() {
                   </div>
                   <CardDescription>
                     {getItemDate(item)}
+                    {item.data.nominal && <div className='font-semibold'>{formatRupiah(item.data.nominal)}</div>}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
