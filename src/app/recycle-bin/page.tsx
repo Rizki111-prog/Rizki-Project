@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { db } from '@/firebase';
-import { ref, onValue, update, remove, get, query, orderByChild, equalTo } from 'firebase/database';
+import { ref, onValue, update, get, query, orderByChild, equalTo } from 'firebase/database';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -85,7 +85,7 @@ export default function RecycleBinPage() {
     updates[`${path}/isDeleted`] = null;
     updates[`${path}/deletedAt`] = null;
 
-    if (item.data.transactionId) {
+    if (item.path === 'hutang' && item.data.transactionId) {
       // It's a debt record, try to restore the parent transaction too
       const trxPath = `${item.data.sourcePath}/${item.data.transactionId}`;
       updates[`${trxPath}/isDeleted`] = null;
@@ -184,7 +184,7 @@ export default function RecycleBinPage() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-xs text-muted-foreground">
-                    Dihapus pada: {format(parseISO(item.data.deletedAt), "d MMM y, HH:mm", { locale: id })}
+                    Dihapus pada: {item.data.deletedAt ? format(parseISO(item.data.deletedAt), "d MMM y, HH:mm", { locale: id }) : 'N/A'}
                   </p>
                 </CardContent>
                 <CardFooter className="flex justify-end gap-2 border-t pt-4">
