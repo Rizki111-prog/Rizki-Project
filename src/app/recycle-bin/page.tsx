@@ -32,7 +32,7 @@ interface DeletedItem {
     nama?: string;
     datetime?: string;
     tanggal?: string;
-    deletedAt: string;
+    deletedAt: number | string;
     transactionId?: string;
     sourcePath?: string;
     [key: string]: any;
@@ -47,23 +47,25 @@ export default function RecycleBinPage() {
   useEffect(() => {
     const paths = ['transaksi_reguler', 'transaksi_akrab', 'hutang'];
     const unsubscribes = paths.map(path => {
-      const dbRef = ref(db, path);
+      const dbRef = query(ref(db, path), orderByChild('isDeleted'), equalTo(true));
       return onValue(dbRef, (snapshot) => {
         const data = snapshot.val();
         const loadedItems: DeletedItem[] = [];
         if (data) {
           for (const key in data) {
-            if (data[key].isDeleted) {
               loadedItems.push({ id: key, path, data: data[key] });
-            }
           }
         }
         
         setDeletedItems(prev => {
           const otherItems = prev.filter(item => item.path !== path);
-          return [...otherItems, ...loadedItems].sort((a, b) => 
-            parseISO(b.data.deletedAt).getTime() - parseISO(a.data.deletedAt).getTime()
-          );
+          const newItems = [...otherItems, ...loadedItems];
+          newItems.sort((a, b) => {
+              const dateA = typeof a.data.deletedAt === 'number' ? a.data.deletedAt : 0;
+              const dateB = typeof b.data.deletedAt === 'number' ? b.data.deletedAt : 0;
+              return dateB - dateA;
+          });
+          return newItems;
         });
 
         setIsLoading(false);
@@ -85,13 +87,11 @@ export default function RecycleBinPage() {
     updates[`${path}/isDeleted`] = null;
     updates[`${path}/deletedAt`] = null;
 
-    if (item.path === 'hutang' && item.data.transactionId) {
-      // It's a debt record, try to restore the parent transaction too
+    if (item.path === 'hutang' && item.data.transactionId && item.data.sourcePath) {
       const trxPath = `${item.data.sourcePath}/${item.data.transactionId}`;
       updates[`${trxPath}/isDeleted`] = null;
       updates[`${trxPath}/deletedAt`] = null;
     } else if (item.path.startsWith('transaksi')) {
-      // It's a transaction, try to restore its linked debt
       const debtSnapshot = await get(query(ref(db, 'hutang'), orderByChild('transactionId'), equalTo(item.id)));
       if (debtSnapshot.exists()) {
         debtSnapshot.forEach(child => {
@@ -115,7 +115,6 @@ export default function RecycleBinPage() {
     const path = `${item.path}/${item.id}`;
     updates[path] = null;
 
-    // Handle cascading permanent delete
      if (item.path.startsWith('transaksi')) {
         const debtSnapshot = await get(query(ref(db, 'hutang'), orderByChild('transactionId'), equalTo(item.id)));
         if (debtSnapshot.exists()) {
@@ -147,6 +146,12 @@ export default function RecycleBinPage() {
     const dateValue = item.data.datetime || item.data.tanggal;
     return dateValue ? format(parseISO(dateValue), "d MMM y, HH:mm", { locale: id }) : 'Tanggal tidak ada';
   }
+  
+  const formatDeletedAt = (deletedAt: number | string) => {
+      if (!deletedAt) return 'N/A';
+      const date = typeof deletedAt === 'string' ? parseISO(deletedAt) : new Date(deletedAt);
+      return format(date, "d MMM y, HH:mm", { locale: id });
+  };
 
   const getItemType = (path: string) => {
     if (path.includes('reguler')) return 'Transaksi Reguler';
@@ -184,7 +189,7 @@ export default function RecycleBinPage() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-xs text-muted-foreground">
-                    Dihapus pada: {item.data.deletedAt ? format(parseISO(item.data.deletedAt), "d MMM y, HH:mm", { locale: id }) : 'N/A'}
+                    Dihapus pada: {formatDeletedAt(item.data.deletedAt)}
                   </p>
                 </CardContent>
                 <CardFooter className="flex justify-end gap-2 border-t pt-4">
