@@ -177,7 +177,7 @@ export default function HutangPage() {
         <div className="flex flex-col w-full min-h-screen bg-background">
             <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-4 md:px-6">
                 <SidebarTrigger className="md:hidden" />
-                <div>
+                <div className='flex-1'>
                     <h1 className="text-xl font-semibold md:text-2xl">Manajemen Hutang</h1>
                     <p className="text-sm text-muted-foreground">Lacak dan kelola semua catatan hutang.</p>
                 </div>

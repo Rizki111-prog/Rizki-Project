@@ -552,10 +552,10 @@ export default function FamilyPackSalesPage() {
       <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-4 sm:px-6">
         <SidebarTrigger className="md:hidden" />
         <div className="flex-1">
-          <h1 className="text-lg font-semibold tracking-tight md:text-2xl">Paket Akrab</h1>
+          <h1 className="text-lg font-semibold tracking-tight md:text-2xl lg:text-xl xl:text-2xl">Paket Akrab</h1>
           <p className="text-xs text-muted-foreground sm:text-sm">Proses transaksi baru untuk Paket Akrab.</p>
         </div>
-        <Button onClick={() => setShowForm(!showForm)} variant={showForm ? "destructive" : "default"} className="transition-all duration-300">
+        <Button onClick={() => setShowForm(!showForm)} variant={showForm ? "secondary" : "default"} className="transition-all duration-300 md:w-auto w-full">
             {showForm ? <X className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
             {showForm ? 'Tutup Formulir' : 'Tambah Transaksi'}
         </Button>

@@ -194,9 +194,9 @@ export default function ExpensesPage() {
             <h1 className="text-xl font-semibold md:text-2xl">Pengeluaran</h1>
             <p className="text-sm text-muted-foreground">Catat dan kelola biaya operasional.</p>
         </div>
-        <Button onClick={() => setShowForm(!showForm)} variant={showForm ? "destructive" : "default"} className="transition-all duration-300">
+        <Button onClick={() => setShowForm(!showForm)} variant={showForm ? "secondary" : "default"} className="transition-all duration-300">
             {showForm ? <X className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-            {showForm ? 'Tutup Formulir' : 'Tambah Pengeluaran'}
+            {showForm ? 'Tutup' : 'Tambah'}
         </Button>
       </header>
       <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
