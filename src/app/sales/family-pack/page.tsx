@@ -44,6 +44,7 @@ interface Transaction {
   linkAkunPengelola?: string;
   eWalletPengelola?: string;
   tanggalKadaluarsa: string;
+  isDeleted?: boolean;
 }
 
 interface FinancialCard {
@@ -153,6 +154,7 @@ export default function FamilyPackSalesPage() {
       const loadedTransactions: Transaction[] = [];
       for (const key in data) {
         const trxData = data[key];
+        if (trxData.isDeleted) continue;
         const sellingPrice = trxData.sellingPrice || 0;
         const costPrice = (trxData.fundSources || []).reduce((acc: number, src: { amount: number }) => acc + (src.amount || 0), 0);
         loadedTransactions.push({ 
@@ -424,7 +426,8 @@ export default function FamilyPackSalesPage() {
       linkAkunPengelola: linkAkunPengelola || '',
       eWalletPengelola: eWalletPengelola || '',
       tanggalKadaluarsa,
-      createdAt: serverTimestamp()
+      createdAt: serverTimestamp(),
+      isDeleted: false,
     };
 
     update(newTransactionRef, newTransaction)
@@ -449,7 +452,8 @@ export default function FamilyPackSalesPage() {
                     tanggal: datetime,
                     status: 'Belum Lunas',
                     transactionId: transactionId,
-                    sourcePath: 'transaksi_akrab'
+                    sourcePath: 'transaksi_akrab',
+                    isDeleted: false
                 });
             } else if (payment.cardId && payment.amount > 0) {
                 const paymentMethodRef = ref(db, `keuangan/cards/${payment.cardId}`);
@@ -476,39 +480,22 @@ export default function FamilyPackSalesPage() {
     if (!transactionToDelete) return;
 
     const updates: { [key: string]: any } = {};
-    updates[`/transaksi_akrab/${id}`] = null;
+    const deletedAt = serverTimestamp();
+    updates[`/transaksi_akrab/${id}/isDeleted`] = true;
+    updates[`/transaksi_akrab/${id}/deletedAt`] = deletedAt;
 
     get(query(ref(db, 'hutang'), orderByChild('transactionId'), equalTo(id))).then(snapshot => {
       if (snapshot.exists()) {
         snapshot.forEach(child => {
-          updates[`/hutang/${child.key}`] = null;
+          updates[`/hutang/${child.key}/isDeleted`] = true;
+          updates[`/hutang/${child.key}/deletedAt`] = deletedAt;
         });
       }
 
       update(ref(db), updates).then(() => {
-        transactionToDelete.fundSources?.forEach(source => {
-            if(source.cardId && source.amount > 0){
-                const fundSourceRef = ref(db, `keuangan/cards/${source.cardId}`);
-                runTransaction(fundSourceRef, (card) => {
-                    if (card) { card.balance += source.amount; }
-                    return card;
-                });
-            }
-        });
-        
-        transactionToDelete.payments?.forEach(payment => {
-            if (payment.cardId && payment.amount > 0) {
-                const paymentMethodRef = ref(db, `keuangan/cards/${payment.cardId}`);
-                runTransaction(paymentMethodRef, (card) => {
-                    if (card) { card.balance -= payment.amount; }
-                    return card;
-                });
-            }
-        });
-
-        toast({ title: "Sukses", description: "Transaksi dan catatan hutang terkait berhasil dihapus." });
+        toast({ title: "Sukses", description: "Transaksi dipindahkan ke folder sampah." });
       }).catch((error) => {
-        toast({ variant: "destructive", title: "Gagal Menghapus", description: `Terjadi kesalahan: ${error.message}` });
+        toast({ variant: "destructive", title: "Gagal", description: `Terjadi kesalahan: ${error.message}` });
       });
     });
   };
@@ -750,8 +737,8 @@ export default function FamilyPackSalesPage() {
                     <AlertDialog>
                       <AlertDialogTrigger asChild><Button variant="destructive" size="icon" className="h-9 w-9"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
                       <AlertDialogContent>
-                        <AlertDialogHeader><AlertDialogTitle>Konfirmasi Hapus</AlertDialogTitle><AlertDialogDescription>Tindakan ini akan menghapus transaksi secara permanen. Anda yakin?</AlertDialogDescription></AlertDialogHeader>
-                        <AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction onClick={() => handleDelete(trx.id)}>Hapus</AlertDialogAction></AlertDialogFooter>
+                        <AlertDialogHeader><AlertDialogTitle>Pindahkan ke Sampah?</AlertDialogTitle><AlertDialogDescription>Tindakan ini akan memindahkan transaksi ke folder sampah. Anda dapat memulihkannya nanti.</AlertDialogDescription></AlertDialogHeader>
+                        <AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction onClick={() => handleDelete(trx.id)}>Pindahkan</AlertDialogAction></AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
                   </CardFooter>
@@ -786,8 +773,8 @@ export default function FamilyPackSalesPage() {
                         <AlertDialog>
                           <AlertDialogTrigger asChild><Button variant="destructive" size="icon" className="h-8 w-8"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
                           <AlertDialogContent>
-                            <AlertDialogHeader><AlertDialogTitle>Apakah Anda yakin?</AlertDialogTitle><AlertDialogDescription>Tindakan ini tidak dapat diurungkan. Ini akan menghapus transaksi secara permanen.</AlertDialogDescription></AlertDialogHeader>
-                            <AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction onClick={() => handleDelete(trx.id)}>Hapus</AlertDialogAction></AlertDialogFooter>
+                            <AlertDialogHeader><AlertDialogTitle>Pindahkan ke Sampah?</AlertDialogTitle><AlertDialogDescription>Tindakan ini akan memindahkan transaksi ke folder sampah. Anda dapat memulihkannya nanti.</AlertDialogDescription></AlertDialogHeader>
+                            <AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction onClick={() => handleDelete(trx.id)}>Pindahkan</AlertDialogAction></AlertDialogFooter>
                           </AlertDialogContent>
                         </AlertDialog>
                       </td>

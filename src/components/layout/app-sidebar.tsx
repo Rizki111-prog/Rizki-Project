@@ -11,6 +11,7 @@ import {
   ShoppingCart,
   Wallet,
   BookUser,
+  Trash2,
 } from 'lucide-react';
 import {
   Collapsible,
@@ -52,6 +53,7 @@ const menuItems = [
       { href: '/finance/balance', label: 'Saldo Akun' },
     ]
   },
+  { href: '/recycle-bin', label: 'Folder Sampah', icon: Trash2 },
 ];
 
 export function AppSidebar() {

@@ -27,6 +27,7 @@ interface Transaction {
   costPrice: number;
   payments: Payment[];
   profit: number;
+  isDeleted?: boolean;
   [key: string]: any; 
 }
 
@@ -50,8 +51,9 @@ export default function HistoryPage() {
                 const loadedTransactions: Transaction[] = [];
                 for (const key in data) {
                     const trxData = data[key];
+                    if (trxData.isDeleted) continue;
+                    
                     const sellingPrice = trxData.sellingPrice || 0;
-                    // For Akrab, cost price is a sum of fundSources array
                     const costPrice = path === 'transaksi_akrab' 
                         ? (trxData.fundSources || []).reduce((acc: number, src: { amount: number }) => acc + src.amount, 0)
                         : (trxData.costPrice || 0);

@@ -26,6 +26,7 @@ interface Debt {
   transactionId?: string;
   sourcePath?: 'transaksi_reguler' | 'transaksi_akrab';
   tanggal_pelunasan?: string;
+  isDeleted?: boolean;
 }
 
 interface FinancialCard {
@@ -50,6 +51,7 @@ export default function HutangPage() {
             const data = snapshot.val();
             const loadedDebts: Debt[] = [];
             for (const key in data) {
+                if (data[key].isDeleted) continue;
                 loadedDebts.push({ id: key, ...data[key] });
             }
             setAllDebts(loadedDebts);
