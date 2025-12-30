@@ -19,17 +19,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, addDays, differenceInDays } from 'date-fns';
@@ -44,7 +34,7 @@ interface Transaction {
   id: string;
   datetime: string;
   customerId: string;
-  productName: string;
+  customerName: string;
   sellingPrice: number;
   costPrice: number;
   fundSource: string;
@@ -63,11 +53,9 @@ interface FinancialCard {
     balance: number;
 }
 
-interface ProductMaster {
+interface Customer {
     id: string;
     name: string;
-    sellingPrice: number;
-    costPrice: number;
 }
 
 interface Payment {
@@ -84,7 +72,7 @@ export default function FamilyPackSalesPage() {
   // Form State
   const [datetime, setDatetime] = useState('');
   const [customerId, setCustomerId] = useState('');
-  const [productName, setProductName] = useState('');
+  const [customerName, setCustomerName] = useState('');
   const [sellingPrice, setSellingPrice] = useState('');
   const [costPrice, setCostPrice] = useState('');
   const [fundSource, setFundSource] = useState('');
@@ -98,29 +86,24 @@ export default function FamilyPackSalesPage() {
   // Data & UI State
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [financialCards, setFinancialCards] = useState<FinancialCard[]>([]);
-  const [productMaster, setProductMaster] = useState<ProductMaster[]>([]);
+  const [akrabCustomers, setAkrabCustomers] = useState<Customer[]>([]);
   const [isLoadingCards, setIsLoadingCards] = useState(true);
-  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+  const [isLoadingCustomers, setIsLoadingCustomers] = useState(true);
 
-  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [detailTransaction, setDetailTransaction] = useState<Transaction | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const productNameInputRef = useRef<HTMLDivElement>(null);
+  const customerNameInputRef = useRef<HTMLDivElement>(null);
 
 
   useEffect(() => {
     const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-    const isoString = now.toISOString().slice(0, 16);
-    setDatetime(isoString);
-
-    const expiryDate = addDays(now, 30);
-    setTanggalKadaluarsa(expiryDate.toISOString());
+    const localIsoString = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString();
+    setDatetime(localIsoString.slice(0, 16));
+    setTanggalKadaluarsa(addDays(now, 30).toISOString());
   }, []);
 
   useEffect(() => {
@@ -164,29 +147,29 @@ export default function FamilyPackSalesPage() {
         setIsLoadingCards(false);
     });
 
-    const productsRef = ref(db, 'produk_master');
-    const unsubscribeProducts = onValue(productsRef, (snapshot) => {
+    const customersRef = ref(db, 'pelanggan_akrab');
+    const unsubscribeCustomers = onValue(customersRef, (snapshot) => {
         const data = snapshot.val();
-        const loadedProducts: ProductMaster[] = [];
+        const loadedCustomers: Customer[] = [];
         if (data) {
             for (const key in data) {
-                loadedProducts.push({ id: key, ...data[key] });
+                loadedCustomers.push({ id: key, ...data[key] });
             }
         }
-        setProductMaster(loadedProducts);
-        setIsLoadingProducts(false);
+        setAkrabCustomers(loadedCustomers);
+        setIsLoadingCustomers(false);
     });
 
     return () => {
         unsubscribeCards();
-        unsubscribeProducts();
+        unsubscribeCustomers();
     };
   }, []);
 
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-        if (productNameInputRef.current && !productNameInputRef.current.contains(event.target as Node)) {
+        if (customerNameInputRef.current && !customerNameInputRef.current.contains(event.target as Node)) {
             setShowSuggestions(false);
         }
     };
@@ -274,7 +257,7 @@ export default function FamilyPackSalesPage() {
 
   const resetForm = useCallback(() => {
     setCustomerId('');
-    setProductName('');
+    setCustomerName('');
     setSellingPrice('');
     setCostPrice('');
     setLinkAkunPengelola('');
@@ -283,9 +266,8 @@ export default function FamilyPackSalesPage() {
     setIsPaymentAmountManuallySet(false);
     
     const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-    const isoString = now.toISOString().slice(0, 16);
-    setDatetime(isoString);
+    const localIsoString = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString();
+    setDatetime(localIsoString.slice(0, 16));
     setTanggalKadaluarsa(addDays(now, 30).toISOString());
 
     const agenPulsaCard = financialCards.find(card => card.name === 'Agen Pulsa');
@@ -298,28 +280,25 @@ export default function FamilyPackSalesPage() {
     }
   }, [financialCards]);
   
-  const handleProductSelect = (product: ProductMaster) => {
-      setProductName(product.name);
-      setSellingPrice(formatRupiah(String(product.sellingPrice)));
-      setCostPrice(formatRupiah(String(product.costPrice)));
+  const handleCustomerSelect = (customer: Customer) => {
+      setCustomerName(customer.name);
       setShowSuggestions(false);
-      setIsPaymentAmountManuallySet(false); 
   }
 
-  const saveToProductMaster = useCallback(async (productData: Omit<ProductMaster, 'id'>) => {
-    const productsRef = query(ref(db, 'produk_master'), orderByChild('name'), equalTo(productData.name));
-    const snapshot = await get(productsRef);
+  const saveToCustomerMaster = useCallback(async (name: string) => {
+    const customersRef = query(ref(db, 'pelanggan_akrab'), orderByChild('name'), equalTo(name));
+    const snapshot = await get(customersRef);
     if (!snapshot.exists()) {
-        const newProductRef = push(ref(db, 'produk_master'));
-        update(newProductRef, productData);
+        const newCustomerRef = push(ref(db, 'pelanggan_akrab'));
+        update(newCustomerRef, { name });
     }
   }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!productName || !sellingPrice || !costPrice || !fundSource || !linkAkunPengelola || !eWalletPengelola) {
-      toast({ variant: "destructive", title: "Gagal", description: "Harap isi semua field data transaksi, kecuali ID Pelanggan." });
+    if (!customerName || !sellingPrice || !costPrice || !fundSource || !linkAkunPengelola || !eWalletPengelola) {
+      toast({ variant: "destructive", title: "Gagal", description: "Harap isi semua field yang wajib diisi." });
       return;
     }
     
@@ -348,7 +327,7 @@ export default function FamilyPackSalesPage() {
     const newTransaction = {
       datetime,
       customerId: customerId || '',
-      productName,
+      customerName,
       sellingPrice: price,
       costPrice: cost,
       fundSource: fundSourceCard.name,
@@ -372,9 +351,7 @@ export default function FamilyPackSalesPage() {
       .then(() => {
         const transactionId = newTransactionRef.key;
 
-        if (productName && price && cost) {
-          saveToProductMaster({ name: productName, sellingPrice: price, costPrice: cost });
-        }
+        saveToCustomerMaster(customerName);
 
         const fundSourceRef = ref(db, `keuangan/cards/${fundSourceCard.id}`);
         runTransaction(fundSourceRef, (card) => {
@@ -471,8 +448,8 @@ export default function FamilyPackSalesPage() {
     if (!trx) return [];
     let details = [
         { label: 'Waktu Transaksi', value: format(parseISO(trx.datetime), "d MMMM yyyy, HH:mm:ss", { locale: id }) },
+        { label: 'Nama Pelanggan', value: trx.customerName },
         { label: 'ID Pelanggan', value: trx.customerId || '-' },
-        { label: 'Nama Produk', value: trx.productName },
         { label: 'Link Akun Pengelola', value: trx.linkAkunPengelola },
         { label: 'E-Wallet Pengelola', value: trx.eWalletPengelola },
         { label: 'Tanggal Kadaluarsa', value: format(parseISO(trx.tanggalKadaluarsa), "d MMMM yyyy", { locale: id }) },
@@ -490,9 +467,6 @@ export default function FamilyPackSalesPage() {
     return details;
   };
   
-  const EditDialogOrSheet = isMobile ? Sheet : Dialog;
-  const EditTrigger = (props: any) => <Button {...props} variant="outline" size="icon" className={isMobile ? "h-9 w-9" : "h-8 w-8"}><Edit className="h-4 w-4" /></Button>;
-  const EditContent = isMobile ? SheetContent : DialogContent;
 
   return (
     <div className="flex flex-col w-full min-h-[100dvh] bg-background">
@@ -516,30 +490,30 @@ export default function FamilyPackSalesPage() {
                   <Label htmlFor="datetime">Tanggal & Waktu</Label>
                   <Input id="datetime" type="datetime-local" value={datetime} onChange={(e) => setDatetime(e.target.value)} required />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="customerId">Nomor HP / ID Pelanggan</Label>
-                  <Input id="customerId" placeholder="ID Pelanggan (Opsional)" value={customerId} onChange={(e) => setCustomerId(e.target.value)} />
-                </div>
-                <div className="space-y-2 md:col-span-2 lg:col-span-1 relative" ref={productNameInputRef}>
-                    <Label htmlFor="productName">Nama Produk</Label>
+                <div className="space-y-2 relative md:col-span-2 lg:col-span-1" ref={customerNameInputRef}>
+                    <Label htmlFor="customerName">Nama Pelanggan</Label>
                     <Input 
-                      id="productName"
-                      placeholder={isLoadingProducts ? "Memuat produk..." : "Ketik nama produk"}
-                      value={productName}
-                      onChange={(e) => { setProductName(e.target.value); setShowSuggestions(true); }}
+                      id="customerName"
+                      placeholder={isLoadingCustomers ? "Memuat pelanggan..." : "Ketik nama pelanggan"}
+                      value={customerName}
+                      onChange={(e) => { setCustomerName(e.target.value); setShowSuggestions(true); }}
                       onFocus={() => setShowSuggestions(true)}
                       autoComplete="off"
                       required
                     />
-                    {showSuggestions && productMaster.length > 0 && (
+                    {showSuggestions && akrabCustomers.length > 0 && (
                         <div className="absolute z-20 w-full mt-1 bg-card border border-border rounded-md shadow-lg max-h-60 overflow-y-auto">
-                            {productMaster.filter(p => p.name.toLowerCase().includes(productName.toLowerCase())).map((product) => (
-                                <div key={product.id} className="p-2 hover:bg-accent cursor-pointer text-sm" onClick={() => handleProductSelect(product)}>
-                                    {product.name}
+                            {akrabCustomers.filter(c => c.name.toLowerCase().includes(customerName.toLowerCase())).map((customer) => (
+                                <div key={customer.id} className="p-2 hover:bg-accent cursor-pointer text-sm" onClick={() => handleCustomerSelect(customer)}>
+                                    {customer.name}
                                 </div>
                             ))}
                         </div>
                     )}
+                </div>
+                 <div className="space-y-2">
+                  <Label htmlFor="customerId">Nomor HP / ID Pelanggan</Label>
+                  <Input id="customerId" placeholder="ID Pelanggan (Opsional)" value={customerId} onChange={(e) => setCustomerId(e.target.value)} />
                 </div>
                  <div className="space-y-2">
                   <Label htmlFor="sellingPrice">Harga Jual</Label>
@@ -619,7 +593,7 @@ export default function FamilyPackSalesPage() {
                 </div>
             </CardContent>
             <CardFooter className="border-t px-6 py-4">
-              <Button type="submit" disabled={isSubmitting || isLoadingCards || isLoadingProducts || !isPaymentValid} className="transition-all duration-300 hover:scale-105 w-full md:w-auto">
+              <Button type="submit" disabled={isSubmitting || isLoadingCards || isLoadingCustomers || !isPaymentValid} className="transition-all duration-300 hover:scale-105 w-full md:w-auto">
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isSubmitting ? 'Menyimpan...' : 'Simpan Transaksi'}
               </Button>
@@ -639,7 +613,7 @@ export default function FamilyPackSalesPage() {
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-start">
                         <div>
-                            <CardTitle className="text-base">{trx.productName}</CardTitle>
+                            <CardTitle className="text-base">{trx.customerName}</CardTitle>
                             <CardDescription>{trx.customerId || 'Tanpa ID'}</CardDescription>
                         </div>
                         <Badge variant={getDaysRemaining(trx.tanggalKadaluarsa).color as any} className="text-xs">{getDaysRemaining(trx.tanggalKadaluarsa).text}</Badge>
@@ -669,7 +643,7 @@ export default function FamilyPackSalesPage() {
                 <thead className="bg-muted/50">
                   <tr>
                     <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">Waktu</th>
-                    <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">Produk</th>
+                    <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">Pelanggan</th>
                     <th className="px-4 py-3.5 text-right text-sm font-semibold text-foreground">Harga</th>
                     <th className="px-4 py-3.5 text-right text-sm font-semibold text-foreground">Laba</th>
                     <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">Pembayaran</th>
@@ -681,7 +655,7 @@ export default function FamilyPackSalesPage() {
                   {transactions.map((trx) => (
                     <tr key={trx.id} className="hover:bg-muted/50 transition-colors">
                       <td className="px-4 py-4 text-sm text-muted-foreground whitespace-nowrap">{format(parseISO(trx.datetime), "d MMM y, HH:mm", { locale: id })}</td>
-                      <td className="px-4 py-4 text-sm font-medium text-foreground">{trx.productName}</td>
+                      <td className="px-4 py-4 text-sm font-medium text-foreground">{trx.customerName}</td>
                       <td className="px-4 py-4 text-sm text-right text-foreground whitespace-nowrap">Rp {trx.sellingPrice.toLocaleString('id-ID')}</td>
                       <td className="px-4 py-4 text-sm text-right whitespace-nowrap"><Badge variant={trx.profit > 0 ? 'default' : 'destructive'} className="font-semibold">Rp {trx.profit.toLocaleString('id-ID')}</Badge></td>
                       <td className="px-4 py-4 text-sm text-muted-foreground">{getPaymentMethodsString(trx.payments)}</td>
@@ -714,5 +688,3 @@ export default function FamilyPackSalesPage() {
     </div>
   );
 }
-
-    
