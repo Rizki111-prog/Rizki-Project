@@ -392,6 +392,10 @@ export default function FamilyPackSalesPage() {
     const cost = cleanRupiah(costPrice);
     const price = cleanRupiah(sellingPrice);
     
+    const transactionsRef = ref(db, 'transaksi_akrab');
+    const newTransactionRef = push(transactionsRef);
+    const transactionId = newTransactionRef.key;
+    
     const newTransaction = {
       datetime,
       customerId: customerId || '',
@@ -411,13 +415,8 @@ export default function FamilyPackSalesPage() {
       createdAt: serverTimestamp()
     };
 
-    const transactionsRef = ref(db, 'transaksi_akrab');
-    const newTransactionRef = push(transactionsRef);
-    
     update(newTransactionRef, newTransaction)
       .then(() => {
-        const transactionId = newTransactionRef.key;
-
         saveToCustomerMaster(customerName);
 
         fundSources.forEach(source => {
@@ -431,11 +430,12 @@ export default function FamilyPackSalesPage() {
         payments.forEach(payment => {
             if(payment.method === 'Hutang' && transactionId) {
                 push(ref(db, 'hutang'), {
-                    nama: customerName, // Automatically use customerName
+                    nama: customerName,
                     nominal: payment.amount,
                     tanggal: datetime,
                     status: 'Belum Lunas',
-                    transactionId: transactionId
+                    transactionId: transactionId,
+                    sourcePath: 'transaksi_akrab' // Add source path
                 });
             } else if (payment.cardId) {
                 const paymentMethodRef = ref(db, `keuangan/cards/${payment.cardId}`);

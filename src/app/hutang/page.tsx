@@ -23,7 +23,8 @@ interface Debt {
   nominal: number;
   tanggal: string;
   status: 'Belum Lunas' | 'Lunas';
-  transactionId: string;
+  transactionId?: string;
+  sourcePath?: 'transaksi_reguler' | 'transaksi_akrab';
   tanggal_pelunasan?: string;
 }
 
@@ -93,43 +94,42 @@ export default function HutangPage() {
         }
         setIsSubmitting(true);
 
+        const { transactionId, sourcePath } = selectedDebt;
+        let originalTransactionUpdated = false;
+
         try {
             const settlementDate = new Date().toISOString();
             const paymentCard = financialCards.find(card => card.id === paymentMethod);
-            if (!paymentCard) {
-                throw new Error("Metode pembayaran tidak valid.");
-            }
+            if (!paymentCard) throw new Error("Metode pembayaran tidak valid.");
 
-            // 1. Get the original transaction
-            const transactionRef = ref(db, `transaksi_reguler/${selectedDebt.transactionId}`);
-            const transactionSnapshot = await get(transactionRef);
-            if (!transactionSnapshot.exists()) {
-                throw new Error("Transaksi asli tidak ditemukan.");
-            }
-            const transactionData = transactionSnapshot.val();
-            const paymentIndex = transactionData.payments.findIndex((p: any) => p.method === 'Hutang' && p.debtorName === selectedDebt.nama);
-
-            if (paymentIndex === -1) {
-                throw new Error("Pembayaran hutang tidak ditemukan di transaksi asli.");
-            }
-            
-            // 2. Prepare multi-path update
             const updates: { [key: string]: any } = {};
-
-            // Update for /hutang/{debtId}
+            
+            // Mark debt as 'Lunas'
             updates[`/hutang/${selectedDebt.id}/status`] = 'Lunas';
             updates[`/hutang/${selectedDebt.id}/tanggal_pelunasan`] = settlementDate;
-            
-            // Update for original transaction in /transaksi_reguler/{transactionId}
-            updates[`/transaksi_reguler/${selectedDebt.transactionId}/payments/${paymentIndex}/method`] = paymentCard.name;
-            updates[`/transaksi_reguler/${selectedDebt.transactionId}/payments/${paymentIndex}/cardId`] = paymentCard.id;
-            updates[`/transaksi_reguler/${selectedDebt.transactionId}/tanggal_pelunasan`] = settlementDate;
 
+            // Attempt to update original transaction
+            if (transactionId && sourcePath) {
+                const transactionRef = ref(db, `${sourcePath}/${transactionId}`);
+                const transactionSnapshot = await get(transactionRef);
+                
+                if (transactionSnapshot.exists()) {
+                    const transactionData = transactionSnapshot.val();
+                    const paymentIndex = transactionData.payments.findIndex((p: any) => p.method === 'Hutang' && p.debtorName === selectedDebt.nama);
 
-            // 3. Execute the multi-path update
+                    if (paymentIndex !== -1) {
+                        updates[`${sourcePath}/${transactionId}/payments/${paymentIndex}/method`] = paymentCard.name;
+                        updates[`${sourcePath}/${transactionId}/payments/${paymentIndex}/cardId`] = paymentCard.id;
+                        updates[`${sourcePath}/${transactionId}/tanggal_pelunasan`] = settlementDate;
+                        originalTransactionUpdated = true;
+                    }
+                }
+            }
+
+            // Execute all updates
             await update(ref(db), updates);
 
-            // 4. Update the balance of the payment card
+            // Update balance of the payment card
             const paymentCardRef = ref(db, `keuangan/cards/${paymentMethod}`);
             await runTransaction(paymentCardRef, (card) => {
                 if (card) {
@@ -137,11 +137,19 @@ export default function HutangPage() {
                 }
                 return card;
             });
-            
-            toast({
-                title: "Sukses",
-                description: `Hutang lunas dan metode pembayaran transaksi telah diperbarui.`,
-            });
+
+            if (originalTransactionUpdated) {
+                toast({
+                    title: "Sukses",
+                    description: `Hutang lunas dan metode pembayaran transaksi telah diperbarui.`,
+                });
+            } else {
+                 toast({
+                    variant: "default",
+                    title: "Hutang Lunas",
+                    description: `Catatan: Transaksi asli tidak ditemukan, hanya saldo yang diperbarui.`,
+                });
+            }
 
         } catch (error: any) {
             toast({

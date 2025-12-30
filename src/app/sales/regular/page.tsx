@@ -337,6 +337,10 @@ export default function RegularSalesPage() {
         return;
     }
     
+    const transactionsRef = ref(db, 'transaksi_reguler');
+    const newTransactionRef = push(transactionsRef);
+    const transactionId = newTransactionRef.key;
+    
     const newTransaction = {
       datetime,
       customerId: customerId || '',
@@ -353,14 +357,9 @@ export default function RegularSalesPage() {
       }),
       createdAt: serverTimestamp()
     };
-
-    const transactionsRef = ref(db, 'transaksi_reguler');
-    const newTransactionRef = push(transactionsRef);
     
     update(newTransactionRef, newTransaction)
       .then(() => {
-        const transactionId = newTransactionRef.key;
-
         if (productName && price && cost) {
           saveToProductMaster({ name: productName, sellingPrice: price, costPrice: cost });
         }
@@ -381,7 +380,8 @@ export default function RegularSalesPage() {
                     nominal: payment.amount,
                     tanggal: datetime,
                     status: 'Belum Lunas',
-                    transactionId: transactionId
+                    transactionId: transactionId,
+                    sourcePath: 'transaksi_reguler' // Add source path
                 });
             } else if (payment.cardId) {
                 const paymentMethodRef = ref(db, `keuangan/cards/${payment.cardId}`);
