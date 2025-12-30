@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Edit, Loader2, Eye, PlusCircle, CalendarDays } from 'lucide-react';
+import { Trash2, Edit, Loader2, Eye, PlusCircle, CalendarDays, X } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -102,6 +102,7 @@ export default function FamilyPackSalesPage() {
   const [akrabCustomers, setAkrabCustomers] = useState<Customer[]>([]);
   const [isLoadingCards, setIsLoadingCards] = useState(true);
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(true);
+  const [showForm, setShowForm] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -111,13 +112,32 @@ export default function FamilyPackSalesPage() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const customerNameInputRef = useRef<HTMLDivElement>(null);
 
-
-  useEffect(() => {
+  const resetForm = useCallback(() => {
     const now = new Date();
     const localIsoString = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString();
     setDatetime(localIsoString.slice(0, 16));
     setTanggalKadaluarsa(getThirtyDaysFromDate(now));
+
+    setCustomerId('');
+    setCustomerName('');
+    setSellingPrice('');
+    setCostPrice('');
+    setLinkAkunPengelola('');
+    setEWalletPengelola('');
+    
+    setPayments([{ method: '', cardId: '', amount: 0, debtorName: '' }]);
+    setFundSources([{ cardId: '', cardName: '', amount: 0 }]);
+    
+    setIsPaymentAmountManuallySet(false);
+    setIsFundSourceAmountManuallySet(false);
+    isExpiryDateManuallySet.current = false;
+    
+    setShowForm(false);
   }, []);
+
+  useEffect(() => {
+    resetForm();
+  }, [resetForm]);
   
   useEffect(() => {
     if (datetime && !isExpiryDateManuallySet.current) {
@@ -132,8 +152,15 @@ export default function FamilyPackSalesPage() {
       const data = snapshot.val();
       const loadedTransactions: Transaction[] = [];
       for (const key in data) {
-        const profit = (data[key].sellingPrice || 0) - (data[key].costPrice || 0);
-        loadedTransactions.push({ id: key, ...data[key], profit });
+        const trxData = data[key];
+        const sellingPrice = trxData.sellingPrice || 0;
+        const costPrice = (trxData.fundSources || []).reduce((acc: number, src: { amount: number }) => acc + (src.amount || 0), 0);
+        loadedTransactions.push({ 
+          id: key, 
+          ...trxData, 
+          costPrice,
+          profit: sellingPrice - costPrice
+        });
       }
       loadedTransactions.sort((a, b) => b.createdAt - a.createdAt);
       setTransactions(loadedTransactions);
@@ -194,12 +221,12 @@ export default function FamilyPackSalesPage() {
   useEffect(() => {
     if (isLoadingCards) return;
 
-    const price = cleanRupiah(sellingPrice);
+    const price = cleanRupiah(sellingPrice) || 0;
     
     if (payments.length === 1 && !isPaymentAmountManuallySet) {
         const newPayments = [...payments];
         const cashCard = financialCards.find(c => c.name.toLowerCase() === 'tunai');
-        const defaultCard = cashCard || financialCards[0];
+        const defaultCard = cashCard || (financialCards.length > 0 ? financialCards[0] : null);
 
         newPayments[0].amount = price >= 0 ? price : 0;
         
@@ -214,12 +241,12 @@ export default function FamilyPackSalesPage() {
   useEffect(() => {
     if (isLoadingCards) return;
 
-    const cost = cleanRupiah(costPrice);
+    const cost = cleanRupiah(costPrice) || 0;
 
     if (fundSources.length === 1 && !isFundSourceAmountManuallySet) {
         const newFundSources = [...fundSources];
         const agenPulsaCard = financialCards.find(c => c.name.toLowerCase() === 'agen pulsa');
-        const defaultCard = agenPulsaCard || financialCards[0];
+        const defaultCard = agenPulsaCard || (financialCards.length > 0 ? financialCards[0] : null);
         
         newFundSources[0].amount = cost >= 0 ? cost : 0;
 
@@ -295,7 +322,7 @@ export default function FamilyPackSalesPage() {
 
   const addPayment = () => {
       setIsPaymentAmountManuallySet(true); 
-      const remaining = cleanRupiah(sellingPrice) - payments.reduce((acc, p) => acc + p.amount, 0);
+      const remaining = (cleanRupiah(sellingPrice) || 0) - payments.reduce((acc, p) => acc + p.amount, 0);
       setPayments([...payments, { method: '', cardId: '', amount: remaining > 0 ? remaining : 0, debtorName: '' }]);
   };
 
@@ -307,7 +334,7 @@ export default function FamilyPackSalesPage() {
 
   const addFundSource = () => {
       setIsFundSourceAmountManuallySet(true);
-      const remaining = cleanRupiah(costPrice) - fundSources.reduce((acc, fs) => acc + fs.amount, 0);
+      const remaining = (cleanRupiah(costPrice) || 0) - fundSources.reduce((acc, fs) => acc + fs.amount, 0);
       setFundSources([...fundSources, { cardId: '', cardName: '', amount: remaining > 0 ? remaining : 0 }]);
   };
 
@@ -318,32 +345,12 @@ export default function FamilyPackSalesPage() {
   };
   
   const totalPaid = useMemo(() => payments.reduce((acc, p) => acc + p.amount, 0), [payments]);
-  const remainingAmount = useMemo(() => cleanRupiah(sellingPrice) - totalPaid, [sellingPrice, totalPaid]);
+  const remainingAmount = useMemo(() => (cleanRupiah(sellingPrice) || 0) - totalPaid, [sellingPrice, totalPaid]);
   const isPaymentValid = useMemo(() => remainingAmount === 0, [remainingAmount]);
   
   const totalFundSourceAmount = useMemo(() => fundSources.reduce((acc, fs) => acc + fs.amount, 0), [fundSources]);
-  const remainingFundSourceAmount = useMemo(() => cleanRupiah(costPrice) - totalFundSourceAmount, [costPrice, totalFundSourceAmount]);
+  const remainingFundSourceAmount = useMemo(() => (cleanRupiah(costPrice) || 0) - totalFundSourceAmount, [costPrice, totalFundSourceAmount]);
   const isFundSourceValid = useMemo(() => remainingFundSourceAmount === 0, [remainingFundSourceAmount]);
-
-  const resetForm = useCallback(() => {
-    setCustomerId('');
-    setCustomerName('');
-    setSellingPrice('');
-    setCostPrice('');
-    setLinkAkunPengelola('');
-    setEWalletPengelola('');
-    setPayments([{ method: '', cardId: '', amount: 0, debtorName: '' }]);
-    setFundSources([{ cardId: '', cardName: '', amount: 0 }]);
-    setIsPaymentAmountManuallySet(false);
-    setIsFundSourceAmountManuallySet(false);
-    isExpiryDateManuallySet.current = false;
-    
-    const now = new Date();
-    const localIsoString = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString();
-    setDatetime(localIsoString.slice(0, 16));
-    setTanggalKadaluarsa(getThirtyDaysFromDate(now));
-
-  }, []);
   
   const handleCustomerSelect = (customer: Customer) => {
       setCustomerName(customer.name);
@@ -351,6 +358,7 @@ export default function FamilyPackSalesPage() {
   }
 
   const saveToCustomerMaster = useCallback(async (name: string) => {
+    if (!name.trim()) return;
     const customersRef = query(ref(db, 'pelanggan_akrab'), orderByChild('name'), equalTo(name));
     const snapshot = await get(customersRef);
     if (!snapshot.exists()) {
@@ -420,24 +428,26 @@ export default function FamilyPackSalesPage() {
         saveToCustomerMaster(customerName);
 
         fundSources.forEach(source => {
-            const fundSourceRef = ref(db, `keuangan/cards/${source.cardId}`);
-            runTransaction(fundSourceRef, (card) => {
-                if (card) { card.balance -= source.amount; }
-                return card;
-            });
+            if (source.cardId && source.amount > 0) {
+              const fundSourceRef = ref(db, `keuangan/cards/${source.cardId}`);
+              runTransaction(fundSourceRef, (card) => {
+                  if (card) { card.balance -= source.amount; }
+                  return card;
+              });
+            }
         });
 
         payments.forEach(payment => {
-            if(payment.method === 'Hutang' && transactionId) {
+            if(payment.method === 'Hutang' && transactionId && payment.amount > 0) {
                 push(ref(db, 'hutang'), {
                     nama: customerName,
                     nominal: payment.amount,
                     tanggal: datetime,
                     status: 'Belum Lunas',
                     transactionId: transactionId,
-                    sourcePath: 'transaksi_akrab' // Add source path
+                    sourcePath: 'transaksi_akrab'
                 });
-            } else if (payment.cardId) {
+            } else if (payment.cardId && payment.amount > 0) {
                 const paymentMethodRef = ref(db, `keuangan/cards/${payment.cardId}`);
                 runTransaction(paymentMethodRef, (card) => {
                     if (card) { card.balance += payment.amount; }
@@ -464,7 +474,7 @@ export default function FamilyPackSalesPage() {
     remove(ref(db, `transaksi_akrab/${id}`))
       .then(() => {
         transactionToDelete.fundSources?.forEach(source => {
-            if(source.cardId){
+            if(source.cardId && source.amount > 0){
                 const fundSourceRef = ref(db, `keuangan/cards/${source.cardId}`);
                 runTransaction(fundSourceRef, (card) => {
                     if (card) { card.balance += source.amount; }
@@ -474,7 +484,7 @@ export default function FamilyPackSalesPage() {
         });
         
         transactionToDelete.payments?.forEach(payment => {
-            if (payment.cardId) {
+            if (payment.cardId && payment.amount > 0) {
                 const paymentMethodRef = ref(db, `keuangan/cards/${payment.cardId}`);
                 runTransaction(paymentMethodRef, (card) => {
                     if (card) { card.balance -= payment.amount; }
@@ -523,18 +533,18 @@ export default function FamilyPackSalesPage() {
         { label: 'E-Wallet Pengelola', value: trx.eWalletPengelola || '-' },
         { label: 'Tanggal Kadaluarsa', value: format(parseISO(trx.tanggalKadaluarsa), "d MMMM yyyy", { locale: id }) },
         { label: 'Sisa Masa Aktif', value: getDaysRemaining(trx.tanggalKadaluarsa).text, badge: getDaysRemaining(trx.tanggalKadaluarsa).color as any },
-        { label: 'Harga Jual', value: `Rp ${trx.sellingPrice.toLocaleString('id-ID')}` },
-        { label: 'Harga Modal', value: `Rp ${trx.costPrice.toLocaleString('id-ID')}` },
-        { label: 'Laba', value: `Rp ${trx.profit.toLocaleString('id-ID')}`, badge: trx.profit > 0 ? 'default' : 'destructive' },
+        { label: 'Harga Jual', value: formatRupiah(trx.sellingPrice) },
+        { label: 'Harga Modal', value: formatRupiah(trx.costPrice) },
+        { label: 'Laba', value: formatRupiah(trx.profit), badge: trx.profit > 0 ? 'default' : 'destructive' },
     ];
     trx.fundSources?.forEach((fs, i) => {
         const sourceLabel = `Sumber Modal ${i+1}`;
-        const sourceValue = `${fs.cardName} - Rp ${fs.amount.toLocaleString('id-ID')}`;
+        const sourceValue = `${fs.cardName} - ${formatRupiah(fs.amount)}`;
         details.push({ label: sourceLabel, value: sourceValue });
     });
     trx.payments?.forEach((p, i) => {
         const paymentLabel = `Pembayaran ${i+1}${p.method === 'Hutang' ? ` (${p.debtorName})` : ''}`;
-        const paymentValue = `${p.method} - Rp ${p.amount.toLocaleString('id-ID')}`;
+        const paymentValue = `${p.method} - ${formatRupiah(p.amount)}`;
         details.push({ label: paymentLabel, value: paymentValue });
     })
     return details;
@@ -542,160 +552,166 @@ export default function FamilyPackSalesPage() {
   
 
   return (
-    <div className="flex flex-col w-full min-h-[100dvh] bg-background">
+    <div className="flex flex-col w-full min-h-screen bg-background overflow-x-hidden">
       <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-4 sm:px-6">
         <SidebarTrigger className="md:hidden" />
-        <div>
+        <div className="flex-1">
           <h1 className="text-lg font-semibold tracking-tight md:text-2xl">Paket Akrab</h1>
           <p className="text-xs text-muted-foreground sm:text-sm">Proses transaksi baru untuk Paket Akrab.</p>
         </div>
+        <Button onClick={() => setShowForm(!showForm)} variant={showForm ? "destructive" : "default"} className="transition-all duration-300">
+            {showForm ? <X className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+            {showForm ? 'Tutup Formulir' : 'Tambah Transaksi'}
+        </Button>
       </header>
       <main className="flex flex-1 flex-col gap-4 p-4 sm:gap-6 sm:p-6">
-        <Card className="rounded-xl shadow-sm w-full">
-          <CardHeader>
-            <CardTitle>Transaksi Baru Paket Akrab</CardTitle>
-            <CardDescription>Isi detail transaksi untuk penjualan Paket Akrab.</CardDescription>
-          </CardHeader>
-          <form onSubmit={handleSubmit}>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="datetime">Tanggal & Waktu</Label>
-                  <Input id="datetime" type="datetime-local" value={datetime} onChange={handleDatetimeChange} required />
-                </div>
-                <div className="space-y-2 relative md:col-span-2 lg:col-span-1" ref={customerNameInputRef}>
-                    <Label htmlFor="customerName">Nama Pelanggan</Label>
-                    <Input 
-                      id="customerName"
-                      placeholder={isLoadingCustomers ? "Memuat pelanggan..." : "Ketik nama pelanggan"}
-                      value={customerName}
-                      onChange={(e) => { setCustomerName(e.target.value); setShowSuggestions(true); }}
-                      onFocus={() => setShowSuggestions(true)}
-                      autoComplete="off"
-                      required
-                    />
-                    {showSuggestions && akrabCustomers.length > 0 && (
-                        <div className="absolute z-20 w-full mt-1 bg-card border border-border rounded-md shadow-lg max-h-60 overflow-y-auto">
-                            {akrabCustomers.filter(c => c.name.toLowerCase().includes(customerName.toLowerCase())).map((customer) => (
-                                <div key={customer.id} className="p-2 hover:bg-accent cursor-pointer text-sm" onClick={() => handleCustomerSelect(customer)}>
-                                    {customer.name}
-                                </div>
-                            ))}
+        {showForm && (
+            <Card className="rounded-xl shadow-sm w-full">
+            <CardHeader>
+                <CardTitle>Transaksi Baru Paket Akrab</CardTitle>
+                <CardDescription>Isi detail transaksi untuk penjualan Paket Akrab.</CardDescription>
+            </CardHeader>
+            <form onSubmit={handleSubmit}>
+                <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="space-y-2">
+                    <Label htmlFor="datetime">Tanggal & Waktu</Label>
+                    <Input id="datetime" type="datetime-local" value={datetime} onChange={handleDatetimeChange} required />
+                    </div>
+                    <div className="space-y-2 relative md:col-span-2 lg:col-span-1" ref={customerNameInputRef}>
+                        <Label htmlFor="customerName">Nama Pelanggan</Label>
+                        <Input 
+                        id="customerName"
+                        placeholder={isLoadingCustomers ? "Memuat pelanggan..." : "Ketik nama pelanggan"}
+                        value={customerName}
+                        onChange={(e) => { setCustomerName(e.target.value); setShowSuggestions(true); }}
+                        onFocus={() => setShowSuggestions(true)}
+                        autoComplete="off"
+                        required
+                        />
+                        {showSuggestions && akrabCustomers.length > 0 && (
+                            <div className="absolute z-20 w-full mt-1 bg-card border border-border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                {akrabCustomers.filter(c => c.name.toLowerCase().includes(customerName.toLowerCase())).map((customer) => (
+                                    <div key={customer.id} className="p-2 hover:bg-accent cursor-pointer text-sm" onClick={() => handleCustomerSelect(customer)}>
+                                        {customer.name}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    <div className="space-y-2">
+                    <Label htmlFor="customerId">Nomor HP / ID Pelanggan</Label>
+                    <Input id="customerId" placeholder="ID Pelanggan (Opsional)" value={customerId} onChange={(e) => setCustomerId(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                    <Label htmlFor="sellingPrice">Harga Jual</Label>
+                    <Input id="sellingPrice" type="text" placeholder="Harga Jual (Opsional)" value={sellingPrice} onChange={handlePriceChange(setSellingPrice, false)} />
+                    </div>
+                    <div className="space-y-2">
+                    <Label htmlFor="costPrice">Modal</Label>
+                    <Input id="costPrice" type="text" placeholder="Modal (Opsional)" value={costPrice} onChange={handlePriceChange(setCostPrice, true)} />
+                    </div>
+                    <div className="space-y-2">
+                    <Label htmlFor="linkAkunPengelola">Link Akun Pengelola</Label>
+                    <Input id="linkAkunPengelola" placeholder="Link Akun (Opsional)" value={linkAkunPengelola} onChange={(e) => setLinkAkunPengelola(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                    <Label htmlFor="eWalletPengelola">E-Wallet Pengelola</Label>
+                    <Input id="eWalletPengelola" placeholder="E-Wallet (Opsional)" value={eWalletPengelola} onChange={(e) => setEWalletPengelola(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="tanggalKadaluarsa">Tanggal Kadaluarsa</Label>
+                        <div className="relative">
+                        <Input id="tanggalKadaluarsa" type="date" value={tanggalKadaluarsa} onChange={handleExpiryDateChange} required />
+                        <CalendarDays className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                         </div>
-                    )}
-                </div>
-                 <div className="space-y-2">
-                  <Label htmlFor="customerId">Nomor HP / ID Pelanggan</Label>
-                  <Input id="customerId" placeholder="ID Pelanggan (Opsional)" value={customerId} onChange={(e) => setCustomerId(e.target.value)} />
-                </div>
-                 <div className="space-y-2">
-                  <Label htmlFor="sellingPrice">Harga Jual</Label>
-                  <Input id="sellingPrice" type="text" placeholder="Harga Jual (Opsional)" value={sellingPrice} onChange={handlePriceChange(setSellingPrice, false)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="costPrice">Modal</Label>
-                  <Input id="costPrice" type="text" placeholder="Modal (Opsional)" value={costPrice} onChange={handlePriceChange(setCostPrice, true)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="linkAkunPengelola">Link Akun Pengelola</Label>
-                  <Input id="linkAkunPengelola" placeholder="Link Akun (Opsional)" value={linkAkunPengelola} onChange={(e) => setLinkAkunPengelola(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="eWalletPengelola">E-Wallet Pengelola</Label>
-                  <Input id="eWalletPengelola" placeholder="E-Wallet (Opsional)" value={eWalletPengelola} onChange={(e) => setEWalletPengelola(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="tanggalKadaluarsa">Tanggal Kadaluarsa</Label>
-                    <div className="relative">
-                       <Input id="tanggalKadaluarsa" type="date" value={tanggalKadaluarsa} onChange={handleExpiryDateChange} required />
-                       <CalendarDays className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                     </div>
                 </div>
-              </div>
-                
-                <div className="mt-6 border-t pt-4">
-                  <h3 className="text-md font-medium mb-2">Sumber Modal</h3>
-                    <div className="space-y-4">
-                      {fundSources.map((source, index) => (
-                        <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-2 p-3 border rounded-lg bg-muted/20 relative">
-                            <div className="space-y-2 col-span-12 md:col-span-7">
-                                <Label htmlFor={`fund-source-card-${index}`}>Akun Modal</Label>
-                                <Select value={source.cardId} onValueChange={(value) => handleFundSourceCardChange(index, value)} required>
-                                    <SelectTrigger id={`fund-source-card-${index}`} className="bg-background"><SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih akun"} /></SelectTrigger>
-                                    <SelectContent>
-                                        {financialCards.map(card => (<SelectItem key={card.id} value={card.id}>{card.name}</SelectItem>))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="space-y-2 col-span-12 md:col-span-4">
-                                <Label htmlFor={`fund-source-amount-${index}`}>Nominal</Label>
-                                <Input id={`fund-source-amount-${index}`} type="text" placeholder="0" value={formatRupiah(source.amount)} onChange={(e) => handleFundSourceAmountChange(index, e.target.value)} required className="bg-background" />
-                            </div>
-                            {fundSources.length > 1 && (
-                                <div className="col-span-12 md:col-span-1 flex items-end justify-end md:justify-center">
-                                    <Button variant="ghost" size="icon" onClick={() => removeFundSource(index)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>
+                    
+                    <div className="mt-6 border-t pt-4">
+                    <h3 className="text-md font-medium mb-2">Sumber Modal</h3>
+                        <div className="space-y-4">
+                        {fundSources.map((source, index) => (
+                            <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-2 p-3 border rounded-lg bg-muted/20 relative">
+                                <div className="space-y-2 col-span-12 md:col-span-7">
+                                    <Label htmlFor={`fund-source-card-${index}`}>Akun Modal</Label>
+                                    <Select value={source.cardId} onValueChange={(value) => handleFundSourceCardChange(index, value)} required>
+                                        <SelectTrigger id={`fund-source-card-${index}`} className="bg-background"><SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih akun"} /></SelectTrigger>
+                                        <SelectContent>
+                                            {financialCards.map(card => (<SelectItem key={card.id} value={card.id}>{card.name}</SelectItem>))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
-                            )}
+                                <div className="space-y-2 col-span-12 md:col-span-4">
+                                    <Label htmlFor={`fund-source-amount-${index}`}>Nominal</Label>
+                                    <Input id={`fund-source-amount-${index}`} type="text" placeholder="0" value={formatRupiah(source.amount)} onChange={(e) => handleFundSourceAmountChange(index, e.target.value)} required className="bg-background" />
+                                </div>
+                                {fundSources.length > 1 && (
+                                    <div className="col-span-12 md:col-span-1 flex items-end justify-end md:justify-center">
+                                        <Button variant="ghost" size="icon" onClick={() => removeFundSource(index)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                        <div className="flex flex-col md:flex-row justify-between items-center mt-4 text-sm gap-4">
+                            <Button type="button" variant="outline" size="sm" onClick={addFundSource} className="w-full md:w-auto"><PlusCircle className="mr-2 h-4 w-4" /> Tambah Sumber Modal</Button>
+                            <div className="text-right w-full md:w-auto">
+                            <p>Total Modal Terinput: <span className="font-bold">{formatRupiah(totalFundSourceAmount)}</span></p>
+                            <p className={remainingFundSourceAmount !== 0 ? 'text-destructive' : 'text-emerald-600'}>
+                                {remainingFundSourceAmount > 0 ? `Sisa: ${formatRupiah(remainingFundSourceAmount)}` : remainingFundSourceAmount < 0 ? `Kelebihan: ${formatRupiah(Math.abs(remainingFundSourceAmount))}`: 'Modal Sesuai'}
+                            </p>
+                            </div>
                         </div>
-                      ))}
-                      <div className="flex flex-col md:flex-row justify-between items-center mt-4 text-sm gap-4">
-                        <Button type="button" variant="outline" size="sm" onClick={addFundSource} className="w-full md:w-auto"><PlusCircle className="mr-2 h-4 w-4" /> Tambah Sumber Modal</Button>
-                        <div className="text-right w-full md:w-auto">
-                          <p>Total Modal Terinput: <span className="font-bold">{formatRupiah(totalFundSourceAmount)}</span></p>
-                          <p className={remainingFundSourceAmount !== 0 ? 'text-destructive' : 'text-emerald-600'}>
-                              {remainingFundSourceAmount > 0 ? `Sisa: ${formatRupiah(remainingFundSourceAmount)}` : remainingFundSourceAmount < 0 ? `Kelebihan: ${formatRupiah(Math.abs(remainingFundSourceAmount))}`: 'Modal Sesuai'}
-                          </p>
                         </div>
-                      </div>
                     </div>
-                </div>
 
-                <div className="mt-6 border-t pt-4">
-                  <h3 className="text-md font-medium mb-2">Metode Pembayaran</h3>
-                    <div className="space-y-4">
-                      {payments.map((payment, index) => (
-                        <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-2 p-3 border rounded-lg bg-muted/20 relative">
-                            <div className="space-y-2 col-span-12 md:col-span-7">
-                                <Label htmlFor={`payment-method-${index}`}>Metode</Label>
-                                <Select value={payment.cardId || (payment.method === 'Hutang' ? 'Hutang' : '')} onValueChange={(value) => handlePaymentMethodChange(index, value)} required>
-                                    <SelectTrigger id={`payment-method-${index}`} className="bg-background"><SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih metode"} /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="Hutang">Hutang</SelectItem>
-                                        {financialCards.map(card => (<SelectItem key={card.id} value={card.id}>{card.name}</SelectItem>))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="space-y-2 col-span-12 md:col-span-4">
-                                <Label htmlFor={`payment-amount-${index}`}>Nominal</Label>
-                                <Input id={`payment-amount-${index}`} type="text" placeholder="0" value={formatRupiah(payment.amount)} onChange={(e) => handlePaymentAmountChange(index, e.target.value)} required className="bg-background" />
-                            </div>
-                            {payments.length > 1 && (
-                                <div className="col-span-12 md:col-span-1 flex items-end justify-end md:justify-center">
-                                    <Button variant="ghost" size="icon" onClick={() => removePayment(index)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>
+                    <div className="mt-6 border-t pt-4">
+                    <h3 className="text-md font-medium mb-2">Metode Pembayaran</h3>
+                        <div className="space-y-4">
+                        {payments.map((payment, index) => (
+                            <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-2 p-3 border rounded-lg bg-muted/20 relative">
+                                <div className="space-y-2 col-span-12 md:col-span-7">
+                                    <Label htmlFor={`payment-method-${index}`}>Metode</Label>
+                                    <Select value={payment.cardId || (payment.method === 'Hutang' ? 'Hutang' : '')} onValueChange={(value) => handlePaymentMethodChange(index, value)} required>
+                                        <SelectTrigger id={`payment-method-${index}`} className="bg-background"><SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih metode"} /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Hutang">Hutang</SelectItem>
+                                            {financialCards.map(card => (<SelectItem key={card.id} value={card.id}>{card.name}</SelectItem>))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
-                            )}
+                                <div className="space-y-2 col-span-12 md:col-span-4">
+                                    <Label htmlFor={`payment-amount-${index}`}>Nominal</Label>
+                                    <Input id={`payment-amount-${index}`} type="text" placeholder="0" value={formatRupiah(payment.amount)} onChange={(e) => handlePaymentAmountChange(index, e.target.value)} required className="bg-background" />
+                                </div>
+                                {payments.length > 1 && (
+                                    <div className="col-span-12 md:col-span-1 flex items-end justify-end md:justify-center">
+                                        <Button variant="ghost" size="icon" onClick={() => removePayment(index)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                        <div className="flex flex-col md:flex-row justify-between items-center mt-4 text-sm gap-4">
+                            <Button type="button" variant="outline" size="sm" onClick={addPayment} className="w-full md:w-auto"><PlusCircle className="mr-2 h-4 w-4" /> Tambah Pembayaran</Button>
+                            <div className="text-right w-full md:w-auto">
+                            <p>Total Terinput: <span className="font-bold">{formatRupiah(totalPaid)}</span></p>
+                            <p className={remainingAmount !== 0 ? 'text-destructive' : 'text-emerald-600'}>
+                                {remainingAmount > 0 ? `Sisa: ${formatRupiah(remainingAmount)}` : remainingAmount < 0 ? `Kelebihan: ${formatRupiah(Math.abs(remainingAmount))}`: 'Lunas'}
+                            </p>
+                            </div>
                         </div>
-                      ))}
-                      <div className="flex flex-col md:flex-row justify-between items-center mt-4 text-sm gap-4">
-                        <Button type="button" variant="outline" size="sm" onClick={addPayment} className="w-full md:w-auto"><PlusCircle className="mr-2 h-4 w-4" /> Tambah Pembayaran</Button>
-                        <div className="text-right w-full md:w-auto">
-                          <p>Total Terinput: <span className="font-bold">{formatRupiah(totalPaid)}</span></p>
-                          <p className={remainingAmount !== 0 ? 'text-destructive' : 'text-emerald-600'}>
-                              {remainingAmount > 0 ? `Sisa: ${formatRupiah(remainingAmount)}` : remainingAmount < 0 ? `Kelebihan: ${formatRupiah(Math.abs(remainingAmount))}`: 'Lunas'}
-                          </p>
                         </div>
-                      </div>
                     </div>
-                </div>
-            </CardContent>
-            <CardFooter className="border-t px-6 py-4">
-              <Button type="submit" disabled={isSubmitting || isLoadingCards || isLoadingCustomers || !isPaymentValid || !isFundSourceValid} className="transition-all duration-300 hover:scale-105 w-full md:w-auto">
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isSubmitting ? 'Menyimpan...' : 'Simpan Transaksi'}
-              </Button>
-            </CardFooter>
-          </form>
-        </Card>
+                </CardContent>
+                <CardFooter className="border-t px-6 py-4">
+                <Button type="submit" disabled={isSubmitting || isLoadingCards || isLoadingCustomers || !isPaymentValid || !isFundSourceValid} className="transition-all duration-300 hover:scale-105 w-full md:w-auto">
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {isSubmitting ? 'Menyimpan...' : 'Simpan Transaksi'}
+                </Button>
+                </CardFooter>
+            </form>
+            </Card>
+        )}
 
         <Card className="rounded-xl shadow-sm w-full">
           <CardHeader>
@@ -717,8 +733,8 @@ export default function FamilyPackSalesPage() {
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm pb-3">
                     <div className="flex justify-between"><span>Waktu:</span> <span className="font-medium text-right">{format(parseISO(trx.datetime), "d MMM y, HH:mm", { locale: id })}</span></div>
-                    <div className="flex justify-between"><span>Harga Jual:</span> <span className="font-medium">Rp {trx.sellingPrice.toLocaleString('id-ID')}</span></div>
-                    <div className="flex justify-between"><span>Laba:</span> <span className="font-medium"><Badge variant={trx.profit > 0 ? 'default' : 'destructive'} className="text-xs">Rp {trx.profit.toLocaleString('id-ID')}</Badge></span></div>
+                    <div className="flex justify-between"><span>Harga Jual:</span> <span className="font-medium">{formatRupiah(trx.sellingPrice)}</span></div>
+                    <div className="flex justify-between"><span>Laba:</span> <span className="font-medium"><Badge variant={trx.profit > 0 ? 'default' : 'destructive'} className="text-xs">{formatRupiah(trx.profit)}</Badge></span></div>
                   </CardContent>
                   <CardFooter className="flex justify-end space-x-2">
                     <Button variant="outline" size="icon" onClick={() => handleDetailClick(trx)} className="h-9 w-9"><Eye className="h-4 w-4" /></Button>
@@ -752,8 +768,8 @@ export default function FamilyPackSalesPage() {
                     <tr key={trx.id} className="hover:bg-muted/50 transition-colors">
                       <td className="px-4 py-4 text-sm text-muted-foreground whitespace-nowrap">{format(parseISO(trx.datetime), "d MMM y, HH:mm", { locale: id })}</td>
                       <td className="px-4 py-4 text-sm font-medium text-foreground">{trx.customerName}</td>
-                      <td className="px-4 py-4 text-sm text-right text-foreground whitespace-nowrap">Rp {trx.sellingPrice.toLocaleString('id-ID')}</td>
-                      <td className="px-4 py-4 text-sm text-right whitespace-nowrap"><Badge variant={trx.profit > 0 ? 'default' : 'destructive'} className="font-semibold">Rp {trx.profit.toLocaleString('id-ID')}</Badge></td>
+                      <td className="px-4 py-4 text-sm text-right text-foreground whitespace-nowrap">{formatRupiah(trx.sellingPrice)}</td>
+                      <td className="px-4 py-4 text-sm text-right whitespace-nowrap"><Badge variant={trx.profit > 0 ? 'default' : 'destructive'} className="font-semibold">{formatRupiah(trx.profit)}</Badge></td>
                       <td className="px-4 py-4 text-sm text-muted-foreground">{getPaymentMethodsString(trx.payments)}</td>
                       <td className="px-4 py-4 text-sm text-center whitespace-nowrap"><Badge variant={getDaysRemaining(trx.tanggalKadaluarsa).color as any}>{getDaysRemaining(trx.tanggalKadaluarsa).text}</Badge></td>
                       <td className="px-4 py-4 text-center space-x-1 whitespace-nowrap">

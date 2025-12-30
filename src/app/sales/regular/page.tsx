@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { db } from '@/firebase';
 import { ref, push, onValue, remove, update, serverTimestamp, runTransaction, query, orderByChild, equalTo, get } from 'firebase/database';
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Edit, Loader2, Eye, PlusCircle } from 'lucide-react';
+import { Trash2, Edit, Loader2, Eye, PlusCircle, X } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -77,41 +77,64 @@ interface Payment {
 export default function RegularSalesPage() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  // Form State
   const [datetime, setDatetime] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [productName, setProductName] = useState('');
   const [sellingPrice, setSellingPrice] = useState('');
   const [costPrice, setCostPrice] = useState('');
   const [fundSource, setFundSource] = useState('');
-
   const [payments, setPayments] = useState<Payment[]>([{ method: '', cardId: '', amount: 0, debtorName: '' }]);
   const [isPaymentAmountManuallySet, setIsPaymentAmountManuallySet] = useState(false);
 
+  // Data & UI State
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [financialCards, setFinancialCards] = useState<FinancialCard[]>([]);
   const [productMaster, setProductMaster] = useState<ProductMaster[]>([]);
   const [isLoadingCards, setIsLoadingCards] = useState(true);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+  const [showForm, setShowForm] = useState(false);
 
+  // Editing State
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const [editSellingPrice, setEditSellingPrice] = useState('');
-  const [editCostPrice, setEditCostPrice] = useState('');
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // Detail Modal State
   const [detailTransaction, setDetailTransaction] = useState<Transaction | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
+  // Suggestions State
   const [showSuggestions, setShowSuggestions] = useState(false);
   const productNameInputRef = useRef<HTMLDivElement>(null);
 
+  const resetForm = useCallback(() => {
+    const now = new Date();
+    const localIsoString = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString();
+    setDatetime(localIsoString.slice(0, 16));
+
+    setCustomerId('');
+    setProductName('');
+    setSellingPrice('');
+    setCostPrice('');
+    
+    setPayments([{ method: '', cardId: '', amount: 0, debtorName: '' }]);
+    setIsPaymentAmountManuallySet(false);
+
+    const agenPulsaCard = financialCards.find(card => card.name.toLowerCase() === 'agen pulsa');
+    if (agenPulsaCard) {
+      setFundSource(agenPulsaCard.id);
+    } else if (financialCards.length > 0) {
+      setFundSource(financialCards[0].id);
+    }
+    
+    setShowForm(false);
+  }, [financialCards]);
 
   useEffect(() => {
-    const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-    setDatetime(now.toISOString().slice(0, 16));
-  }, []);
+      resetForm();
+  }, [resetForm]);
 
   useEffect(() => {
     const transactionsRef = ref(db, 'transaksi_reguler');
@@ -119,8 +142,9 @@ export default function RegularSalesPage() {
       const data = snapshot.val();
       const loadedTransactions: Transaction[] = [];
       for (const key in data) {
-        const profit = (data[key].sellingPrice || 0) - (data[key].costPrice || 0);
-        loadedTransactions.push({ id: key, ...data[key], profit });
+        const trxData = data[key];
+        const profit = (trxData.sellingPrice || 0) - (trxData.costPrice || 0);
+        loadedTransactions.push({ id: key, ...trxData, profit });
       }
       loadedTransactions.sort((a, b) => b.createdAt - a.createdAt);
       setTransactions(loadedTransactions);
@@ -141,15 +165,6 @@ export default function RegularSalesPage() {
         }
         setFinancialCards(loadedCards);
         setIsLoadingCards(false);
-
-        // Set default fund source after cards are loaded
-        const agenPulsaCard = loadedCards.find(card => card.name.toLowerCase() === 'agen pulsa');
-        if (agenPulsaCard) {
-            setFundSource(agenPulsaCard.id);
-        } else if (loadedCards.length > 0) {
-            setFundSource(loadedCards[0].id); // Fallback to the first card
-        }
-
     }, (error) => {
         console.error("Firebase read failed: " + error.message);
         setIsLoadingCards(false);
@@ -187,23 +202,18 @@ export default function RegularSalesPage() {
     };
   }, []);
 
-  // Effect to handle default payment and dynamic sync with selling price
   useEffect(() => {
     if (isLoadingCards) return;
 
-    const price = cleanRupiah(sellingPrice);
+    const price = cleanRupiah(sellingPrice) || 0;
     
     if (payments.length === 1 && !isPaymentAmountManuallySet) {
         const newPayments = [...payments];
         const cashCard = financialCards.find(c => c.name.toLowerCase() === 'tunai');
-        const defaultCard = cashCard || financialCards[0];
+        const defaultCard = cashCard || (financialCards.length > 0 ? financialCards[0] : null);
 
-        if (price >= 0) {
-            newPayments[0].amount = price;
-        } else {
-            newPayments[0].amount = 0;
-        }
-
+        newPayments[0].amount = price >= 0 ? price : 0;
+        
         if (defaultCard) {
             newPayments[0].method = defaultCard.name;
             newPayments[0].cardId = defaultCard.id;
@@ -211,6 +221,18 @@ export default function RegularSalesPage() {
         setPayments(newPayments);
     }
   }, [sellingPrice, financialCards, isPaymentAmountManuallySet, payments.length, isLoadingCards]);
+  
+  // Set default fund source once cards are loaded
+  useEffect(() => {
+      if (!isLoadingCards && !fundSource) {
+          const agenPulsaCard = financialCards.find(card => card.name.toLowerCase() === 'agen pulsa');
+          if (agenPulsaCard) {
+              setFundSource(agenPulsaCard.id);
+          } else if (financialCards.length > 0) {
+              setFundSource(financialCards[0].id);
+          }
+      }
+  }, [isLoadingCards, financialCards, fundSource]);
 
 
   const handlePriceChange = (setter: React.Dispatch<React.SetStateAction<string>>) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -228,7 +250,6 @@ export default function RegularSalesPage() {
       const cleanedValue = value.replace(/[^0-9]/g, '');
       newPayments[index].amount = cleanRupiah(cleanedValue);
       setPayments(newPayments);
-      
       setIsPaymentAmountManuallySet(true);
   };
   
@@ -255,7 +276,7 @@ export default function RegularSalesPage() {
 
   const addPayment = () => {
       setIsPaymentAmountManuallySet(true); 
-      const remaining = cleanRupiah(sellingPrice) - payments.reduce((acc, p) => acc + p.amount, 0);
+      const remaining = (cleanRupiah(sellingPrice) || 0) - payments.reduce((acc, p) => acc + p.amount, 0);
       setPayments([...payments, { method: '', cardId: '', amount: remaining > 0 ? remaining : 0, debtorName: '' }]);
   };
 
@@ -267,38 +288,20 @@ export default function RegularSalesPage() {
       }
   };
   
-  const totalPaid = payments.reduce((acc, p) => acc + p.amount, 0);
-  const remainingAmount = cleanRupiah(sellingPrice) - totalPaid;
-  const isPaymentValid = remainingAmount === 0;
+  const totalPaid = useMemo(() => payments.reduce((acc, p) => acc + p.amount, 0), [payments]);
+  const remainingAmount = useMemo(() => (cleanRupiah(sellingPrice) || 0) - totalPaid, [sellingPrice, totalPaid]);
+  const isPaymentValid = useMemo(() => remainingAmount === 0, [remainingAmount]);
 
-  const resetForm = useCallback(() => {
-    setCustomerId('');
-    setProductName('');
-    setSellingPrice('');
-    setCostPrice('');
-    setPayments([{ method: '', cardId: '', amount: 0, debtorName: '' }]);
-    setIsPaymentAmountManuallySet(false);
-    const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-    setDatetime(now.toISOString().slice(0, 16));
-
-    const agenPulsaCard = financialCards.find(card => card.name.toLowerCase() === 'agen pulsa');
-    if (agenPulsaCard) {
-      setFundSource(agenPulsaCard.id);
-    } else if (financialCards.length > 0) {
-      setFundSource(financialCards[0].id);
-    }
-  }, [financialCards]);
-  
   const handleProductSelect = (product: ProductMaster) => {
       setProductName(product.name);
-      setSellingPrice(formatRupiah(String(product.sellingPrice)));
-      setCostPrice(formatRupiah(String(product.costPrice)));
+      setSellingPrice(formatRupiah(String(product.sellingPrice || '')));
+      setCostPrice(formatRupiah(String(product.costPrice || '')));
       setShowSuggestions(false);
       setIsPaymentAmountManuallySet(false); 
   }
 
   const saveToProductMaster = useCallback(async (productData: Omit<ProductMaster, 'id'>) => {
+    if (!productData.name.trim()) return;
     const productsRef = query(ref(db, 'produk_master'), orderByChild('name'), equalTo(productData.name));
     const snapshot = await get(productsRef);
     if (!snapshot.exists()) {
@@ -361,20 +364,22 @@ export default function RegularSalesPage() {
     
     update(newTransactionRef, newTransaction)
       .then(() => {
-        if (productName && price > 0 && cost > 0) {
+        if (productName && (price > 0 || cost > 0)) {
           saveToProductMaster({ name: productName, sellingPrice: price, costPrice: cost });
         }
-
-        const fundSourceRef = ref(db, `keuangan/cards/${fundSourceCard.id}`);
-        runTransaction(fundSourceRef, (card) => {
-            if (card) {
-                card.balance -= cost;
-            }
-            return card;
-        });
+        
+        if (cost > 0) {
+          const fundSourceRef = ref(db, `keuangan/cards/${fundSourceCard.id}`);
+          runTransaction(fundSourceRef, (card) => {
+              if (card) {
+                  card.balance -= cost;
+              }
+              return card;
+          });
+        }
 
         payments.forEach(payment => {
-            if(payment.method === 'Hutang' && transactionId) {
+            if(payment.method === 'Hutang' && transactionId && payment.amount > 0) {
                 const debtRef = ref(db, 'hutang');
                 push(debtRef, {
                     nama: payment.debtorName,
@@ -382,9 +387,9 @@ export default function RegularSalesPage() {
                     tanggal: datetime,
                     status: 'Belum Lunas',
                     transactionId: transactionId,
-                    sourcePath: 'transaksi_reguler' // Add source path
+                    sourcePath: 'transaksi_reguler'
                 });
-            } else if (payment.cardId) {
+            } else if (payment.cardId && payment.amount > 0) {
                 const paymentMethodRef = ref(db, `keuangan/cards/${payment.cardId}`);
                 runTransaction(paymentMethodRef, (card) => {
                     if (card) {
@@ -427,7 +432,7 @@ export default function RegularSalesPage() {
     const transactionRef = ref(db, `transaksi_reguler/${id}`);
     remove(transactionRef)
       .then(() => {
-        if(fundSourceCardId){
+        if(fundSourceCardId && cost > 0){
             const fundSourceRef = ref(db, `keuangan/cards/${fundSourceCardId}`);
             runTransaction(fundSourceRef, (card) => {
                 if (card) {
@@ -438,7 +443,7 @@ export default function RegularSalesPage() {
         }
         
         transactionToDelete.payments?.forEach(payment => {
-            if (payment.cardId) {
+            if (payment.cardId && payment.amount > 0) {
                 const paymentMethodRef = ref(db, `keuangan/cards/${payment.cardId}`);
                 runTransaction(paymentMethodRef, (card) => {
                     if (card) {
@@ -474,8 +479,6 @@ export default function RegularSalesPage() {
 
   const handleEditClick = (transaction: Transaction) => {
     setEditingTransaction(transaction);
-    setEditSellingPrice(formatRupiah(String(transaction.sellingPrice)));
-    setEditCostPrice(formatRupiah(String(transaction.costPrice)));
     setIsEditDialogOpen(true);
   };
   
@@ -504,15 +507,15 @@ export default function RegularSalesPage() {
         { label: 'Waktu Transaksi', value: format(parseISO(trx.datetime), "d MMMM yyyy, HH:mm:ss", { locale: id }) },
         { label: 'ID Pelanggan', value: trx.customerId || '-' },
         { label: 'Nama Produk', value: trx.productName },
-        { label: 'Harga Jual', value: `Rp ${trx.sellingPrice.toLocaleString('id-ID')}` },
-        { label: 'Harga Modal', value: `Rp ${trx.costPrice.toLocaleString('id-ID')}` },
-        { label: 'Laba', value: `Rp ${trx.profit.toLocaleString('id-ID')}`, badge: trx.profit > 0 ? 'default' : 'destructive' },
+        { label: 'Harga Jual', value: formatRupiah(trx.sellingPrice) },
+        { label: 'Harga Modal', value: formatRupiah(trx.costPrice) },
+        { label: 'Laba', value: formatRupiah(trx.profit), badge: trx.profit > 0 ? 'default' : 'destructive' },
         { label: 'Sumber Modal', value: trx.fundSource },
     ];
     
     trx.payments?.forEach((p, i) => {
         const paymentLabel = `Pembayaran ${i+1}${p.method === 'Hutang' ? ` (${p.debtorName})` : ''}`;
-        const paymentValue = `${p.method} - Rp ${p.amount.toLocaleString('id-ID')}`;
+        const paymentValue = `${p.method} - ${formatRupiah(p.amount)}`;
         details.push({ label: paymentLabel, value: paymentValue });
     })
 
@@ -530,165 +533,172 @@ export default function RegularSalesPage() {
 
 
   return (
-    <div className="flex flex-col w-full min-h-[100dvh] bg-background">
+    <div className="flex flex-col w-full min-h-screen bg-background overflow-x-hidden">
       <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-4 sm:px-6">
         <SidebarTrigger className="md:hidden" />
-        <div>
+        <div className='flex-1'>
           <h1 className="text-lg font-semibold tracking-tight md:text-2xl">Pulsa, Token, &amp; Paket Data</h1>
           <p className="text-xs text-muted-foreground sm:text-sm">Proses transaksi baru untuk produk reguler.</p>
         </div>
+        <Button onClick={() => setShowForm(!showForm)} variant={showForm ? "destructive" : "default"} className="transition-all duration-300">
+            {showForm ? <X className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+            {showForm ? 'Tutup Formulir' : 'Tambah Transaksi'}
+        </Button>
       </header>
       <main className="flex flex-1 flex-col gap-4 p-4 sm:gap-6 sm:p-6">
-        <Card className="rounded-xl shadow-sm w-full">
-          <CardHeader>
-            <CardTitle>Transaksi Baru</CardTitle>
-            <CardDescription>Isi detail transaksi untuk penjualan Pulsa, Token Listrik, dan Paket Data.</CardDescription>
-          </CardHeader>
-          <form onSubmit={handleSubmit}>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="datetime">Tanggal &amp; Waktu</Label>
-                  <Input id="datetime" type="datetime-local" value={datetime} onChange={(e) => setDatetime(e.target.value)} required 
-                         className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="customerId">Nomor HP / ID Pelanggan</Label>
-                  <Input id="customerId" placeholder="ID Pelanggan (Opsional)" value={customerId} onChange={(e) => setCustomerId(e.target.value)}
-                         className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
-                </div>
-                <div className="space-y-2 md:col-span-2 lg:col-span-1 relative" ref={productNameInputRef}>
-                    <Label htmlFor="productName">Nama Produk</Label>
-                    <Input 
-                      id="productName"
-                      placeholder={isLoadingProducts ? "Memuat produk..." : "Ketik nama produk"}
-                      value={productName}
-                      onChange={(e) => {
-                        setProductName(e.target.value)
-                        if (!showSuggestions) setShowSuggestions(true);
-                      }}
-                      onFocus={() => setShowSuggestions(true)}
-                      autoComplete="off"
-                      required
-                      className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"
-                    />
-                    {showSuggestions && productMaster.length > 0 && (
-                        <div className="absolute z-20 w-full mt-1 bg-card border border-border rounded-md shadow-lg max-h-60 overflow-y-auto">
-                            {productMaster
-                              .filter(p => p.name.toLowerCase().includes(productName.toLowerCase()))
-                              .map((product) => (
-                                <div
-                                    key={product.id}
-                                    className="p-2 hover:bg-accent cursor-pointer text-sm"
-                                    onClick={() => handleProductSelect(product)}
-                                >
-                                    {product.name}
-                                </div>
+        {showForm && (
+            <Card className="rounded-xl shadow-sm w-full">
+            <CardHeader>
+                <CardTitle>Transaksi Baru</CardTitle>
+                <CardDescription>Isi detail transaksi untuk penjualan Pulsa, Token Listrik, dan Paket Data.</CardDescription>
+            </CardHeader>
+            <form onSubmit={handleSubmit}>
+                <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="space-y-2">
+                    <Label htmlFor="datetime">Tanggal &amp; Waktu</Label>
+                    <Input id="datetime" type="datetime-local" value={datetime} onChange={(e) => setDatetime(e.target.value)} required 
+                            className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
+                    </div>
+                    <div className="space-y-2">
+                    <Label htmlFor="customerId">Nomor HP / ID Pelanggan</Label>
+                    <Input id="customerId" placeholder="ID Pelanggan (Opsional)" value={customerId} onChange={(e) => setCustomerId(e.target.value)}
+                            className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
+                    </div>
+                    <div className="space-y-2 md:col-span-2 lg:col-span-1 relative" ref={productNameInputRef}>
+                        <Label htmlFor="productName">Nama Produk</Label>
+                        <Input 
+                        id="productName"
+                        placeholder={isLoadingProducts ? "Memuat produk..." : "Ketik nama produk"}
+                        value={productName}
+                        onChange={(e) => {
+                            setProductName(e.target.value)
+                            if (!showSuggestions) setShowSuggestions(true);
+                        }}
+                        onFocus={() => setShowSuggestions(true)}
+                        autoComplete="off"
+                        required
+                        className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"
+                        />
+                        {showSuggestions && productMaster.length > 0 && (
+                            <div className="absolute z-20 w-full mt-1 bg-card border border-border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                {productMaster
+                                .filter(p => p.name.toLowerCase().includes(productName.toLowerCase()))
+                                .map((product) => (
+                                    <div
+                                        key={product.id}
+                                        className="p-2 hover:bg-accent cursor-pointer text-sm"
+                                        onClick={() => handleProductSelect(product)}
+                                    >
+                                        {product.name}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    <div className="space-y-2">
+                    <Label htmlFor="sellingPrice">Harga Jual</Label>
+                    <Input id="sellingPrice" type="text" placeholder="Harga Jual (Opsional)" value={sellingPrice} onChange={handlePriceChange(setSellingPrice)} 
+                            className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
+                    </div>
+                    <div className="space-y-2">
+                    <Label htmlFor="costPrice">Modal</Label>
+                    <Input id="costPrice" type="text" placeholder="Modal (Opsional)" value={costPrice} onChange={handlePriceChange(setCostPrice)} 
+                            className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
+                    </div>
+                    <div className="space-y-2">
+                    <Label htmlFor="fundSource">Sumber Modal</Label>
+                    <Select value={fundSource} onValueChange={setFundSource} required>
+                        <SelectTrigger className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2">
+                            <SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih sumber modal"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {financialCards.map(card => (
+                                <SelectItem key={card.id} value={card.id}>
+                                    {card.name}
+                                </SelectItem>
                             ))}
-                        </div>
-                    )}
-                </div>
-                 <div className="space-y-2">
-                  <Label htmlFor="sellingPrice">Harga Jual</Label>
-                  <Input id="sellingPrice" type="text" placeholder="Harga Jual (Opsional)" value={sellingPrice} onChange={handlePriceChange(setSellingPrice)} 
-                         className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="costPrice">Modal</Label>
-                  <Input id="costPrice" type="text" placeholder="Modal (Opsional)" value={costPrice} onChange={handlePriceChange(setCostPrice)} 
-                         className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="fundSource">Sumber Modal</Label>
-                   <Select value={fundSource} onValueChange={setFundSource} required>
-                    <SelectTrigger className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2">
-                        <SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih sumber modal"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {financialCards.map(card => (
-                            <SelectItem key={card.id} value={card.id}>
-                                {card.name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-                <div className="mt-6 border-t pt-4">
-                  <h3 className="text-md font-medium mb-2">Metode Pembayaran</h3>
-                    <div className="space-y-4">
-                      {payments.map((payment, index) => (
-                        <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-2 p-3 border rounded-lg bg-muted/20 relative">
-                            <div className="space-y-2 col-span-12 md:col-span-5">
-                                <Label htmlFor={`payment-method-${index}`}>Metode</Label>
-                                <Select value={payment.cardId || (payment.method === 'Hutang' ? 'Hutang' : '')} onValueChange={(value) => handlePaymentMethodChange(index, value)} required>
-                                    <SelectTrigger id={`payment-method-${index}`} className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2 bg-background">
-                                        <SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih metode"} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="Hutang">Hutang</SelectItem>
-                                        {financialCards.map(card => (
-                                            <SelectItem key={card.id} value={card.id}>
-                                                {card.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            {payment.method === 'Hutang' && (
-                                <div className="space-y-2 col-span-12 md:col-span-3">
-                                    <Label htmlFor={`debtor-name-${index}`}>Nama Penghutang</Label>
-                                    <Input 
-                                      id={`debtor-name-${index}`}
-                                      placeholder="Masukkan nama"
-                                      value={payment.debtorName || ''}
-                                      onChange={(e) => handleDebtorNameChange(index, e.target.value)}
-                                      required
-                                      className="bg-background"
-                                    />
-                                </div>
-                            )}
-                            <div className={`space-y-2 col-span-12 ${payment.method === 'Hutang' ? 'md:col-span-3' : 'md:col-span-6'}`}>
-                                <Label htmlFor={`payment-amount-${index}`}>Nominal</Label>
-                                <Input 
-                                    id={`payment-amount-${index}`}
-                                    type="text"
-                                    placeholder="0"
-                                    value={formatRupiah(payment.amount)}
-                                    onChange={(e) => handlePaymentAmountChange(index, e.target.value)}
-                                    required
-                                    className="bg-background"
-                                />
-                            </div>
-                            {payments.length > 1 && (
-                                <div className="col-span-12 md:col-span-1 flex items-end justify-end md:justify-center">
-                                    <Button variant="ghost" size="icon" onClick={() => removePayment(index)} className="text-destructive hover:bg-destructive/10">
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            )}
-                        </div>
-                      ))}
-                      <div className="flex flex-col md:flex-row justify-between items-center mt-4 text-sm gap-4">
-                        <Button type="button" variant="outline" size="sm" onClick={addPayment} className="w-full md:w-auto"><PlusCircle className="mr-2 h-4 w-4" /> Tambah Pembayaran</Button>
-                        <div className="text-right w-full md:w-auto">
-                          <p>Total Terinput: <span className="font-bold">{formatRupiah(totalPaid)}</span></p>
-                          <p className={remainingAmount !== 0 ? 'text-destructive' : 'text-emerald-600'}>
-                              {remainingAmount > 0 ? `Sisa: ${formatRupiah(remainingAmount)}` : remainingAmount < 0 ? `Kelebihan: ${formatRupiah(Math.abs(remainingAmount))}`: 'Lunas'}
-                          </p>
-                        </div>
-                      </div>
+                        </SelectContent>
+                    </Select>
                     </div>
                 </div>
-            </CardContent>
-            <CardFooter className="border-t px-6 py-4">
-              <Button type="submit" disabled={isSubmitting || isLoadingCards || isLoadingProducts || !isPaymentValid} className="transition-all duration-300 hover:scale-105 w-full md:w-auto">
-                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {isSubmitting ? 'Menyimpan...' : 'Simpan Transaksi'}
-              </Button>
-            </CardFooter>
-          </form>
-        </Card>
+                    <div className="mt-6 border-t pt-4">
+                    <h3 className="text-md font-medium mb-2">Metode Pembayaran</h3>
+                        <div className="space-y-4">
+                        {payments.map((payment, index) => (
+                            <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-2 p-3 border rounded-lg bg-muted/20 relative">
+                                <div className="space-y-2 col-span-12 md:col-span-5">
+                                    <Label htmlFor={`payment-method-${index}`}>Metode</Label>
+                                    <Select value={payment.cardId || (payment.method === 'Hutang' ? 'Hutang' : '')} onValueChange={(value) => handlePaymentMethodChange(index, value)} required>
+                                        <SelectTrigger id={`payment-method-${index}`} className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2 bg-background">
+                                            <SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih metode"} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Hutang">Hutang</SelectItem>
+                                            {financialCards.map(card => (
+                                                <SelectItem key={card.id} value={card.id}>
+                                                    {card.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                {payment.method === 'Hutang' && (
+                                    <div className="space-y-2 col-span-12 md:col-span-3">
+                                        <Label htmlFor={`debtor-name-${index}`}>Nama Penghutang</Label>
+                                        <Input 
+                                        id={`debtor-name-${index}`}
+                                        placeholder="Masukkan nama"
+                                        value={payment.debtorName || ''}
+                                        onChange={(e) => handleDebtorNameChange(index, e.target.value)}
+                                        required
+                                        className="bg-background"
+                                        />
+                                    </div>
+                                )}
+                                <div className={`space-y-2 col-span-12 ${payment.method === 'Hutang' ? 'md:col-span-3' : 'md:col-span-6'}`}>
+                                    <Label htmlFor={`payment-amount-${index}`}>Nominal</Label>
+                                    <Input 
+                                        id={`payment-amount-${index}`}
+                                        type="text"
+                                        placeholder="0"
+                                        value={formatRupiah(payment.amount)}
+                                        onChange={(e) => handlePaymentAmountChange(index, e.target.value)}
+                                        required
+                                        className="bg-background"
+                                    />
+                                </div>
+                                {payments.length > 1 && (
+                                    <div className="col-span-12 md:col-span-1 flex items-end justify-end md:justify-center">
+                                        <Button variant="ghost" size="icon" onClick={() => removePayment(index)} className="text-destructive hover:bg-destructive/10">
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                        <div className="flex flex-col md:flex-row justify-between items-center mt-4 text-sm gap-4">
+                            <Button type="button" variant="outline" size="sm" onClick={addPayment} className="w-full md:w-auto"><PlusCircle className="mr-2 h-4 w-4" /> Tambah Pembayaran</Button>
+                            <div className="text-right w-full md:w-auto">
+                            <p>Total Terinput: <span className="font-bold">{formatRupiah(totalPaid)}</span></p>
+                            <p className={remainingAmount !== 0 ? 'text-destructive' : 'text-emerald-600'}>
+                                {remainingAmount > 0 ? `Sisa: ${formatRupiah(remainingAmount)}` : remainingAmount < 0 ? `Kelebihan: ${formatRupiah(Math.abs(remainingAmount))}`: 'Lunas'}
+                            </p>
+                            </div>
+                        </div>
+                        </div>
+                    </div>
+                </CardContent>
+                <CardFooter className="border-t px-6 py-4">
+                <Button type="submit" disabled={isSubmitting || isLoadingCards || isLoadingProducts || !isPaymentValid} className="transition-all duration-300 hover:scale-105 w-full md:w-auto">
+                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    {isSubmitting ? 'Menyimpan...' : 'Simpan Transaksi'}
+                </Button>
+                </CardFooter>
+            </form>
+            </Card>
+        )}
+
 
         <Card className="rounded-xl shadow-sm w-full">
           <CardHeader>
@@ -705,12 +715,12 @@ export default function RegularSalesPage() {
                             <CardTitle className="text-base">{trx.productName}</CardTitle>
                             <CardDescription>{trx.customerId || 'Tanpa ID'}</CardDescription>
                         </div>
-                        <Badge variant={trx.profit > 0 ? 'default' : 'destructive'} className="text-xs">Rp {trx.profit.toLocaleString('id-ID')}</Badge>
+                        <Badge variant={trx.profit > 0 ? 'default' : 'destructive'} className="text-xs">{formatRupiah(trx.profit)}</Badge>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm pb-3">
                     <div className="flex justify-between"><span>Waktu:</span> <span className="font-medium text-right">{format(parseISO(trx.datetime), "d MMM y, HH:mm", { locale: id })}</span></div>
-                    <div className="flex justify-between"><span>Harga Jual:</span> <span className="font-medium">Rp {trx.sellingPrice.toLocaleString('id-ID')}</span></div>
+                    <div className="flex justify-between"><span>Harga Jual:</span> <span className="font-medium">{formatRupiah(trx.sellingPrice)}</span></div>
                   </CardContent>
                   <CardFooter className="flex justify-end space-x-2">
                     <Button variant="outline" size="icon" onClick={() => handleDetailClick(trx)} className="h-9 w-9"><Eye className="h-4 w-4" /></Button>
@@ -756,11 +766,11 @@ export default function RegularSalesPage() {
                       <td className="px-4 py-4 text-sm text-muted-foreground whitespace-nowrap">{format(parseISO(trx.datetime), "d MMM y, HH:mm", { locale: id })}</td>
                       <td className="px-4 py-4 text-sm text-foreground">{trx.customerId || '-'}</td>
                       <td className="px-4 py-4 text-sm font-medium text-foreground">{trx.productName}</td>
-                      <td className="px-4 py-4 text-sm text-right text-foreground whitespace-nowrap">Rp {trx.sellingPrice.toLocaleString('id-ID')}</td>
-                      <td className="px-4 py-4 text-sm text-right text-muted-foreground whitespace-nowrap">Rp {trx.costPrice.toLocaleString('id-ID')}</td>
+                      <td className="px-4 py-4 text-sm text-right text-foreground whitespace-nowrap">{formatRupiah(trx.sellingPrice)}</td>
+                      <td className="px-4 py-4 text-sm text-right text-muted-foreground whitespace-nowrap">{formatRupiah(trx.costPrice)}</td>
                       <td className="px-4 py-4 text-sm text-right whitespace-nowrap">
                         <Badge variant={trx.profit > 0 ? 'default' : 'destructive'} className="font-semibold">
-                          Rp {trx.profit.toLocaleString('id-ID')}
+                          {formatRupiah(trx.profit)}
                         </Badge>
                       </td>
                       <td className="px-4 py-4 text-sm text-muted-foreground">{trx.fundSource || '-'}</td>
