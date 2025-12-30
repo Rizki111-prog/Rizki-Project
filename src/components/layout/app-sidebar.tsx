@@ -40,6 +40,7 @@ const menuItems = [
       { href: '/sales/family-pack', label: 'Paket Akrab' },
     ] 
   },
+  { href: '/history', label: 'Riwayat Transaksi', icon: History },
   { href: '/expenses', label: 'Pengeluaran', icon: Wallet },
   { href: '/hutang', label: 'Hutang', icon: BookUser },
   { 
@@ -47,11 +48,10 @@ const menuItems = [
     label: 'Keuangan', 
     icon: LineChart,
     submenus: [
-      { href: '/finance', label: 'Dashboard', icon: LayoutDashboard },
-      { href: '/finance/balance', label: 'Saldo', icon: Wallet },
+      { href: '/finance', label: 'Dashboard' },
+      { href: '/finance/balance', label: 'Saldo Akun' },
     ]
   },
-  { href: '/history', label: 'Riwayat Transaksi', icon: History },
 ];
 
 export function AppSidebar() {
@@ -65,6 +65,12 @@ export function AppSidebar() {
       setOpenMobile(false);
     }
   };
+
+  const getSubmenuIcon = (href: string) => {
+    if (href.includes('balance')) return Wallet;
+    if (href.includes('dashboard') || href === '/finance') return LayoutDashboard;
+    return undefined;
+  }
 
   return (
     <>
@@ -101,22 +107,26 @@ export function AppSidebar() {
                    </CollapsibleTrigger>
                    <CollapsibleContent>
                      <div className="ml-7 mt-1 flex flex-col gap-1 border-l pl-3 py-1">
-                       {item.submenus.map((submenu) => (
-                         <SidebarMenuButton
-                           key={submenu.href}
-                           asChild
-                           size="sm"
-                           variant="ghost"
-                           isActive={pathname === submenu.href || (submenu.href === '/finance' && pathname === '/finance/balance')}
-                           tooltip={{ children: submenu.label, side: 'right' }}
-                           onClick={handleLinkClick}
-                         >
-                           <Link href={submenu.href}>
-                              {submenu.icon && <submenu.icon className="h-4 w-4" />}
-                             <span className="pl-2">{submenu.label}</span>
-                           </Link>
-                         </SidebarMenuButton>
-                       ))}
+                       {item.submenus.map((submenu) => {
+                          const Icon = getSubmenuIcon(submenu.href);
+                          const isActive = pathname === submenu.href || (submenu.href === '/finance' && pathname === '/finance/balance');
+                          return (
+                            <SidebarMenuButton
+                              key={submenu.href}
+                              asChild
+                              size="sm"
+                              variant="ghost"
+                              isActive={isActive}
+                              tooltip={{ children: submenu.label, side: 'right' }}
+                              onClick={handleLinkClick}
+                            >
+                              <Link href={submenu.href}>
+                                {Icon && <Icon className="h-4 w-4" />}
+                                <span className={cn(!Icon && 'pl-6')}>{submenu.label}</span>
+                              </Link>
+                            </SidebarMenuButton>
+                          );
+                       })}
                      </div>
                    </CollapsibleContent>
                  </Collapsible>
@@ -140,5 +150,3 @@ export function AppSidebar() {
     </>
   );
 }
-
-    
