@@ -214,13 +214,15 @@ export default function BalancePage() {
 
     return (
         <div className="flex flex-col w-full min-h-[100dvh] bg-background">
-            <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-4 sm:px-6">
-                <SidebarTrigger className="md:hidden" />
-                <div className="flex-1">
-                    <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Saldo Akun</h1>
-                    <p className="text-sm text-muted-foreground">Kelola semua sumber saldo dan akun keuangan Anda.</p>
+            <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b bg-background/80 backdrop-blur-sm px-4 sm:px-6">
+                <div className="flex items-center gap-4">
+                    <SidebarTrigger className="md:hidden" />
+                    <div className="min-w-0 flex-1">
+                        <h1 className="text-lg font-semibold tracking-tight md:text-2xl truncate whitespace-nowrap">Saldo Akun</h1>
+                        <p className="text-sm text-muted-foreground truncate whitespace-nowrap">Kelola semua sumber saldo dan akun keuangan Anda.</p>
+                    </div>
                 </div>
-                <Button onClick={() => setIsModalOpen(true)} className="transition-all duration-300 hover:scale-105 text-sm md:w-auto w-full">
+                <Button onClick={() => setIsModalOpen(true)} className="transition-all duration-300 hover:scale-105 text-sm shrink-0 md:w-auto w-full max-w-[150px] md:max-w-none">
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Tambah Akun
                 </Button>

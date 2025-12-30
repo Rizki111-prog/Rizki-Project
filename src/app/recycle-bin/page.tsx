@@ -32,6 +32,7 @@ interface DeletedItem {
     productName?: string;
     customerName?: string;
     nama?: string;
+    name?: string;
     nominal?: number;
     datetime?: string;
     tanggal?: string;
@@ -164,9 +165,10 @@ export default function RecycleBinPage() {
   }
   
   const formatDeletedAt = (deletedAt: number | string) => {
-      if (!deletedAt) return 'N/A';
-      const date = typeof deletedAt === 'string' ? parseISO(deletedAt) : new Date(deletedAt);
-      return format(date, "d MMM y, HH:mm", { locale: id });
+    if (!deletedAt) return 'N/A';
+    // Firebase server timestamp is a number (milliseconds since epoch)
+    const date = typeof deletedAt === 'number' ? new Date(deletedAt) : parseISO(deletedAt);
+    return format(date, "d MMM y, HH:mm", { locale: id });
   };
 
   const getItemType = (path: string) => {
@@ -181,9 +183,9 @@ export default function RecycleBinPage() {
     <div className="flex flex-col w-full min-h-screen bg-background">
       <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-4 md:px-6">
         <SidebarTrigger className="md:hidden" />
-        <div className='flex-1'>
-          <h1 className="text-xl font-semibold md:text-2xl">Folder Sampah</h1>
-          <p className="text-sm text-muted-foreground">Pulihkan atau hapus item secara permanen.</p>
+        <div className='min-w-0 flex-1'>
+          <h1 className="text-lg font-semibold md:text-2xl truncate whitespace-nowrap">Folder Sampah</h1>
+          <p className="text-sm text-muted-foreground truncate whitespace-nowrap">Pulihkan atau hapus item secara permanen.</p>
         </div>
       </header>
       <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
