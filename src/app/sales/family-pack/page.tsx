@@ -26,7 +26,6 @@ import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, addDays, differenceInDays, startOfDay } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { DetailModal } from '@/components/modals/detail-modal';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter, SheetClose } from "@/components/ui/sheet";
 import { useIsMobile } from '@/hooks/use-mobile';
 import { formatRupiah, cleanRupiah } from '@/lib/utils';
 
@@ -72,7 +71,8 @@ interface FundSource {
 }
 
 const getThirtyDaysFromDate = (date: Date) => {
-    const thirtyDaysFromNow = addDays(date, 30);
+    // Add 29 days to count the start date as Day 1 of 30
+    const thirtyDaysFromNow = addDays(date, 29);
     return thirtyDaysFromNow.toISOString().split('T')[0];
 }
 
@@ -256,19 +256,13 @@ export default function FamilyPackSalesPage() {
       if (value === 'Hutang') {
           newPayments[index].method = 'Hutang';
           newPayments[index].cardId = undefined;
-          newPayments[index].debtorName = ''; 
+          newPayments[index].debtorName = customerName; 
       } else if (card) {
           newPayments[index].method = card.name;
           newPayments[index].cardId = card.id;
           newPayments[index].debtorName = undefined;
       }
       setPayments(newPayments);
-  };
-
-  const handleDebtorNameChange = (index: number, value: string) => {
-    const newPayments = [...payments];
-    newPayments[index].debtorName = value;
-    setPayments(newPayments);
   };
 
   const handleFundSourceAmountChange = (index: number, value: string) => {
@@ -383,7 +377,7 @@ export default function FamilyPackSalesPage() {
         return;
     }
 
-    if (payments.some(p => !p.method || (p.method === 'Hutang' && !p.debtorName))) {
+    if (payments.some(p => !p.method)) {
         toast({ variant: "destructive", title: "Gagal", description: "Harap lengkapi semua detail pembayaran."});
         return;
     }
@@ -407,7 +401,7 @@ export default function FamilyPackSalesPage() {
       payments: payments.map(({amount, method, cardId, debtorName}) => {
         const paymentData: any = { amount, method };
         if (cardId) paymentData.cardId = cardId;
-        if (debtorName) paymentData.debtorName = debtorName;
+        if (method === 'Hutang') paymentData.debtorName = customerName;
         return paymentData;
       }),
       fundSources: fundSources.map(({ amount, cardId, cardName }) => ({ amount, cardId, cardName })),
@@ -437,7 +431,7 @@ export default function FamilyPackSalesPage() {
         payments.forEach(payment => {
             if(payment.method === 'Hutang' && transactionId) {
                 push(ref(db, 'hutang'), {
-                    nama: payment.debtorName,
+                    nama: customerName, // Automatically use customerName
                     nominal: payment.amount,
                     tanggal: datetime,
                     status: 'Belum Lunas',
@@ -604,11 +598,11 @@ export default function FamilyPackSalesPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="linkAkunPengelola">Link Akun Pengelola</Label>
-                  <Input id="linkAkunPengelola" placeholder="https://... (Opsional)" value={linkAkunPengelola} onChange={(e) => setLinkAkunPengelola(e.target.value)} />
+                  <Input id="linkAkunPengelola" placeholder="Link Akun (Opsional)" value={linkAkunPengelola} onChange={(e) => setLinkAkunPengelola(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="eWalletPengelola">E-Wallet Pengelola</Label>
-                  <Input id="eWalletPengelola" placeholder="08... (DANA) (Opsional)" value={eWalletPengelola} onChange={(e) => setEWalletPengelola(e.target.value)} />
+                  <Input id="eWalletPengelola" placeholder="E-Wallet (Opsional)" value={eWalletPengelola} onChange={(e) => setEWalletPengelola(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="tanggalKadaluarsa">Tanggal Kadaluarsa</Label>
@@ -661,7 +655,7 @@ export default function FamilyPackSalesPage() {
                     <div className="space-y-4">
                       {payments.map((payment, index) => (
                         <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-2 p-3 border rounded-lg bg-muted/20 relative">
-                            <div className="space-y-2 col-span-12 md:col-span-5">
+                            <div className="space-y-2 col-span-12 md:col-span-7">
                                 <Label htmlFor={`payment-method-${index}`}>Metode</Label>
                                 <Select value={payment.cardId || (payment.method === 'Hutang' ? 'Hutang' : '')} onValueChange={(value) => handlePaymentMethodChange(index, value)} required>
                                     <SelectTrigger id={`payment-method-${index}`} className="bg-background"><SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih metode"} /></SelectTrigger>
@@ -671,13 +665,7 @@ export default function FamilyPackSalesPage() {
                                     </SelectContent>
                                 </Select>
                             </div>
-                            {payment.method === 'Hutang' && (
-                                <div className="space-y-2 col-span-12 md:col-span-3">
-                                    <Label htmlFor={`debtor-name-${index}`}>Nama Penghutang</Label>
-                                    <Input id={`debtor-name-${index}`} placeholder="Masukkan nama" value={payment.debtorName || ''} onChange={(e) => handleDebtorNameChange(index, e.target.value)} required className="bg-background" />
-                                </div>
-                            )}
-                            <div className={`space-y-2 col-span-12 ${payment.method === 'Hutang' ? 'md:col-span-3' : 'md:col-span-6'}`}>
+                            <div className="space-y-2 col-span-12 md:col-span-4">
                                 <Label htmlFor={`payment-amount-${index}`}>Nominal</Label>
                                 <Input id={`payment-amount-${index}`} type="text" placeholder="0" value={formatRupiah(payment.amount)} onChange={(e) => handlePaymentAmountChange(index, e.target.value)} required className="bg-background" />
                             </div>
