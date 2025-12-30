@@ -143,7 +143,7 @@ export default function RegularSalesPage() {
         setIsLoadingCards(false);
 
         // Set default fund source after cards are loaded
-        const agenPulsaCard = loadedCards.find(card => card.name === 'Agen Pulsa');
+        const agenPulsaCard = loadedCards.find(card => card.name.toLowerCase() === 'agen pulsa');
         if (agenPulsaCard) {
             setFundSource(agenPulsaCard.id);
         } else if (loadedCards.length > 0) {
@@ -271,7 +271,7 @@ export default function RegularSalesPage() {
   const remainingAmount = cleanRupiah(sellingPrice) - totalPaid;
   const isPaymentValid = remainingAmount === 0 && cleanRupiah(sellingPrice) > 0;
 
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     setCustomerId('');
     setProductName('');
     setSellingPrice('');
@@ -282,13 +282,13 @@ export default function RegularSalesPage() {
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
     setDatetime(now.toISOString().slice(0, 16));
 
-    const agenPulsaCard = financialCards.find(card => card.name === 'Agen Pulsa');
+    const agenPulsaCard = financialCards.find(card => card.name.toLowerCase() === 'agen pulsa');
     if (agenPulsaCard) {
       setFundSource(agenPulsaCard.id);
-    } else {
-      setFundSource('');
+    } else if (financialCards.length > 0) {
+      setFundSource(financialCards[0].id);
     }
-  };
+  }, [financialCards]);
   
   const handleProductSelect = (product: ProductMaster) => {
       setProductName(product.name);
@@ -820,5 +820,3 @@ export default function RegularSalesPage() {
     </div>
   );
 }
-
-    

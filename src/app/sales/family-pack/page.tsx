@@ -37,13 +37,12 @@ interface Transaction {
   customerName: string;
   sellingPrice: number;
   costPrice: number;
-  fundSource: string;
-  fundSourceId?: string;
+  fundSources: FundSource[];
   payments: Payment[];
   profit: number;
   createdAt: number;
-  linkAkunPengelola: string;
-  eWalletPengelola: string;
+  linkAkunPengelola?: string;
+  eWalletPengelola?: string;
   tanggalKadaluarsa: string;
 }
 
@@ -65,6 +64,12 @@ interface Payment {
   debtorName?: string;
 }
 
+interface FundSource {
+    cardId: string;
+    cardName: string;
+    amount: number;
+}
+
 const getThirtyDaysFromDate = (date: Date) => {
     const thirtyDaysFromNow = addDays(date, 30);
     return thirtyDaysFromNow.toISOString().split('T')[0];
@@ -80,13 +85,14 @@ export default function FamilyPackSalesPage() {
   const [customerName, setCustomerName] = useState('');
   const [sellingPrice, setSellingPrice] = useState('');
   const [costPrice, setCostPrice] = useState('');
-  const [fundSource, setFundSource] = useState('');
   const [linkAkunPengelola, setLinkAkunPengelola] = useState('');
   const [eWalletPengelola, setEWalletPengelola] = useState('');
   const [tanggalKadaluarsa, setTanggalKadaluarsa] = useState(getThirtyDaysFromDate(new Date()));
 
   const [payments, setPayments] = useState<Payment[]>([{ method: '', cardId: '', amount: 0, debtorName: '' }]);
   const [isPaymentAmountManuallySet, setIsPaymentAmountManuallySet] = useState(false);
+  const [fundSources, setFundSources] = useState<FundSource[]>([{ cardId: '', cardName: '', amount: 0 }]);
+  const [isFundSourceAmountManuallySet, setIsFundSourceAmountManuallySet] = useState(false);
   const isExpiryDateManuallySet = useRef(false);
   
   // Data & UI State
@@ -147,14 +153,6 @@ export default function FamilyPackSalesPage() {
         }
         setFinancialCards(loadedCards);
         setIsLoadingCards(false);
-
-        const agenPulsaCard = loadedCards.find(card => card.name === 'Agen Pulsa');
-        if (agenPulsaCard) {
-            setFundSource(agenPulsaCard.id);
-        } else if (loadedCards.length > 0) {
-            setFundSource(loadedCards[0].id);
-        }
-
     }, (error) => {
         console.error("Firebase read failed: " + error.message);
         setIsLoadingCards(false);
@@ -202,12 +200,8 @@ export default function FamilyPackSalesPage() {
         const cashCard = financialCards.find(c => c.name.toLowerCase() === 'tunai');
         const defaultCard = cashCard || financialCards[0];
 
-        if (price > 0) {
-            newPayments[0].amount = price;
-        } else {
-            newPayments[0].amount = 0;
-        }
-
+        newPayments[0].amount = price > 0 ? price : 0;
+        
         if (defaultCard) {
             newPayments[0].method = defaultCard.name;
             newPayments[0].cardId = defaultCard.id;
@@ -215,12 +209,36 @@ export default function FamilyPackSalesPage() {
         setPayments(newPayments);
     }
   }, [sellingPrice, financialCards, isPaymentAmountManuallySet, payments.length, isLoadingCards]);
+  
+  useEffect(() => {
+    if (isLoadingCards) return;
 
-  const handlePriceChange = (setter: React.Dispatch<React.SetStateAction<string>>) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const cost = cleanRupiah(costPrice);
+
+    if (fundSources.length === 1 && !isFundSourceAmountManuallySet) {
+        const newFundSources = [...fundSources];
+        const agenPulsaCard = financialCards.find(c => c.name.toLowerCase() === 'agen pulsa');
+        const defaultCard = agenPulsaCard || financialCards[0];
+        
+        newFundSources[0].amount = cost > 0 ? cost : 0;
+
+        if (defaultCard) {
+            newFundSources[0].cardId = defaultCard.id;
+            newFundSources[0].cardName = defaultCard.name;
+        }
+        setFundSources(newFundSources);
+    }
+  }, [costPrice, financialCards, isFundSourceAmountManuallySet, fundSources.length, isLoadingCards]);
+
+  const handlePriceChange = (setter: React.Dispatch<React.SetStateAction<string>>, isCost: boolean) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const { value } = e.target;
     const cleanedValue = value.replace(/[^0-9]/g, '');
     setter(formatRupiah(cleanedValue));
-    if (setter === setSellingPrice) setIsPaymentAmountManuallySet(false);
+    if (isCost) {
+        setIsFundSourceAmountManuallySet(false);
+    } else {
+        setIsPaymentAmountManuallySet(false);
+    }
   };
   
   const handlePaymentAmountChange = (index: number, value: string) => {
@@ -251,6 +269,24 @@ export default function FamilyPackSalesPage() {
     newPayments[index].debtorName = value;
     setPayments(newPayments);
   };
+
+  const handleFundSourceAmountChange = (index: number, value: string) => {
+    const newFundSources = [...fundSources];
+    const cleanedValue = value.replace(/[^0-9]/g, '');
+    newFundSources[index].amount = cleanRupiah(cleanedValue);
+    setFundSources(newFundSources);
+    setIsFundSourceAmountManuallySet(true);
+  };
+
+  const handleFundSourceCardChange = (index: number, value: string) => {
+      const newFundSources = [...fundSources];
+      const card = financialCards.find(c => c.id === value);
+      if (card) {
+          newFundSources[index].cardId = card.id;
+          newFundSources[index].cardName = card.name;
+      }
+      setFundSources(newFundSources);
+  };
   
   const handleExpiryDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTanggalKadaluarsa(e.target.value);
@@ -273,10 +309,26 @@ export default function FamilyPackSalesPage() {
       setPayments(newPayments);
       if (newPayments.length === 1) setIsPaymentAmountManuallySet(false);
   };
+
+  const addFundSource = () => {
+      setIsFundSourceAmountManuallySet(true);
+      const remaining = cleanRupiah(costPrice) - fundSources.reduce((acc, fs) => acc + fs.amount, 0);
+      setFundSources([...fundSources, { cardId: '', cardName: '', amount: remaining > 0 ? remaining : 0 }]);
+  };
+
+  const removeFundSource = (index: number) => {
+      const newFundSources = fundSources.filter((_, i) => i !== index);
+      setFundSources(newFundSources);
+      if (newFundSources.length === 1) setIsFundSourceAmountManuallySet(false);
+  };
   
   const totalPaid = useMemo(() => payments.reduce((acc, p) => acc + p.amount, 0), [payments]);
   const remainingAmount = useMemo(() => cleanRupiah(sellingPrice) - totalPaid, [sellingPrice, totalPaid]);
   const isPaymentValid = useMemo(() => remainingAmount === 0 && cleanRupiah(sellingPrice) > 0, [remainingAmount, sellingPrice]);
+  
+  const totalFundSourceAmount = useMemo(() => fundSources.reduce((acc, fs) => acc + fs.amount, 0), [fundSources]);
+  const remainingFundSourceAmount = useMemo(() => cleanRupiah(costPrice) - totalFundSourceAmount, [costPrice, totalFundSourceAmount]);
+  const isFundSourceValid = useMemo(() => remainingFundSourceAmount === 0 && cleanRupiah(costPrice) > 0, [remainingFundSourceAmount, costPrice]);
 
   const resetForm = useCallback(() => {
     setCustomerId('');
@@ -286,7 +338,9 @@ export default function FamilyPackSalesPage() {
     setLinkAkunPengelola('');
     setEWalletPengelola('');
     setPayments([{ method: '', cardId: '', amount: 0, debtorName: '' }]);
+    setFundSources([{ cardId: '', cardName: '', amount: 0 }]);
     setIsPaymentAmountManuallySet(false);
+    setIsFundSourceAmountManuallySet(false);
     isExpiryDateManuallySet.current = false;
     
     const now = new Date();
@@ -294,15 +348,7 @@ export default function FamilyPackSalesPage() {
     setDatetime(localIsoString.slice(0, 16));
     setTanggalKadaluarsa(getThirtyDaysFromDate(now));
 
-    const agenPulsaCard = financialCards.find(card => card.name === 'Agen Pulsa');
-    if (agenPulsaCard) {
-      setFundSource(agenPulsaCard.id);
-    } else if (financialCards.length > 0) {
-      setFundSource(financialCards[0].id);
-    } else {
-      setFundSource('');
-    }
-  }, [financialCards]);
+  }, []);
   
   const handleCustomerSelect = (customer: Customer) => {
       setCustomerName(customer.name);
@@ -321,7 +367,7 @@ export default function FamilyPackSalesPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!customerName || !sellingPrice || !costPrice || !fundSource || !linkAkunPengelola || !eWalletPengelola) {
+    if (!customerName || !sellingPrice || !costPrice) {
       toast({ variant: "destructive", title: "Gagal", description: "Harap isi semua field yang wajib diisi." });
       return;
     }
@@ -331,8 +377,18 @@ export default function FamilyPackSalesPage() {
         return;
     }
 
+    if (!isFundSourceValid) {
+        toast({ variant: "destructive", title: "Gagal", description: "Total sumber modal tidak sesuai dengan harga modal."});
+        return;
+    }
+
     if (payments.some(p => !p.method || (p.method === 'Hutang' && !p.debtorName))) {
         toast({ variant: "destructive", title: "Gagal", description: "Harap lengkapi semua detail pembayaran."});
+        return;
+    }
+
+    if (fundSources.some(fs => !fs.cardId)) {
+        toast({ variant: "destructive", title: "Gagal", description: "Harap lengkapi semua detail sumber modal."});
         return;
     }
 
@@ -340,13 +396,6 @@ export default function FamilyPackSalesPage() {
 
     const cost = cleanRupiah(costPrice);
     const price = cleanRupiah(sellingPrice);
-    const fundSourceCard = financialCards.find(c => c.id === fundSource);
-    
-    if (!fundSourceCard) {
-        toast({ variant: "destructive", title: "Gagal", description: "Sumber dana tidak valid." });
-        setIsSubmitting(false);
-        return;
-    }
     
     const newTransaction = {
       datetime,
@@ -354,16 +403,15 @@ export default function FamilyPackSalesPage() {
       customerName,
       sellingPrice: price,
       costPrice: cost,
-      fundSource: fundSourceCard.name,
-      fundSourceId: fundSourceCard.id,
       payments: payments.map(({amount, method, cardId, debtorName}) => {
         const paymentData: any = { amount, method };
         if (cardId) paymentData.cardId = cardId;
         if (debtorName) paymentData.debtorName = debtorName;
         return paymentData;
       }),
-      linkAkunPengelola,
-      eWalletPengelola,
+      fundSources: fundSources.map(({ amount, cardId, cardName }) => ({ amount, cardId, cardName })),
+      linkAkunPengelola: linkAkunPengelola || '',
+      eWalletPengelola: eWalletPengelola || '',
       tanggalKadaluarsa,
       createdAt: serverTimestamp()
     };
@@ -377,10 +425,12 @@ export default function FamilyPackSalesPage() {
 
         saveToCustomerMaster(customerName);
 
-        const fundSourceRef = ref(db, `keuangan/cards/${fundSourceCard.id}`);
-        runTransaction(fundSourceRef, (card) => {
-            if (card) { card.balance -= cost; }
-            return card;
+        fundSources.forEach(source => {
+            const fundSourceRef = ref(db, `keuangan/cards/${source.cardId}`);
+            runTransaction(fundSourceRef, (card) => {
+                if (card) { card.balance -= source.amount; }
+                return card;
+            });
         });
 
         payments.forEach(payment => {
@@ -416,18 +466,17 @@ export default function FamilyPackSalesPage() {
     const transactionToDelete = transactions.find(t => t.id === id);
     if (!transactionToDelete) return;
 
-    const cost = Number(transactionToDelete.costPrice);
-    const fundSourceCardId = transactionToDelete.fundSourceId;
-
     remove(ref(db, `transaksi_akrab/${id}`))
       .then(() => {
-        if(fundSourceCardId){
-            const fundSourceRef = ref(db, `keuangan/cards/${fundSourceCardId}`);
-            runTransaction(fundSourceRef, (card) => {
-                if (card) { card.balance += cost; }
-                return card;
-            });
-        }
+        transactionToDelete.fundSources?.forEach(source => {
+            if(source.cardId){
+                const fundSourceRef = ref(db, `keuangan/cards/${source.cardId}`);
+                runTransaction(fundSourceRef, (card) => {
+                    if (card) { card.balance += source.amount; }
+                    return card;
+                });
+            }
+        });
         
         transactionToDelete.payments?.forEach(payment => {
             if (payment.cardId) {
@@ -471,19 +520,23 @@ export default function FamilyPackSalesPage() {
 
   const getDetailData = (trx: Transaction | null) => {
     if (!trx) return [];
-    let details = [
+    let details: any[] = [
         { label: 'Waktu Transaksi', value: format(parseISO(trx.datetime), "d MMMM yyyy, HH:mm:ss", { locale: id }) },
         { label: 'Nama Pelanggan', value: trx.customerName },
         { label: 'ID Pelanggan', value: trx.customerId || '-' },
-        { label: 'Link Akun Pengelola', value: trx.linkAkunPengelola },
-        { label: 'E-Wallet Pengelola', value: trx.eWalletPengelola },
+        { label: 'Link Akun Pengelola', value: trx.linkAkunPengelola || '-' },
+        { label: 'E-Wallet Pengelola', value: trx.eWalletPengelola || '-' },
         { label: 'Tanggal Kadaluarsa', value: format(parseISO(trx.tanggalKadaluarsa), "d MMMM yyyy", { locale: id }) },
         { label: 'Sisa Masa Aktif', value: getDaysRemaining(trx.tanggalKadaluarsa).text, badge: getDaysRemaining(trx.tanggalKadaluarsa).color as any },
         { label: 'Harga Jual', value: `Rp ${trx.sellingPrice.toLocaleString('id-ID')}` },
         { label: 'Harga Modal', value: `Rp ${trx.costPrice.toLocaleString('id-ID')}` },
         { label: 'Laba', value: `Rp ${trx.profit.toLocaleString('id-ID')}`, badge: trx.profit > 0 ? 'default' : 'destructive' },
-        { label: 'Sumber Modal', value: trx.fundSource },
     ];
+    trx.fundSources?.forEach((fs, i) => {
+        const sourceLabel = `Sumber Modal ${i+1}`;
+        const sourceValue = `${fs.cardName} - Rp ${fs.amount.toLocaleString('id-ID')}`;
+        details.push({ label: sourceLabel, value: sourceValue });
+    });
     trx.payments?.forEach((p, i) => {
         const paymentLabel = `Pembayaran ${i+1}${p.method === 'Hutang' ? ` (${p.debtorName})` : ''}`;
         const paymentValue = `${p.method} - Rp ${p.amount.toLocaleString('id-ID')}`;
@@ -542,28 +595,19 @@ export default function FamilyPackSalesPage() {
                 </div>
                  <div className="space-y-2">
                   <Label htmlFor="sellingPrice">Harga Jual</Label>
-                  <Input id="sellingPrice" type="text" placeholder="0" value={sellingPrice} onChange={handlePriceChange(setSellingPrice)} required />
+                  <Input id="sellingPrice" type="text" placeholder="0" value={sellingPrice} onChange={handlePriceChange(setSellingPrice, false)} required />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="costPrice">Modal</Label>
-                  <Input id="costPrice" type="text" placeholder="0" value={costPrice} onChange={handlePriceChange(setCostPrice)} required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="fundSource">Sumber Modal</Label>
-                   <Select value={fundSource} onValueChange={setFundSource} required>
-                    <SelectTrigger><SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih sumber modal"} /></SelectTrigger>
-                    <SelectContent>
-                        {financialCards.map(card => (<SelectItem key={card.id} value={card.id}>{card.name}</SelectItem>))}
-                    </SelectContent>
-                  </Select>
+                  <Input id="costPrice" type="text" placeholder="0" value={costPrice} onChange={handlePriceChange(setCostPrice, true)} required />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="linkAkunPengelola">Link Akun Pengelola</Label>
-                  <Input id="linkAkunPengelola" placeholder="https://..." value={linkAkunPengelola} onChange={(e) => setLinkAkunPengelola(e.target.value)} required />
+                  <Input id="linkAkunPengelola" placeholder="https://... (Opsional)" value={linkAkunPengelola} onChange={(e) => setLinkAkunPengelola(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="eWalletPengelola">E-Wallet Pengelola</Label>
-                  <Input id="eWalletPengelola" placeholder="08... (DANA)" value={eWalletPengelola} onChange={(e) => setEWalletPengelola(e.target.value)} required />
+                  <Input id="eWalletPengelola" placeholder="08... (DANA) (Opsional)" value={eWalletPengelola} onChange={(e) => setEWalletPengelola(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="tanggalKadaluarsa">Tanggal Kadaluarsa</Label>
@@ -573,6 +617,44 @@ export default function FamilyPackSalesPage() {
                     </div>
                 </div>
               </div>
+                
+                <div className="mt-6 border-t pt-4">
+                  <h3 className="text-md font-medium mb-2">Sumber Modal</h3>
+                    <div className="space-y-4">
+                      {fundSources.map((source, index) => (
+                        <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-2 p-3 border rounded-lg bg-muted/20 relative">
+                            <div className="space-y-2 col-span-12 md:col-span-7">
+                                <Label htmlFor={`fund-source-card-${index}`}>Akun Modal</Label>
+                                <Select value={source.cardId} onValueChange={(value) => handleFundSourceCardChange(index, value)} required>
+                                    <SelectTrigger id={`fund-source-card-${index}`} className="bg-background"><SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih akun"} /></SelectTrigger>
+                                    <SelectContent>
+                                        {financialCards.map(card => (<SelectItem key={card.id} value={card.id}>{card.name}</SelectItem>))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2 col-span-12 md:col-span-4">
+                                <Label htmlFor={`fund-source-amount-${index}`}>Nominal</Label>
+                                <Input id={`fund-source-amount-${index}`} type="text" placeholder="0" value={formatRupiah(source.amount)} onChange={(e) => handleFundSourceAmountChange(index, e.target.value)} required className="bg-background" />
+                            </div>
+                            {fundSources.length > 1 && (
+                                <div className="col-span-12 md:col-span-1 flex items-end justify-end md:justify-center">
+                                    <Button variant="ghost" size="icon" onClick={() => removeFundSource(index)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>
+                                </div>
+                            )}
+                        </div>
+                      ))}
+                      <div className="flex flex-col md:flex-row justify-between items-center mt-4 text-sm gap-4">
+                        <Button type="button" variant="outline" size="sm" onClick={addFundSource} className="w-full md:w-auto"><PlusCircle className="mr-2 h-4 w-4" /> Tambah Sumber Modal</Button>
+                        <div className="text-right w-full md:w-auto">
+                          <p>Total Modal Terinput: <span className="font-bold">{formatRupiah(totalFundSourceAmount)}</span></p>
+                          <p className={remainingFundSourceAmount !== 0 ? 'text-destructive' : 'text-emerald-600'}>
+                              {remainingFundSourceAmount > 0 ? `Sisa: ${formatRupiah(remainingFundSourceAmount)}` : remainingFundSourceAmount < 0 ? `Kelebihan: ${formatRupiah(Math.abs(remainingFundSourceAmount))}`: 'Modal Sesuai'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                </div>
+
                 <div className="mt-6 border-t pt-4">
                   <h3 className="text-md font-medium mb-2">Metode Pembayaran</h3>
                     <div className="space-y-4">
@@ -618,7 +700,7 @@ export default function FamilyPackSalesPage() {
                 </div>
             </CardContent>
             <CardFooter className="border-t px-6 py-4">
-              <Button type="submit" disabled={isSubmitting || isLoadingCards || isLoadingCustomers || !isPaymentValid} className="transition-all duration-300 hover:scale-105 w-full md:w-auto">
+              <Button type="submit" disabled={isSubmitting || isLoadingCards || isLoadingCustomers || !isPaymentValid || !isFundSourceValid} className="transition-all duration-300 hover:scale-105 w-full md:w-auto">
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isSubmitting ? 'Menyimpan...' : 'Simpan Transaksi'}
               </Button>
