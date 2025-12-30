@@ -668,9 +668,9 @@ export default function RegularSalesPage() {
                             )}
                         </div>
                       ))}
-                      <div className="flex justify-between items-center mt-4 text-sm">
-                        <Button type="button" variant="outline" size="sm" onClick={addPayment}><PlusCircle className="mr-2 h-4 w-4" /> Tambah Pembayaran</Button>
-                        <div className="text-right">
+                      <div className="flex flex-col md:flex-row justify-between items-center mt-4 text-sm gap-4">
+                        <Button type="button" variant="outline" size="sm" onClick={addPayment} className="w-full md:w-auto"><PlusCircle className="mr-2 h-4 w-4" /> Tambah Pembayaran</Button>
+                        <div className="text-right w-full md:w-auto">
                           <p>Total Terinput: <span className="font-bold">{formatRupiah(totalPaid)}</span></p>
                           <p className={remainingAmount !== 0 ? 'text-destructive' : 'text-emerald-600'}>
                               {remainingAmount > 0 ? `Sisa: ${formatRupiah(remainingAmount)}` : remainingAmount < 0 ? `Kelebihan: ${formatRupiah(Math.abs(remainingAmount))}`: 'Lunas'}
@@ -681,7 +681,7 @@ export default function RegularSalesPage() {
                 </div>
             </CardContent>
             <CardFooter className="border-t px-6 py-4">
-              <Button type="submit" disabled={isSubmitting || isLoadingCards || isLoadingProducts || !isPaymentValid} className="transition-all duration-300 hover:scale-105">
+              <Button type="submit" disabled={isSubmitting || isLoadingCards || isLoadingProducts || !isPaymentValid} className="transition-all duration-300 hover:scale-105 w-full md:w-auto">
                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {isSubmitting ? 'Menyimpan...' : 'Simpan Transaksi'}
               </Button>
@@ -820,3 +820,5 @@ export default function RegularSalesPage() {
     </div>
   );
 }
+
+    
