@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { format, parseISO, addDays, differenceInDays } from 'date-fns';
+import { format, parseISO, addDays, differenceInDays, startOfDay } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { DetailModal } from '@/components/modals/detail-modal';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter, SheetClose } from "@/components/ui/sheet";
@@ -65,9 +65,8 @@ interface Payment {
   debtorName?: string;
 }
 
-const getThirtyDaysFromNow = () => {
-    const now = new Date();
-    const thirtyDaysFromNow = addDays(now, 30);
+const getThirtyDaysFromDate = (date: Date) => {
+    const thirtyDaysFromNow = addDays(date, 30);
     return thirtyDaysFromNow.toISOString().split('T')[0];
 }
 
@@ -84,10 +83,11 @@ export default function FamilyPackSalesPage() {
   const [fundSource, setFundSource] = useState('');
   const [linkAkunPengelola, setLinkAkunPengelola] = useState('');
   const [eWalletPengelola, setEWalletPengelola] = useState('');
-  const [tanggalKadaluarsa, setTanggalKadaluarsa] = useState(getThirtyDaysFromNow());
+  const [tanggalKadaluarsa, setTanggalKadaluarsa] = useState(getThirtyDaysFromDate(new Date()));
 
   const [payments, setPayments] = useState<Payment[]>([{ method: '', cardId: '', amount: 0, debtorName: '' }]);
   const [isPaymentAmountManuallySet, setIsPaymentAmountManuallySet] = useState(false);
+  const isExpiryDateManuallySet = useRef(false);
   
   // Data & UI State
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -109,8 +109,15 @@ export default function FamilyPackSalesPage() {
     const now = new Date();
     const localIsoString = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString();
     setDatetime(localIsoString.slice(0, 16));
-    setTanggalKadaluarsa(addDays(now, 30).toISOString().split('T')[0]);
+    setTanggalKadaluarsa(getThirtyDaysFromDate(now));
   }, []);
+  
+  useEffect(() => {
+    if (datetime && !isExpiryDateManuallySet.current) {
+        const transactionDate = new Date(datetime);
+        setTanggalKadaluarsa(getThirtyDaysFromDate(transactionDate));
+    }
+  }, [datetime]);
 
   useEffect(() => {
     const transactionsRef = ref(db, 'transaksi_akrab');
@@ -244,6 +251,16 @@ export default function FamilyPackSalesPage() {
     newPayments[index].debtorName = value;
     setPayments(newPayments);
   };
+  
+  const handleExpiryDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTanggalKadaluarsa(e.target.value);
+    isExpiryDateManuallySet.current = true;
+  }
+  
+  const handleDatetimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setDatetime(e.target.value);
+    isExpiryDateManuallySet.current = false;
+  }
 
   const addPayment = () => {
       setIsPaymentAmountManuallySet(true); 
@@ -270,11 +287,12 @@ export default function FamilyPackSalesPage() {
     setEWalletPengelola('');
     setPayments([{ method: '', cardId: '', amount: 0, debtorName: '' }]);
     setIsPaymentAmountManuallySet(false);
+    isExpiryDateManuallySet.current = false;
     
     const now = new Date();
     const localIsoString = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString();
     setDatetime(localIsoString.slice(0, 16));
-    setTanggalKadaluarsa(addDays(now, 30).toISOString().split('T')[0]);
+    setTanggalKadaluarsa(getThirtyDaysFromDate(now));
 
     const agenPulsaCard = financialCards.find(card => card.name === 'Agen Pulsa');
     if (agenPulsaCard) {
@@ -444,7 +462,8 @@ export default function FamilyPackSalesPage() {
   }
   
   const getDaysRemaining = (expiryDate: string) => {
-    const remaining = differenceInDays(parseISO(expiryDate), new Date());
+    if (!expiryDate) return { text: 'N/A', color: 'secondary' };
+    const remaining = differenceInDays(parseISO(expiryDate), startOfDay(new Date()));
     if (remaining < 0) return { text: 'Kadaluarsa', color: 'destructive' };
     if (remaining <= 7) return { text: `${remaining} hari lagi`, color: 'destructive' };
     return { text: `${remaining} hari`, color: 'default' };
@@ -494,7 +513,7 @@ export default function FamilyPackSalesPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="datetime">Tanggal & Waktu</Label>
-                  <Input id="datetime" type="datetime-local" value={datetime} onChange={(e) => setDatetime(e.target.value)} required />
+                  <Input id="datetime" type="datetime-local" value={datetime} onChange={handleDatetimeChange} required />
                 </div>
                 <div className="space-y-2 relative md:col-span-2 lg:col-span-1" ref={customerNameInputRef}>
                     <Label htmlFor="customerName">Nama Pelanggan</Label>
@@ -549,7 +568,7 @@ export default function FamilyPackSalesPage() {
                 <div className="space-y-2">
                     <Label htmlFor="tanggalKadaluarsa">Tanggal Kadaluarsa</Label>
                     <div className="relative">
-                       <Input id="tanggalKadaluarsa" type="date" value={tanggalKadaluarsa} onChange={(e) => setTanggalKadaluarsa(e.target.value)} required />
+                       <Input id="tanggalKadaluarsa" type="date" value={tanggalKadaluarsa} onChange={handleExpiryDateChange} required />
                        <CalendarDays className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                     </div>
                 </div>
