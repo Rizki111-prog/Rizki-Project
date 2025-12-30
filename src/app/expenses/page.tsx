@@ -197,11 +197,17 @@ export default function ExpensesPage() {
                 <p className="text-sm text-muted-foreground truncate whitespace-nowrap">Catat dan kelola biaya operasional.</p>
             </div>
         </div>
+        <div className="flex items-center gap-2">
+            <Button onClick={() => setShowForm(!showForm)} variant={showForm ? "outline" : "default"} className="hidden md:flex">
+                {showForm ? <X className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                {showForm ? 'Tutup' : 'Tambah Pengeluaran'}
+            </Button>
+        </div>
       </header>
       <main className="flex flex-1 flex-col">
-        <div className="p-4 md:p-6">
+        <div className="p-4 md:p-6 md:hidden">
             {!showForm && (
-                <Button onClick={() => setShowForm(true)} className="w-full md:w-auto mb-4">
+                <Button onClick={() => setShowForm(true)} className="w-full">
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Tambah Pengeluaran
                 </Button>

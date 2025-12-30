@@ -557,11 +557,17 @@ export default function FamilyPackSalesPage() {
                 <p className="text-xs text-muted-foreground sm:text-sm truncate whitespace-nowrap">Proses transaksi baru untuk Paket Akrab.</p>
             </div>
         </div>
+        <div className="flex items-center gap-2">
+            <Button onClick={() => setShowForm(!showForm)} variant={showForm ? "outline" : "default"} className="hidden md:flex">
+                {showForm ? <X className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                {showForm ? 'Tutup' : 'Tambah Transaksi'}
+            </Button>
+        </div>
       </header>
       <main className="flex flex-1 flex-col">
-        <div className="p-4 sm:p-6">
+        <div className="p-4 sm:p-6 md:hidden">
             {!showForm && (
-                <Button onClick={() => setShowForm(true)} className="w-full md:w-auto">
+                <Button onClick={() => setShowForm(true)} className="w-full">
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Tambah Transaksi
                 </Button>
