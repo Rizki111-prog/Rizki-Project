@@ -26,6 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { formatRupiah, cleanRupiah } from '@/lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Expense {
   id: string;
@@ -196,112 +197,133 @@ export default function ExpensesPage() {
                 <p className="text-sm text-muted-foreground truncate whitespace-nowrap">Catat dan kelola biaya operasional.</p>
             </div>
         </div>
-        <Button onClick={() => setShowForm(!showForm)} variant={showForm ? "secondary" : "default"} className="transition-all duration-300 shrink-0 md:w-auto w-full max-w-[150px] md:max-w-none">
-            {showForm ? <X className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-            {showForm ? 'Tutup' : 'Tambah'}
-        </Button>
       </header>
-      <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
-        {showForm && (
-          <Card className="rounded-xl shadow-sm">
-            <CardHeader>
-              <CardTitle>Catat Pengeluaran Baru</CardTitle>
-              <CardDescription>Isi detail untuk mencatat biaya operasional.</CardDescription>
-            </CardHeader>
-            <form onSubmit={handleSubmit}>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="expense-name">Nama Pengeluaran</Label>
-                    <Input id="expense-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Contoh: Bayar Listrik" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="expense-nominal">Nominal</Label>
-                    <Input id="expense-nominal" value={nominal} onChange={handleNominalChange} placeholder="0" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="expense-fund">Sumber Dana</Label>
-                    <Select value={fundSourceId} onValueChange={setFundSourceId} required>
-                      <SelectTrigger id="expense-fund">
-                        <SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih sumber dana"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {financialCards.map(card => (
-                          <SelectItem key={card.id} value={card.id}>{card.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="expense-date">Tanggal</Label>
-                    <Input id="expense-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="expense-description">Keterangan</Label>
-                    <Textarea id="expense-description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Catatan tambahan (opsional)" />
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {isSubmitting ? 'Menyimpan...' : 'Simpan Pengeluaran'}
+      <main className="flex flex-1 flex-col">
+        <div className="p-4 md:p-6">
+            {!showForm && (
+                <Button onClick={() => setShowForm(true)} className="w-full md:w-auto mb-4">
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Tambah Pengeluaran
                 </Button>
-              </CardFooter>
-            </form>
-          </Card>
+            )}
+        </div>
+        <AnimatePresence>
+        {showForm && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+            className="px-4 md:px-6 mb-4"
+          >
+            <Card className="rounded-xl shadow-sm">
+                <CardHeader className='flex flex-row items-center justify-between'>
+                  <div>
+                    <CardTitle>Catat Pengeluaran Baru</CardTitle>
+                    <CardDescription>Isi detail untuk mencatat biaya operasional.</CardDescription>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => setShowForm(false)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </CardHeader>
+              <form onSubmit={handleSubmit}>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="expense-name">Nama Pengeluaran</Label>
+                      <Input id="expense-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Contoh: Bayar Listrik" required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="expense-nominal">Nominal</Label>
+                      <Input id="expense-nominal" value={nominal} onChange={handleNominalChange} placeholder="0" required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="expense-fund">Sumber Dana</Label>
+                      <Select value={fundSourceId} onValueChange={setFundSourceId} required>
+                        <SelectTrigger id="expense-fund">
+                          <SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih sumber dana"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {financialCards.map(card => (
+                            <SelectItem key={card.id} value={card.id}>{card.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="expense-date">Tanggal</Label>
+                      <Input id="expense-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="expense-description">Keterangan</Label>
+                      <Textarea id="expense-description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Catatan tambahan (opsional)" />
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {isSubmitting ? 'Menyimpan...' : 'Simpan Pengeluaran'}
+                  </Button>
+                </CardFooter>
+              </form>
+            </Card>
+          </motion.div>
         )}
+        </AnimatePresence>
         
-        <Card className="rounded-xl shadow-sm">
-            <CardHeader>
-                <CardTitle>Riwayat Pengeluaran</CardTitle>
-            </CardHeader>
-            <CardContent>
-                {isLoadingExpenses ? (
-                    <div className="flex justify-center items-center h-24">
-                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                    </div>
-                ) : expenses.length > 0 ? (
-                     <div className="space-y-4">
-                        {expenses.map(expense => (
-                            <Card key={expense.id} className="rounded-lg">
-                                <CardContent className="p-4 flex items-center justify-between gap-4">
-                                    <div className="flex-1">
-                                        <p className="font-semibold">{expense.name}</p>
-                                        <p className="text-sm text-muted-foreground">{format(parseISO(expense.date), "d MMM yyyy", { locale: id })}</p>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="font-bold text-red-600 dark:text-red-500">{formatRupiah(expense.nominal)}</p>
-                                        <p className="text-xs text-muted-foreground">dari {expense.fundSourceName}</p>
-                                    </div>
-                                     <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive h-8 w-8">
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>Pindahkan ke Sampah?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    Tindakan ini akan memindahkan pengeluaran ke folder sampah dan mengembalikan saldo. Anda dapat memulihkannya nanti.
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Batal</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handleDelete(expense)}>Ya, Pindahkan</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                </CardContent>
-                            </Card>
-                        ))}
-                    </div>
-                ) : (
-                    <p className="text-muted-foreground text-center py-8">Belum ada data pengeluaran.</p>
-                )}
-            </CardContent>
-        </Card>
+        <div className="px-4 md:px-6">
+            <Card className="rounded-xl shadow-sm">
+                <CardHeader>
+                    <CardTitle>Riwayat Pengeluaran</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    {isLoadingExpenses ? (
+                        <div className="flex justify-center items-center h-24">
+                            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        </div>
+                    ) : expenses.length > 0 ? (
+                        <div className="space-y-4">
+                            {expenses.map(expense => (
+                                <Card key={expense.id} className="rounded-lg">
+                                    <CardContent className="p-4 flex items-center justify-between gap-4">
+                                        <div className="flex-1">
+                                            <p className="font-semibold">{expense.name}</p>
+                                            <p className="text-sm text-muted-foreground">{format(parseISO(expense.date), "d MMM yyyy", { locale: id })}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="font-bold text-red-600 dark:text-red-500">{formatRupiah(expense.nominal)}</p>
+                                            <p className="text-xs text-muted-foreground">dari {expense.fundSourceName}</p>
+                                        </div>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive h-8 w-8">
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Pindahkan ke Sampah?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        Tindakan ini akan memindahkan pengeluaran ke folder sampah dan mengembalikan saldo. Anda dapat memulihkannya nanti.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Batal</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleDelete(expense)}>Ya, Pindahkan</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-muted-foreground text-center py-8">Belum ada data pengeluaran.</p>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
       </main>
     </div>
   );

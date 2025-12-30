@@ -38,7 +38,7 @@ import { DetailModal } from '@/components/modals/detail-modal';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter, SheetClose } from "@/components/ui/sheet";
 import { useIsMobile } from '@/hooks/use-mobile';
 import { formatRupiah, cleanRupiah } from '@/lib/utils';
-
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Transaction {
   id: string;
@@ -513,17 +513,34 @@ export default function RegularSalesPage() {
                 <p className="text-xs text-muted-foreground sm:text-sm truncate whitespace-nowrap">Proses transaksi baru untuk produk reguler.</p>
             </div>
         </div>
-        <Button onClick={() => setShowForm(!showForm)} variant={showForm ? "secondary" : "default"} className="transition-all duration-300 shrink-0 md:w-auto w-full max-w-[200px] md:max-w-none">
-            {showForm ? <X className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-            {showForm ? 'Tutup Formulir' : 'Tambah Transaksi'}
-        </Button>
       </header>
-      <main className="flex flex-1 flex-col gap-4 p-4 sm:gap-6 sm:p-6">
+      <main className="flex flex-1 flex-col">
+        <div className="p-4 sm:p-6">
+            {!showForm && (
+                <Button onClick={() => setShowForm(true)} className="w-full md:w-auto">
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Tambah Transaksi
+                </Button>
+            )}
+        </div>
+        <AnimatePresence>
         {showForm && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              className="px-4 sm:px-6 mb-6"
+            >
             <Card className="rounded-xl shadow-sm w-full">
-            <CardHeader>
-                <CardTitle>Transaksi Baru</CardTitle>
-                <CardDescription>Isi detail transaksi untuk penjualan Pulsa, Token Listrik, dan Paket Data.</CardDescription>
+            <CardHeader className='flex flex-row items-center justify-between'>
+                <div>
+                    <CardTitle>Transaksi Baru</CardTitle>
+                    <CardDescription>Isi detail untuk penjualan Pulsa, Token, dan Paket Data.</CardDescription>
+                </div>
+                 <Button variant="ghost" size="icon" onClick={() => setShowForm(false)}>
+                    <X className="h-4 w-4" />
+                 </Button>
             </CardHeader>
             <form onSubmit={handleSubmit}>
                 <CardContent>
@@ -670,111 +687,113 @@ export default function RegularSalesPage() {
                 </CardFooter>
             </form>
             </Card>
+            </motion.div>
         )}
+        </AnimatePresence>
 
-
-        <Card className="rounded-xl shadow-sm w-full">
-          <CardHeader>
-            <CardTitle>Riwayat Transaksi Reguler</CardTitle>
-            <CardDescription>Daftar semua transaksi yang tercatat.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="md:hidden space-y-4">
-              {transactions.map((trx) => (
-                <Card key={trx.id} className="rounded-lg border w-full">
-                  <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <CardTitle className="text-base">{trx.productName}</CardTitle>
-                            <CardDescription>{trx.customerId || 'Tanpa ID'}</CardDescription>
+        <div className="px-4 sm:px-6">
+            <Card className="rounded-xl shadow-sm w-full">
+            <CardHeader>
+                <CardTitle>Riwayat Transaksi Reguler</CardTitle>
+                <CardDescription>Daftar semua transaksi yang tercatat.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="md:hidden space-y-4">
+                {transactions.map((trx) => (
+                    <Card key={trx.id} className="rounded-lg border w-full">
+                    <CardHeader className="pb-3">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <CardTitle className="text-base">{trx.productName}</CardTitle>
+                                <CardDescription>{trx.customerId || 'Tanpa ID'}</CardDescription>
+                            </div>
+                            <Badge variant={trx.profit > 0 ? 'default' : 'destructive'} className="text-xs">{formatRupiah(trx.profit)}</Badge>
                         </div>
-                        <Badge variant={trx.profit > 0 ? 'default' : 'destructive'} className="text-xs">{formatRupiah(trx.profit)}</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm pb-3">
-                    <div className="flex justify-between"><span>Waktu:</span> <span className="font-medium text-right">{format(parseISO(trx.datetime), "d MMM y, HH:mm", { locale: id })}</span></div>
-                    <div className="flex justify-between"><span>Harga Jual:</span> <span className="font-medium">{formatRupiah(trx.sellingPrice)}</span></div>
-                  </CardContent>
-                  <CardFooter className="flex justify-end space-x-2">
-                    <Button variant="outline" size="icon" onClick={() => handleDetailClick(trx)} className="h-9 w-9"><Eye className="h-4 w-4" /></Button>
-                    <EditDialogOrSheet open={editingTransaction?.id === trx.id} onOpenChange={(isOpen) => !isOpen && setEditingTransaction(null)}>
-                        <EditTrigger onClick={() => handleEditClick(trx)} />
-                    </EditDialogOrSheet>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild><Button variant="destructive" size="icon" className="h-9 w-9"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Pindahkan ke Sampah?</AlertDialogTitle>
-                          <AlertDialogDescription>Tindakan ini akan memindahkan transaksi ke folder sampah. Anda dapat memulihkannya nanti.</AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Batal</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDelete(trx.id)}>Pindahkan</AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </CardFooter>
-                </Card>
-              ))}
-            </div>
-
-            <div className="hidden md:block overflow-x-auto">
-              <table className="min-w-full divide-y divide-border">
-                <thead className="bg-muted/50">
-                  <tr>
-                    <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">Waktu</th>
-                    <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">ID Pelanggan</th>
-                    <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">Produk</th>
-                    <th className="px-4 py-3.5 text-right text-sm font-semibold text-foreground">Harga</th>
-                    <th className="px-4 py-3.5 text-right text-sm font-semibold text-foreground">Modal</th>
-                    <th className="px-4 py-3.5 text-right text-sm font-semibold text-foreground">Laba</th>
-                    <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">Sumber</th>
-                    <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">Pembayaran</th>
-                    <th className="px-4 py-3.5 text-center text-sm font-semibold text-foreground">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border bg-card">
-                  {transactions.map((trx) => (
-                    <tr key={trx.id} className="hover:bg-muted/50 transition-colors">
-                      <td className="px-4 py-4 text-sm text-muted-foreground whitespace-nowrap">{format(parseISO(trx.datetime), "d MMM y, HH:mm", { locale: id })}</td>
-                      <td className="px-4 py-4 text-sm text-foreground">{trx.customerId || '-'}</td>
-                      <td className="px-4 py-4 text-sm font-medium text-foreground">{trx.productName}</td>
-                      <td className="px-4 py-4 text-sm text-right text-foreground whitespace-nowrap">{formatRupiah(trx.sellingPrice)}</td>
-                      <td className="px-4 py-4 text-sm text-right text-muted-foreground whitespace-nowrap">{formatRupiah(trx.costPrice)}</td>
-                      <td className="px-4 py-4 text-sm text-right whitespace-nowrap">
-                        <Badge variant={trx.profit > 0 ? 'default' : 'destructive'} className="font-semibold">
-                          {formatRupiah(trx.profit)}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-muted-foreground">{trx.fundSource || '-'}</td>
-                      <td className="px-4 py-4 text-sm text-muted-foreground">{getPaymentMethodsString(trx.payments)}</td>
-                      <td className="px-4 py-4 text-center space-x-1 whitespace-nowrap">
-                        <Button variant="outline" size="icon" onClick={() => handleDetailClick(trx)} className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
-                         <EditDialogOrSheet open={editingTransaction?.id === trx.id} onOpenChange={(isOpen) => !isOpen && setEditingTransaction(null)}>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm pb-3">
+                        <div className="flex justify-between"><span>Waktu:</span> <span className="font-medium text-right">{format(parseISO(trx.datetime), "d MMM y, HH:mm", { locale: id })}</span></div>
+                        <div className="flex justify-between"><span>Harga Jual:</span> <span className="font-medium">{formatRupiah(trx.sellingPrice)}</span></div>
+                    </CardContent>
+                    <CardFooter className="flex justify-end space-x-2">
+                        <Button variant="outline" size="icon" onClick={() => handleDetailClick(trx)} className="h-9 w-9"><Eye className="h-4 w-4" /></Button>
+                        <EditDialogOrSheet open={editingTransaction?.id === trx.id} onOpenChange={(isOpen) => !isOpen && setEditingTransaction(null)}>
                             <EditTrigger onClick={() => handleEditClick(trx)} />
-                         </EditDialogOrSheet>
+                        </EditDialogOrSheet>
                         <AlertDialog>
-                          <AlertDialogTrigger asChild><Button variant="destructive" size="icon" className="h-8 w-8"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
-                          <AlertDialogContent>
+                        <AlertDialogTrigger asChild><Button variant="destructive" size="icon" className="h-9 w-9"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
+                        <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Pindahkan ke Sampah?</AlertDialogTitle>
-                              <AlertDialogDescription>Tindakan ini akan memindahkan transaksi ke folder sampah. Anda dapat memulihkannya nanti.</AlertDialogDescription>
+                            <AlertDialogTitle>Pindahkan ke Sampah?</AlertDialogTitle>
+                            <AlertDialogDescription>Tindakan ini akan memindahkan transaksi ke folder sampah. Anda dapat memulihkannya nanti.</AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel>Batal</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDelete(trx.id)}>Pindahkan</AlertDialogAction>
+                            <AlertDialogCancel>Batal</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDelete(trx.id)}>Pindahkan</AlertDialogAction>
                             </AlertDialogFooter>
-                          </AlertDialogContent>
+                        </AlertDialogContent>
                         </AlertDialog>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+                    </CardFooter>
+                    </Card>
+                ))}
+                </div>
 
+                <div className="hidden md:block overflow-x-auto">
+                <table className="min-w-full divide-y divide-border">
+                    <thead className="bg-muted/50">
+                    <tr>
+                        <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">Waktu</th>
+                        <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">ID Pelanggan</th>
+                        <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">Produk</th>
+                        <th className="px-4 py-3.5 text-right text-sm font-semibold text-foreground">Harga</th>
+                        <th className="px-4 py-3.5 text-right text-sm font-semibold text-foreground">Modal</th>
+                        <th className="px-4 py-3.5 text-right text-sm font-semibold text-foreground">Laba</th>
+                        <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">Sumber</th>
+                        <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">Pembayaran</th>
+                        <th className="px-4 py-3.5 text-center text-sm font-semibold text-foreground">Aksi</th>
+                    </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border bg-card">
+                    {transactions.map((trx) => (
+                        <tr key={trx.id} className="hover:bg-muted/50 transition-colors">
+                        <td className="px-4 py-4 text-sm text-muted-foreground whitespace-nowrap">{format(parseISO(trx.datetime), "d MMM y, HH:mm", { locale: id })}</td>
+                        <td className="px-4 py-4 text-sm text-foreground">{trx.customerId || '-'}</td>
+                        <td className="px-4 py-4 text-sm font-medium text-foreground">{trx.productName}</td>
+                        <td className="px-4 py-4 text-sm text-right text-foreground whitespace-nowrap">{formatRupiah(trx.sellingPrice)}</td>
+                        <td className="px-4 py-4 text-sm text-right text-muted-foreground whitespace-nowrap">{formatRupiah(trx.costPrice)}</td>
+                        <td className="px-4 py-4 text-sm text-right whitespace-nowrap">
+                            <Badge variant={trx.profit > 0 ? 'default' : 'destructive'} className="font-semibold">
+                            {formatRupiah(trx.profit)}
+                            </Badge>
+                        </td>
+                        <td className="px-4 py-4 text-sm text-muted-foreground">{trx.fundSource || '-'}</td>
+                        <td className="px-4 py-4 text-sm text-muted-foreground">{getPaymentMethodsString(trx.payments)}</td>
+                        <td className="px-4 py-4 text-center space-x-1 whitespace-nowrap">
+                            <Button variant="outline" size="icon" onClick={() => handleDetailClick(trx)} className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
+                            <EditDialogOrSheet open={editingTransaction?.id === trx.id} onOpenChange={(isOpen) => !isOpen && setEditingTransaction(null)}>
+                                <EditTrigger onClick={() => handleEditClick(trx)} />
+                            </EditDialogOrSheet>
+                            <AlertDialog>
+                            <AlertDialogTrigger asChild><Button variant="destructive" size="icon" className="h-8 w-8"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                <AlertDialogTitle>Pindahkan ke Sampah?</AlertDialogTitle>
+                                <AlertDialogDescription>Tindakan ini akan memindahkan transaksi ke folder sampah. Anda dapat memulihkannya nanti.</AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                <AlertDialogCancel>Batal</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDelete(trx.id)}>Pindahkan</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                            </AlertDialog>
+                        </td>
+                        </tr>
+                    ))}
+                    </tbody>
+                </table>
+                </div>
+            </CardContent>
+            </Card>
+        </div>
         {editingTransaction && (
           <EditContent className={isMobile ? 'w-full' : ''}>
               <EditHeader>
