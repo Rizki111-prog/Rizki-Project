@@ -175,7 +175,7 @@ export default function HistoryPage() {
                                     <td className="px-4 py-4 text-sm font-medium text-foreground">{trx.productName || trx.customerName}</td>
                                     <td className="px-4 py-4 text-sm text-right text-foreground whitespace-nowrap">{formatRupiah(trx.sellingPrice)}</td>
                                     <td className="px-4 py-4 text-sm text-right whitespace-nowrap">
-                                        <Badge variant={trx.profit > 0 ? 'secondary' : 'destructive'} className="font-semibold">{formatRupiah(trx.profit)}</Badge>
+                                        <Badge variant={trx.profit >= 0 ? 'secondary' : 'destructive'} className="font-semibold">{formatRupiah(trx.profit)}</Badge>
                                     </td>
                                     <td className="px-4 py-4 text-sm text-muted-foreground">{getPaymentMethodsString(trx.payments)}</td>
                                 </tr>

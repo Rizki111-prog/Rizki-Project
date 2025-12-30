@@ -198,7 +198,7 @@ export default function RegularSalesPage() {
         const cashCard = financialCards.find(c => c.name.toLowerCase() === 'tunai');
         const defaultCard = cashCard || financialCards[0];
 
-        if (price > 0) {
+        if (price >= 0) {
             newPayments[0].amount = price;
         } else {
             newPayments[0].amount = 0;
@@ -269,7 +269,7 @@ export default function RegularSalesPage() {
   
   const totalPaid = payments.reduce((acc, p) => acc + p.amount, 0);
   const remainingAmount = cleanRupiah(sellingPrice) - totalPaid;
-  const isPaymentValid = remainingAmount === 0 && cleanRupiah(sellingPrice) > 0;
+  const isPaymentValid = remainingAmount === 0;
 
   const resetForm = useCallback(() => {
     setCustomerId('');
@@ -310,8 +310,11 @@ export default function RegularSalesPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!productName || !sellingPrice || !costPrice || !fundSource) {
-      toast({ variant: "destructive", title: "Gagal", description: "Harap isi semua field data transaksi, kecuali ID Pelanggan." });
+    const price = cleanRupiah(sellingPrice) || 0;
+    const cost = cleanRupiah(costPrice) || 0;
+
+    if (!productName || !fundSource) {
+      toast({ variant: "destructive", title: "Gagal", description: "Nama Produk dan Sumber Modal wajib diisi." });
       return;
     }
     
@@ -321,14 +324,12 @@ export default function RegularSalesPage() {
     }
 
     if (payments.some(p => !p.method || (p.method === 'Hutang' && !p.debtorName))) {
-        toast({ variant: "destructive", title: "Gagal", description: "Harap lengkapi semua detail pembayaran."});
+        toast({ variant: "destructive", title: "Gagal", description: "Harap lengkapi semua detail pembayaran (termasuk Nama Penghutang jika ada)." });
         return;
     }
 
     setIsSubmitting(true);
 
-    const cost = cleanRupiah(costPrice);
-    const price = cleanRupiah(sellingPrice);
     const fundSourceCard = financialCards.find(c => c.id === fundSource);
     
     if (!fundSourceCard) {
@@ -360,7 +361,7 @@ export default function RegularSalesPage() {
     
     update(newTransactionRef, newTransaction)
       .then(() => {
-        if (productName && price && cost) {
+        if (productName && price > 0 && cost > 0) {
           saveToProductMaster({ name: productName, sellingPrice: price, costPrice: cost });
         }
 
@@ -420,7 +421,7 @@ export default function RegularSalesPage() {
         return;
     }
 
-    const cost = Number(transactionToDelete.costPrice);
+    const cost = Number(transactionToDelete.costPrice) || 0;
     const fundSourceCardId = transactionToDelete.fundSourceId;
 
     const transactionRef = ref(db, `transaksi_reguler/${id}`);
@@ -589,12 +590,12 @@ export default function RegularSalesPage() {
                 </div>
                  <div className="space-y-2">
                   <Label htmlFor="sellingPrice">Harga Jual</Label>
-                  <Input id="sellingPrice" type="text" placeholder="52.000" value={sellingPrice} onChange={handlePriceChange(setSellingPrice)} required 
+                  <Input id="sellingPrice" type="text" placeholder="Harga Jual (Opsional)" value={sellingPrice} onChange={handlePriceChange(setSellingPrice)} 
                          className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="costPrice">Modal</Label>
-                  <Input id="costPrice" type="text" placeholder="50.500" value={costPrice} onChange={handlePriceChange(setCostPrice)} required 
+                  <Input id="costPrice" type="text" placeholder="Modal (Opsional)" value={costPrice} onChange={handlePriceChange(setCostPrice)} 
                          className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
                 </div>
                 <div className="space-y-2">

@@ -201,7 +201,7 @@ export default function FamilyPackSalesPage() {
         const cashCard = financialCards.find(c => c.name.toLowerCase() === 'tunai');
         const defaultCard = cashCard || financialCards[0];
 
-        newPayments[0].amount = price > 0 ? price : 0;
+        newPayments[0].amount = price >= 0 ? price : 0;
         
         if (defaultCard) {
             newPayments[0].method = defaultCard.name;
@@ -221,7 +221,7 @@ export default function FamilyPackSalesPage() {
         const agenPulsaCard = financialCards.find(c => c.name.toLowerCase() === 'agen pulsa');
         const defaultCard = agenPulsaCard || financialCards[0];
         
-        newFundSources[0].amount = cost > 0 ? cost : 0;
+        newFundSources[0].amount = cost >= 0 ? cost : 0;
 
         if (defaultCard) {
             newFundSources[0].cardId = defaultCard.id;
@@ -319,11 +319,11 @@ export default function FamilyPackSalesPage() {
   
   const totalPaid = useMemo(() => payments.reduce((acc, p) => acc + p.amount, 0), [payments]);
   const remainingAmount = useMemo(() => cleanRupiah(sellingPrice) - totalPaid, [sellingPrice, totalPaid]);
-  const isPaymentValid = useMemo(() => remainingAmount === 0 && cleanRupiah(sellingPrice) > 0, [remainingAmount, sellingPrice]);
+  const isPaymentValid = useMemo(() => remainingAmount === 0, [remainingAmount]);
   
   const totalFundSourceAmount = useMemo(() => fundSources.reduce((acc, fs) => acc + fs.amount, 0), [fundSources]);
   const remainingFundSourceAmount = useMemo(() => cleanRupiah(costPrice) - totalFundSourceAmount, [costPrice, totalFundSourceAmount]);
-  const isFundSourceValid = useMemo(() => remainingFundSourceAmount === 0 && cleanRupiah(costPrice) > 0, [remainingFundSourceAmount, costPrice]);
+  const isFundSourceValid = useMemo(() => remainingFundSourceAmount === 0, [remainingFundSourceAmount]);
 
   const resetForm = useCallback(() => {
     setCustomerId('');
@@ -361,9 +361,12 @@ export default function FamilyPackSalesPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const price = cleanRupiah(sellingPrice) || 0;
+    const cost = cleanRupiah(costPrice) || 0;
 
-    if (!customerName || !sellingPrice || !costPrice) {
-      toast({ variant: "destructive", title: "Gagal", description: "Harap isi semua field yang wajib diisi." });
+    if (!customerName) {
+      toast({ variant: "destructive", title: "Gagal", description: "Nama Pelanggan wajib diisi." });
       return;
     }
     
@@ -388,9 +391,6 @@ export default function FamilyPackSalesPage() {
     }
 
     setIsSubmitting(true);
-
-    const cost = cleanRupiah(costPrice);
-    const price = cleanRupiah(sellingPrice);
     
     const transactionsRef = ref(db, 'transaksi_akrab');
     const newTransactionRef = push(transactionsRef);
@@ -590,11 +590,11 @@ export default function FamilyPackSalesPage() {
                 </div>
                  <div className="space-y-2">
                   <Label htmlFor="sellingPrice">Harga Jual</Label>
-                  <Input id="sellingPrice" type="text" placeholder="0" value={sellingPrice} onChange={handlePriceChange(setSellingPrice, false)} required />
+                  <Input id="sellingPrice" type="text" placeholder="Harga Jual (Opsional)" value={sellingPrice} onChange={handlePriceChange(setSellingPrice, false)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="costPrice">Modal</Label>
-                  <Input id="costPrice" type="text" placeholder="0" value={costPrice} onChange={handlePriceChange(setCostPrice, true)} required />
+                  <Input id="costPrice" type="text" placeholder="Modal (Opsional)" value={costPrice} onChange={handlePriceChange(setCostPrice, true)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="linkAkunPengelola">Link Akun Pengelola</Label>
