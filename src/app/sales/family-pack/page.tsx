@@ -65,6 +65,12 @@ interface Payment {
   debtorName?: string;
 }
 
+const getThirtyDaysFromNow = () => {
+    const now = new Date();
+    const thirtyDaysFromNow = addDays(now, 30);
+    return thirtyDaysFromNow.toISOString().split('T')[0];
+}
+
 export default function FamilyPackSalesPage() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -78,7 +84,7 @@ export default function FamilyPackSalesPage() {
   const [fundSource, setFundSource] = useState('');
   const [linkAkunPengelola, setLinkAkunPengelola] = useState('');
   const [eWalletPengelola, setEWalletPengelola] = useState('');
-  const [tanggalKadaluarsa, setTanggalKadaluarsa] = useState('');
+  const [tanggalKadaluarsa, setTanggalKadaluarsa] = useState(getThirtyDaysFromNow());
 
   const [payments, setPayments] = useState<Payment[]>([{ method: '', cardId: '', amount: 0, debtorName: '' }]);
   const [isPaymentAmountManuallySet, setIsPaymentAmountManuallySet] = useState(false);
@@ -103,7 +109,7 @@ export default function FamilyPackSalesPage() {
     const now = new Date();
     const localIsoString = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString();
     setDatetime(localIsoString.slice(0, 16));
-    setTanggalKadaluarsa(addDays(now, 30).toISOString());
+    setTanggalKadaluarsa(addDays(now, 30).toISOString().split('T')[0]);
   }, []);
 
   useEffect(() => {
@@ -268,7 +274,7 @@ export default function FamilyPackSalesPage() {
     const now = new Date();
     const localIsoString = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString();
     setDatetime(localIsoString.slice(0, 16));
-    setTanggalKadaluarsa(addDays(now, 30).toISOString());
+    setTanggalKadaluarsa(addDays(now, 30).toISOString().split('T')[0]);
 
     const agenPulsaCard = financialCards.find(card => card.name === 'Agen Pulsa');
     if (agenPulsaCard) {
@@ -543,8 +549,8 @@ export default function FamilyPackSalesPage() {
                 <div className="space-y-2">
                     <Label htmlFor="tanggalKadaluarsa">Tanggal Kadaluarsa</Label>
                     <div className="relative">
-                        <Input id="tanggalKadaluarsa" type="text" value={tanggalKadaluarsa ? format(parseISO(tanggalKadaluarsa), 'd MMMM yyyy', { locale: id }) : ''} readOnly disabled className="pr-8 bg-muted/50" />
-                        <CalendarDays className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                       <Input id="tanggalKadaluarsa" type="date" value={tanggalKadaluarsa} onChange={(e) => setTanggalKadaluarsa(e.target.value)} required />
+                       <CalendarDays className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                     </div>
                 </div>
               </div>
