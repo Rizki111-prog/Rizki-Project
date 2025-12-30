@@ -94,46 +94,51 @@ export default function HutangPage() {
         }
         setIsSubmitting(true);
 
-        const { transactionId, sourcePath } = selectedDebt;
-        let originalTransactionUpdated = false;
-
         try {
+            const { transactionId, sourcePath } = selectedDebt;
+            let originalTransactionUpdated = false;
+            
             const settlementDate = new Date().toISOString();
             const paymentCard = financialCards.find(card => card.id === paymentMethod);
             if (!paymentCard) throw new Error("Metode pembayaran tidak valid.");
 
             const updates: { [key: string]: any } = {};
             
-            // Mark debt as 'Lunas'
+            // Mark debt as 'Lunas' in the /hutang path
             updates[`/hutang/${selectedDebt.id}/status`] = 'Lunas';
             updates[`/hutang/${selectedDebt.id}/tanggal_pelunasan`] = settlementDate;
 
-            // Attempt to update original transaction
+            // If a link to the original transaction exists, update it
             if (transactionId && sourcePath) {
                 const transactionRef = ref(db, `${sourcePath}/${transactionId}`);
                 const transactionSnapshot = await get(transactionRef);
                 
                 if (transactionSnapshot.exists()) {
                     const transactionData = transactionSnapshot.val();
-                    const paymentIndex = transactionData.payments.findIndex((p: any) => p.method === 'Hutang' && p.debtorName === selectedDebt.nama);
+                    const paymentIndex = transactionData.payments?.findIndex(
+                        (p: any) => p.method === 'Hutang' && p.debtorName === selectedDebt.nama
+                    );
 
                     if (paymentIndex !== -1) {
+                        // Found the 'Hutang' payment, update it to the new method
                         updates[`${sourcePath}/${transactionId}/payments/${paymentIndex}/method`] = paymentCard.name;
                         updates[`${sourcePath}/${transactionId}/payments/${paymentIndex}/cardId`] = paymentCard.id;
-                        updates[`${sourcePath}/${transactionId}/tanggal_pelunasan`] = settlementDate;
+                        // Optionally remove debtorName as it's no longer a debt
+                        updates[`${sourcePath}/${transactionId}/payments/${paymentIndex}/debtorName`] = null; 
                         originalTransactionUpdated = true;
                     }
                 }
             }
 
-            // Execute all updates
+            // Execute all updates atomically
             await update(ref(db), updates);
 
-            // Update balance of the payment card
+            // Update balance of the receiving card
             const paymentCardRef = ref(db, `keuangan/cards/${paymentMethod}`);
             await runTransaction(paymentCardRef, (card) => {
                 if (card) {
-                    card.balance += selectedDebt.nominal;
+                    // Ensure balance is a number before adding to it
+                    card.balance = (card.balance || 0) + selectedDebt.nominal;
                 }
                 return card;
             });
@@ -141,13 +146,13 @@ export default function HutangPage() {
             if (originalTransactionUpdated) {
                 toast({
                     title: "Sukses",
-                    description: `Hutang lunas dan metode pembayaran transaksi telah diperbarui.`,
+                    description: `Hutang lunas dan transaksi asli telah diperbarui.`,
                 });
             } else {
                  toast({
-                    variant: "default",
                     title: "Hutang Lunas",
-                    description: `Catatan: Transaksi asli tidak ditemukan, hanya saldo yang diperbarui.`,
+                    description: `Catatan: Transaksi asli tidak ditemukan/diperbarui, tapi saldo telah ditambahkan.`,
+                    variant: "default",
                 });
             }
 
@@ -262,3 +267,5 @@ export default function HutangPage() {
         </div>
     );
 }
+
+    
