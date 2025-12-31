@@ -12,6 +12,7 @@ import {
   Wallet,
   BookUser,
   Trash2,
+  ArrowDownUp,
 } from 'lucide-react';
 import {
   Collapsible,
@@ -42,7 +43,7 @@ const menuItems = [
     ] 
   },
   { href: '/history', label: 'Riwayat Transaksi', icon: History },
-  { href: '/expenses', label: 'Pengeluaran', icon: Wallet },
+  { href: '/expenses', label: 'Pengeluaran', icon: ArrowDownUp },
   { href: '/hutang', label: 'Hutang', icon: BookUser },
   { 
     href: '/finance', 
@@ -111,7 +112,7 @@ export function AppSidebar() {
                      <div className="ml-7 mt-1 flex flex-col gap-1 border-l pl-3 py-1">
                        {item.submenus.map((submenu) => {
                           const Icon = getSubmenuIcon(submenu.href);
-                           const isSubmenuActive = pathname === submenu.href || (submenu.href === '/finance' && pathname.startsWith('/finance/'));
+                           const isSubmenuActive = pathname === submenu.href;
                           return (
                             <SidebarMenuButton
                               key={submenu.href}

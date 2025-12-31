@@ -92,15 +92,10 @@ export default function BalancePage() {
                         });
                     }
                 }
-            } else {
-                const defaultCard = {
-                    name: 'Tunai',
-                    balance: 0,
-                    createdAt: serverTimestamp(),
-                    icon: 'Wallet'
-                };
-                push(cardsRef, defaultCard);
+            } else if (cards.length > 0) { // If data is null but we had cards, reset
+                 setCards([]);
             }
+            
             loadedCards.sort((a, b) => a.createdAt - b.createdAt);
             setCards(loadedCards);
         });
@@ -111,7 +106,9 @@ export default function BalancePage() {
             const loadedTransactions: any[] = [];
             if (data) {
                 for (const key in data) {
-                    loadedTransactions.push({ id: key, ...data[key] });
+                    if (!data[key].isDeleted) {
+                        loadedTransactions.push({ id: key, ...data[key] });
+                    }
                 }
             }
             setAllTransactions(loadedTransactions);
@@ -122,7 +119,7 @@ export default function BalancePage() {
             unsubscribeCards();
             unsubscribeTransactions();
         };
-    }, []);
+    }, [cards.length]);
 
     const handleAddCard = (e: React.FormEvent) => {
         e.preventDefault();
@@ -248,7 +245,7 @@ export default function BalancePage() {
                                     </CardHeader>
                                     <CardContent>
                                         <div className="text-2xl font-bold tracking-tight">
-                                            {formatRupiah(card.balance)}
+                                            {formatRupiah(card.balance || 0)}
                                         </div>
                                         <p className="text-xs text-muted-foreground">
                                             Saldo saat ini
