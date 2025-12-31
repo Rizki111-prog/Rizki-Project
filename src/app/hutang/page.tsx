@@ -50,30 +50,30 @@ export default function HutangPage() {
         const debtsRef = ref(db, 'hutang');
         const unsubscribeDebts = onValue(debtsRef, (snapshot) => {
             const data = snapshot.val();
-            const loadedDebts: Debt[] = [];
-            if(data) {
-                for (const key in data) {
-                    if (data[key]) { // Load all debts initially
-                        loadedDebts.push({ id: key, ...data[key] });
-                    }
-                }
+            const activeDebts = Object.entries(data || {})
+                .map(([key, value]: [string, any]) => ({ id: key, ...value }))
+                .filter((debt: any) => debt.isDeleted !== true);
+
+            if (activeDebts.length === 0) {
+                setAllDebts([]);
+            } else {
+                setAllDebts(activeDebts);
             }
-            setAllDebts(loadedDebts);
             setIsLoadingData(false);
         });
 
         const cardsRef = ref(db, 'keuangan/cards');
         const unsubscribeCards = onValue(cardsRef, (snapshot) => {
             const data = snapshot.val();
-            const loadedCards: FinancialCard[] = [];
-            if(data){
-                for (const key in data) {
-                     if (data[key] && !data[key].isDeleted) {
-                        loadedCards.push({ id: key, ...data[key] });
-                    }
-                }
+            const activeCards = Object.entries(data || {})
+                .map(([key, value]: [string, any]) => ({ id: key, ...value }))
+                .filter((card: any) => card.isDeleted !== true);
+
+            if (activeCards.length === 0) {
+                setFinancialCards([]);
+            } else {
+                setFinancialCards(activeCards);
             }
-            setFinancialCards(loadedCards);
         });
 
         return () => {
@@ -84,7 +84,7 @@ export default function HutangPage() {
 
     const activeDebts = useMemo(() => {
         return allDebts
-            .filter(debt => debt.status === 'Belum Lunas' && !debt.isDeleted)
+            .filter(debt => debt.status === 'Belum Lunas')
             .sort((a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime());
     }, [allDebts]);
 

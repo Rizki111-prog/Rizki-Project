@@ -71,7 +71,7 @@ export function AppSidebar() {
 
   const getSubmenuIcon = (href: string) => {
     if (href.includes('balance')) return Wallet;
-    if (href.includes('dashboard') || href === '/finance') return LayoutDashboard;
+    if (href === '/finance') return LayoutDashboard;
     return undefined;
   }
 
@@ -112,7 +112,7 @@ export function AppSidebar() {
                      <div className="ml-7 mt-1 flex flex-col gap-1 border-l pl-3 py-1">
                        {item.submenus.map((submenu) => {
                           const Icon = getSubmenuIcon(submenu.href);
-                           const isSubmenuActive = pathname === submenu.href;
+                          const isSubmenuActive = pathname === submenu.href;
                           return (
                             <SidebarMenuButton
                               key={submenu.href}

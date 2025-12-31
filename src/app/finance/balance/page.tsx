@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '@/firebase';
-import { ref, push, onValue, serverTimestamp, runTransaction } from 'firebase/database';
+import { ref, onValue, serverTimestamp, runTransaction } from 'firebase/database';
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -89,21 +89,19 @@ export default function BalancePage() {
         const cardsRef = ref(db, 'keuangan/cards');
         const unsubscribeCards = onValue(cardsRef, (snapshot) => {
             const data = snapshot.val();
-            const loadedCards: FinancialCard[] = [];
-            if (data) {
-                for (const key in data) {
-                    if (data[key] && typeof data[key] === 'object' && data[key].name && !data[key].isDeleted) {
-                        loadedCards.push({ 
-                            id: key, 
-                            ...data[key],
-                            icon: getIconForCard(data[key].name)
-                        });
-                    }
-                }
+            const activeCards = Object.entries(data || {})
+                .map(([key, value]: [string, any]) => ({ id: key, ...value }))
+                .filter((card: any) => card.isDeleted !== true);
+
+            if (activeCards.length === 0) {
+                setCards([]);
+            } else {
+                 const loadedCards = activeCards.map((card: any) => ({
+                    ...card,
+                    icon: getIconForCard(card.name),
+                })).sort((a, b) => a.createdAt - b.createdAt);
+                setCards(loadedCards);
             }
-            
-            loadedCards.sort((a, b) => a.createdAt - b.createdAt);
-            setCards(loadedCards);
         });
 
         const regularTrxRef = ref(db, 'transaksi_reguler');
@@ -194,7 +192,7 @@ export default function BalancePage() {
     const filteredTransactions = useMemo(() => {
         if (!selectedCard) return [];
         
-        const activeTransactions = allTransactions.filter(trx => !trx.isDeleted);
+        const activeTransactions = allTransactions.filter(trx => trx.isDeleted !== true);
         const relatedTransactions: Transaction[] = [];
 
         activeTransactions.forEach(trx => {

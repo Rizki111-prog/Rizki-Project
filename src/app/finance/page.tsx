@@ -22,19 +22,16 @@ export default function FinanceDashboardPage() {
     const cardsRef = ref(db, 'keuangan/cards');
     const unsubscribe = onValue(cardsRef, (snapshot) => {
       const data = snapshot.val();
-      let currentTotal = 0;
-      if (data) {
-        for (const key in data) {
-          const card = data[key];
-          if(card && card.balance && !card.isDeleted) {
-            currentTotal += card.balance;
-          }
-        }
+      const activeCards = Object.values(data || {}).filter((card: any) => card.isDeleted !== true);
+
+      if (activeCards.length === 0) {
+        setTotalBalance(0);
+      } else {
+        const currentTotal = activeCards.reduce((acc: number, card: any) => acc + (card.balance || 0), 0);
+        setTotalBalance(currentTotal);
       }
-      setTotalBalance(currentTotal);
       setIsLoading(false);
     }, () => {
-      // Error callback
       setTotalBalance(0);
       setIsLoading(false);
     });
