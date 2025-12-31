@@ -33,6 +33,10 @@ export default function FinanceDashboardPage() {
       }
       setTotalBalance(currentTotal);
       setIsLoading(false);
+    }, () => {
+      // Error callback
+      setTotalBalance(0);
+      setIsLoading(false);
     });
 
     return () => unsubscribe();
@@ -64,7 +68,7 @@ export default function FinanceDashboardPage() {
                   <div className="text-2xl font-bold">{formatRupiah(totalBalance)}</div>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Dari semua akun keuangan
+                  Dari semua akun keuangan yang aktif
                 </p>
               </CardContent>
             </Card>

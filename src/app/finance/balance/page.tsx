@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { DollarSign, Wallet, Landmark, CreditCard, PlusCircle, Loader2, ArrowUpCircle, ArrowDownCircle, Info } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { formatRupiah, cleanRupiah } from '@/lib/utils';
 
@@ -24,6 +24,7 @@ interface FinancialCard {
   balance: number;
   createdAt: number;
   icon: string;
+  isDeleted?: boolean;
 }
 
 interface Payment {
@@ -36,15 +37,21 @@ interface Payment {
 interface Transaction {
   id: string;
   datetime: string;
-  productName: string;
+  productName?: string;
+  customerName?: string;
   sellingPrice: number;
-  costPrice: number;
+  costPrice?: number;
   fundSourceId?: string;
+  fundSources?: any[];
   payments?: Payment[];
   type: 'income' | 'expense';
   amount: number;
   description: string;
   isDeleted?: boolean;
+  date?: string;
+  nominal?: number;
+  name?: string;
+  fundSourceName?: string;
 }
 
 
@@ -99,24 +106,39 @@ export default function BalancePage() {
             setCards(loadedCards);
         });
 
-        const transactionsRef = ref(db, 'transaksi_reguler');
-        const unsubscribeTransactions = onValue(transactionsRef, (snapshot) => {
-            const data = snapshot.val();
-            const loadedTransactions: any[] = [];
-            if (data) {
-                for (const key in data) {
-                    if (!data[key].isDeleted) {
-                        loadedTransactions.push({ id: key, ...data[key] });
-                    }
-                }
-            }
-            setAllTransactions(loadedTransactions);
+        const regularTrxRef = ref(db, 'transaksi_reguler');
+        const unsubscribeRegular = onValue(regularTrxRef, (snapshot) => {
+            const data = snapshot.val() || {};
+            setAllTransactions(prev => [
+                ...prev.filter(t => !t.id.startsWith('reg-')), 
+                ...Object.entries(data).map(([key, value]: [string, any]) => ({...value, id: `reg-${key}`}))
+            ]);
+        });
+        
+        const akrabTrxRef = ref(db, 'transaksi_akrab');
+        const unsubscribeAkrab = onValue(akrabTrxRef, (snapshot) => {
+            const data = snapshot.val() || {};
+            setAllTransactions(prev => [
+                ...prev.filter(t => !t.id.startsWith('akrab-')), 
+                ...Object.entries(data).map(([key, value]: [string, any]) => ({...value, id: `akrab-${key}`}))
+            ]);
+        });
+        
+        const expensesRef = ref(db, 'pengeluaran');
+        const unsubscribeExpenses = onValue(expensesRef, (snapshot) => {
+            const data = snapshot.val() || {};
+             setAllTransactions(prev => [
+                ...prev.filter(t => !t.id.startsWith('exp-')), 
+                ...Object.entries(data).map(([key, value]: [string, any]) => ({...value, id: `exp-${key}`}))
+            ]);
         });
 
 
         return () => {
             unsubscribeCards();
-            unsubscribeTransactions();
+            unsubscribeRegular();
+            unsubscribeAkrab();
+            unsubscribeExpenses();
         };
     }, []);
 
@@ -176,30 +198,72 @@ export default function BalancePage() {
         const relatedTransactions: Transaction[] = [];
 
         activeTransactions.forEach(trx => {
-            // Money out (cost)
-            if (trx.fundSourceId === selectedCard.id) {
+            const datetime = trx.datetime || trx.date;
+            if (!datetime) return;
+            
+            // Expenses (money out)
+            if (trx.id.startsWith('exp-') && trx.fundSourceId === selectedCard.id) {
                 relatedTransactions.push({
                     ...trx,
+                    datetime,
                     type: 'expense',
-                    amount: trx.costPrice,
-                    description: `Modal untuk ${trx.productName}`
+                    amount: trx.nominal || 0,
+                    description: trx.name || 'Pengeluaran'
                 });
             }
-            // Money in (selling price from payments)
-            trx.payments?.forEach(payment => {
-                if (payment.cardId === selectedCard.id) {
+
+            // Regular Transaction (money out from cost, money in from payment)
+            if (trx.id.startsWith('reg-')) {
+                 if (trx.fundSourceId === selectedCard.id && trx.costPrice && trx.costPrice > 0) {
                     relatedTransactions.push({
-                       ...trx,
-                       type: 'income',
-                       amount: payment.amount,
-                       description: `Pembayaran untuk ${trx.productName}`
-                   });
+                        ...trx,
+                        datetime,
+                        type: 'expense',
+                        amount: trx.costPrice,
+                        description: `Modal untuk ${trx.productName}`
+                    });
                 }
-            })
+                 trx.payments?.forEach(payment => {
+                    if (payment.cardId === selectedCard.id) {
+                        relatedTransactions.push({
+                           ...trx,
+                           datetime,
+                           type: 'income',
+                           amount: payment.amount,
+                           description: `Pembayaran untuk ${trx.productName}`
+                       });
+                    }
+                });
+            }
+            
+            // Akrab Transaction (money out from fund sources, money in from payment)
+            if (trx.id.startsWith('akrab-')) {
+                trx.fundSources?.forEach(source => {
+                    if (source.cardId === selectedCard.id && source.amount > 0) {
+                        relatedTransactions.push({
+                            ...trx,
+                            datetime,
+                            type: 'expense',
+                            amount: source.amount,
+                            description: `Modal untuk ${trx.customerName}`
+                        });
+                    }
+                });
+                trx.payments?.forEach(payment => {
+                    if (payment.cardId === selectedCard.id) {
+                        relatedTransactions.push({
+                           ...trx,
+                           datetime,
+                           type: 'income',
+                           amount: payment.amount,
+                           description: `Pembayaran untuk ${trx.customerName}`
+                       });
+                    }
+                });
+            }
         });
 
-        // Add sorting by date, newest first
-        return relatedTransactions.sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime());
+        return relatedTransactions.sort((a, b) => parseISO(b.datetime).getTime() - parseISO(a.datetime).getTime());
 
     }, [selectedCard, allTransactions]);
 
@@ -334,7 +398,7 @@ export default function BalancePage() {
                                         }
                                         <div className="flex-1">
                                             <p className="text-sm font-medium leading-tight">{trx.description}</p>
-                                            <p className="text-xs text-muted-foreground">{format(new Date(trx.datetime), "d MMM yyyy, HH:mm", { locale: id })}</p>
+                                            <p className="text-xs text-muted-foreground">{format(parseISO(trx.datetime), "d MMM yyyy, HH:mm", { locale: id })}</p>
                                         </div>
                                         <div className={`text-sm font-bold whitespace-nowrap ${trx.type === 'income' ? 'text-emerald-600' : 'text-red-600'}`}>
                                             {trx.type === 'income' ? '+' : '-'} {formatRupiah(trx.amount)}

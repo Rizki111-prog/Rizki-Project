@@ -33,6 +33,7 @@ interface FinancialCard {
     id: string;
     name: string;
     balance: number;
+    isDeleted?: boolean;
 }
 
 export default function HutangPage() {
@@ -50,9 +51,11 @@ export default function HutangPage() {
         const unsubscribeDebts = onValue(debtsRef, (snapshot) => {
             const data = snapshot.val();
             const loadedDebts: Debt[] = [];
-            for (const key in data) {
-                if (data[key] && !data[key].isDeleted) {
-                    loadedDebts.push({ id: key, ...data[key] });
+            if(data) {
+                for (const key in data) {
+                    if (data[key]) { // Load all debts initially
+                        loadedDebts.push({ id: key, ...data[key] });
+                    }
                 }
             }
             setAllDebts(loadedDebts);
@@ -63,9 +66,11 @@ export default function HutangPage() {
         const unsubscribeCards = onValue(cardsRef, (snapshot) => {
             const data = snapshot.val();
             const loadedCards: FinancialCard[] = [];
-            for (const key in data) {
-                 if (data[key] && !data[key].isDeleted) {
-                    loadedCards.push({ id: key, ...data[key] });
+            if(data){
+                for (const key in data) {
+                     if (data[key] && !data[key].isDeleted) {
+                        loadedCards.push({ id: key, ...data[key] });
+                    }
                 }
             }
             setFinancialCards(loadedCards);
