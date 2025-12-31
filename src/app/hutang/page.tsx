@@ -51,8 +51,9 @@ export default function HutangPage() {
             const data = snapshot.val();
             const loadedDebts: Debt[] = [];
             for (const key in data) {
-                if (data[key].isDeleted) continue;
-                loadedDebts.push({ id: key, ...data[key] });
+                if (data[key] && !data[key].isDeleted) {
+                    loadedDebts.push({ id: key, ...data[key] });
+                }
             }
             setAllDebts(loadedDebts);
             setIsLoadingData(false);
@@ -63,7 +64,9 @@ export default function HutangPage() {
             const data = snapshot.val();
             const loadedCards: FinancialCard[] = [];
             for (const key in data) {
-                loadedCards.push({ id: key, ...data[key] });
+                 if (data[key] && !data[key].isDeleted) {
+                    loadedCards.push({ id: key, ...data[key] });
+                }
             }
             setFinancialCards(loadedCards);
         });
@@ -76,7 +79,7 @@ export default function HutangPage() {
 
     const activeDebts = useMemo(() => {
         return allDebts
-            .filter(debt => debt.status === 'Belum Lunas')
+            .filter(debt => debt.status === 'Belum Lunas' && !debt.isDeleted)
             .sort((a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime());
     }, [allDebts]);
 

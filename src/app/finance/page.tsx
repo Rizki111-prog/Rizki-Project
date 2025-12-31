@@ -11,6 +11,7 @@ interface FinancialCard {
   id: string;
   name: string;
   balance: number;
+  isDeleted?: boolean;
 }
 
 export default function FinanceDashboardPage() {
@@ -24,8 +25,9 @@ export default function FinanceDashboardPage() {
       let currentTotal = 0;
       if (data) {
         for (const key in data) {
-          if(data[key] && data[key].balance) {
-            currentTotal += data[key].balance;
+          const card = data[key];
+          if(card && card.balance && !card.isDeleted) {
+            currentTotal += card.balance;
           }
         }
       }

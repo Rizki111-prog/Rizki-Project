@@ -87,7 +87,7 @@ export default function ExpensesPage() {
       const data = snapshot.val();
       const loadedExpenses: Expense[] = [];
       for (const key in data) {
-        if (!data[key].isDeleted) {
+        if (data[key] && !data[key].isDeleted) {
           loadedExpenses.push({ id: key, ...data[key] });
         }
       }
@@ -101,7 +101,9 @@ export default function ExpensesPage() {
       const data = snapshot.val();
       const loadedCards: FinancialCard[] = [];
       for (const key in data) {
-        loadedCards.push({ id: key, ...data[key] });
+        if(data[key] && !data[key].isDeleted) {
+          loadedCards.push({ id: key, ...data[key] });
+        }
       }
       setFinancialCards(loadedCards);
       setIsLoadingCards(false);

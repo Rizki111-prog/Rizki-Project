@@ -44,6 +44,7 @@ interface Transaction {
   type: 'income' | 'expense';
   amount: number;
   description: string;
+  isDeleted?: boolean;
 }
 
 
@@ -84,7 +85,7 @@ export default function BalancePage() {
             const loadedCards: FinancialCard[] = [];
             if (data) {
                 for (const key in data) {
-                    if (data[key] && typeof data[key] === 'object' && data[key].name) {
+                    if (data[key] && typeof data[key] === 'object' && data[key].name && !data[key].isDeleted) {
                         loadedCards.push({ 
                             id: key, 
                             ...data[key],
@@ -92,8 +93,6 @@ export default function BalancePage() {
                         });
                     }
                 }
-            } else if (cards.length > 0) { // If data is null but we had cards, reset
-                 setCards([]);
             }
             
             loadedCards.sort((a, b) => a.createdAt - b.createdAt);
@@ -119,7 +118,7 @@ export default function BalancePage() {
             unsubscribeCards();
             unsubscribeTransactions();
         };
-    }, [cards.length]);
+    }, []);
 
     const handleAddCard = (e: React.FormEvent) => {
         e.preventDefault();
@@ -173,9 +172,10 @@ export default function BalancePage() {
     const filteredTransactions = useMemo(() => {
         if (!selectedCard) return [];
         
+        const activeTransactions = allTransactions.filter(trx => !trx.isDeleted);
         const relatedTransactions: Transaction[] = [];
 
-        allTransactions.forEach(trx => {
+        activeTransactions.forEach(trx => {
             // Money out (cost)
             if (trx.fundSourceId === selectedCard.id) {
                 relatedTransactions.push({
