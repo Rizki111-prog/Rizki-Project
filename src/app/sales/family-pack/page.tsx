@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Edit, Loader2, Eye, PlusCircle, CalendarDays, X } from 'lucide-react';
+import { Trash2, Edit, Loader2, Eye, PlusCircle, CalendarDays, X, Search } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,12 +23,15 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { format, parseISO, addDays, differenceInDays, startOfDay } from 'date-fns';
+import { format, parseISO, addDays, differenceInDays, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { DetailModal } from '@/components/modals/detail-modal';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { formatRupiah, cleanRupiah } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { DateRange } from "react-day-picker";
+import { DatePickerWithRange } from "@/components/ui/date-range-picker";
+
 
 interface Transaction {
   id: string;
@@ -112,6 +115,10 @@ export default function FamilyPackSalesPage() {
 
   const [showSuggestions, setShowSuggestions] = useState(false);
   const customerNameInputRef = useRef<HTMLDivElement>(null);
+  
+  // Filter state
+  const [searchTerm, setSearchTerm] = useState("");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
 
   const resetForm = useCallback(() => {
     const now = new Date();
@@ -490,6 +497,25 @@ export default function FamilyPackSalesPage() {
     setDetailTransaction(transaction);
     setIsDetailModalOpen(true);
   };
+  
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(trx => {
+        const isSearchMatch = searchTerm 
+            ? trx.customerName.toLowerCase().includes(searchTerm.toLowerCase())
+            : true;
+        
+        let isDateMatch = true;
+        if (dateRange?.from) {
+            const trxDate = startOfDay(parseISO(trx.datetime));
+            const fromDate = startOfDay(dateRange.from);
+            const toDate = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
+            isDateMatch = isWithinInterval(trxDate, { start: fromDate, end: toDate });
+        }
+        
+        return isSearchMatch && isDateMatch;
+    });
+  }, [transactions, searchTerm, dateRange]);
+
 
   const getPaymentMethodsString = (payments: Payment[] | undefined) => {
     if (!payments || payments.length === 0) return 'Tidak Diketahui';
@@ -571,7 +597,6 @@ export default function FamilyPackSalesPage() {
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
                         <CardTitle>Transaksi Baru Paket Akrab</CardTitle>
-                        <CardDescription>Isi detail transaksi untuk penjualan Paket Akrab.</CardDescription>
                     </div>
                     <Button variant="ghost" size="icon" onClick={() => setShowForm(false)}>
                         <X className="h-4 w-4" />
@@ -721,14 +746,37 @@ export default function FamilyPackSalesPage() {
         )}
         </AnimatePresence>
         <div className='px-4 sm:px-6'>
+            <Card className="rounded-xl shadow-sm mb-6">
+                <CardHeader>
+                    <CardTitle>Filter Transaksi</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col md:flex-row gap-4">
+                    <div className="relative flex-1">
+                        <Label htmlFor="search-customer">Cari Pelanggan</Label>
+                        <Search className="absolute left-2.5 top-9 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            id="search-customer"
+                            type="search"
+                            placeholder="Cari berdasarkan nama pelanggan..."
+                            className="pl-8 w-full"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                    <div className="flex flex-col space-y-2">
+                        <Label>Rentang Tanggal</Label>
+                        <DatePickerWithRange date={dateRange} setDate={setDateRange} className="w-full md:w-auto" />
+                    </div>
+                </CardContent>
+            </Card>
+
             <Card className="rounded-xl shadow-sm w-full">
             <CardHeader>
                 <CardTitle>Riwayat Transaksi Paket Akrab</CardTitle>
-                <CardDescription>Daftar semua transaksi Paket Akrab yang tercatat.</CardDescription>
             </CardHeader>
             <CardContent>
                 <div className="md:hidden space-y-4">
-                {transactions.map((trx) => (
+                {filteredTransactions.map((trx) => (
                     <Card key={trx.id} className="rounded-lg border w-full">
                     <CardHeader className="pb-3">
                         <div className="flex justify-between items-start">
@@ -772,7 +820,7 @@ export default function FamilyPackSalesPage() {
                     </tr>
                     </thead>
                     <tbody className="divide-y divide-border bg-card">
-                    {transactions.map((trx) => (
+                    {filteredTransactions.map((trx) => (
                         <tr key={trx.id} className="hover:bg-muted/50 transition-colors">
                         <td className="px-4 py-4 text-sm text-muted-foreground whitespace-nowrap">{format(parseISO(trx.datetime), "d MMM y, HH:mm", { locale: id })}</td>
                         <td className="px-4 py-4 text-sm font-medium text-foreground">{trx.customerName}</td>
