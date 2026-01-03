@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { DollarSign, Wallet, Landmark, CreditCard, PlusCircle, ArrowUp, Loader2, ArrowUpCircle, ArrowDownCircle, Info, Trash2 } from 'lucide-react';
+import { DollarSign, Wallet, Landmark, CreditCard, PlusCircle, ArrowUp, Loader2, ArrowUpCircle, ArrowDownCircle, Info, Trash2, Edit } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { format, parseISO } from 'date-fns';
 import { id } from 'date-fns/locale';
@@ -56,7 +56,7 @@ interface TopUpTransaction {
     adminFee: number;
     date: string;
     description: string;
-    createdAt: number;
+    createdAt: number | {'.sv': string};
     isDeleted?: boolean;
 }
 
@@ -132,9 +132,12 @@ export default function BalancePage() {
     };
     const [topUpState, setTopUpState] = useState<TopUpState>(initialTopUpState);
     const [isSubmittingTopUp, setIsSubmittingTopUp] = useState(false);
+    const [editingTopUp, setEditingTopUp] = useState<TopUpTransaction | null>(null);
+
 
     const resetTopUpForm = useCallback(() => {
         setTopUpState(initialTopUpState);
+        setEditingTopUp(null);
         setIsTopUpModalOpen(false);
     }, [initialTopUpState]);
 
@@ -168,15 +171,14 @@ export default function BalancePage() {
         const unsubscribeTopUps = onValue(ref(db, 'transaksi_topup'), (snapshot) => {
             const data = snapshot.val() || {};
             const loadedTopUps = Object.entries(data)
-                .map(([key, value]) => ({ id: key, ...(value as TopUpTransaction) }))
+                .map(([key, value]) => ({ id: key, ...(value as Omit<TopUpTransaction, 'id'>) }))
                 .filter(t => !t.isDeleted);
-            setTopUpTransactions(loadedTopUps.sort((a, b) => b.createdAt - a.createdAt));
+            setTopUpTransactions(loadedTopUps.sort((a, b) => (b.createdAt as number) - (a.createdAt as number)));
         });
 
         const unsubscribeRegular = fetchData('transaksi_reguler', 'reg-');
         const unsubscribeAkrab = fetchData('transaksi_akrab', 'akrab-');
         const unsubscribeExpenses = fetchData('pengeluaran', 'exp-');
-        // We will no longer fetch from 'pemasukan' for top-ups
         
         return () => {
             unsubscribeCards();
@@ -258,6 +260,19 @@ export default function BalancePage() {
         setSelectedCard(card);
         setIsHistorySheetOpen(true);
     };
+    
+    const handleEditTopUp = (trx: TopUpTransaction) => {
+        setEditingTopUp(trx);
+        setTopUpState({
+            destinationAccountId: trx.destinationAccountId,
+            sourceAccountId: trx.sourceAccountId,
+            amount: formatRupiah(trx.amount),
+            adminFee: formatRupiah(trx.adminFee),
+            date: trx.date,
+            description: trx.description
+        });
+        setIsTopUpModalOpen(true);
+    };
 
     const handleTopUpStateChange = (field: keyof TopUpState, value: string) => {
         if (field === 'amount' || field === 'adminFee') {
@@ -288,7 +303,7 @@ export default function BalancePage() {
 
         setIsSubmittingTopUp(true);
         
-        const newTopUpTransaction = {
+        const topUpData: Omit<TopUpTransaction, 'id' | 'createdAt'> & {createdAt?: any} = {
             destinationAccountId,
             destinationAccountName: destinationCard.name,
             sourceAccountId,
@@ -297,13 +312,21 @@ export default function BalancePage() {
             adminFee: adminFeeNum,
             date,
             description: description || `Top Up dari ${sourceCard.name} ke ${destinationCard.name}`,
-            createdAt: serverTimestamp(),
             isDeleted: false
         };
 
-        push(ref(db, 'transaksi_topup'), newTopUpTransaction)
-            .then(() => {
-                toast({ title: "Sukses", description: "Top up berhasil dicatat." });
+        let promise;
+        if (editingTopUp) {
+            // Update existing transaction
+            promise = update(ref(db, `transaksi_topup/${editingTopUp.id}`), topUpData);
+        } else {
+            // Create new transaction
+            topUpData.createdAt = serverTimestamp();
+            promise = push(ref(db, 'transaksi_topup'), topUpData);
+        }
+
+        promise.then(() => {
+                toast({ title: "Sukses", description: `Top up berhasil ${editingTopUp ? 'diperbarui' : 'dicatat'}.` });
                 resetTopUpForm();
             })
             .catch((error) => {
@@ -333,31 +356,32 @@ export default function BalancePage() {
         const relatedTransactions: Transaction[] = [];
 
         activeTransactions.forEach(trx => {
-            const datetime = trx.datetime || trx.date;
-            if (!datetime) return;
+            const trxDate = trx.datetime || trx.date;
+            if (!trxDate) return;
+            const datetime = typeof trxDate === 'number' ? new Date(trxDate).toISOString() : trxDate;
             
             if (trx.id.startsWith('exp-') && trx.fundSourceId === selectedCard.id) {
-                relatedTransactions.push({ ...trx, datetime, type: 'expense', amount: trx.nominal || 0, description: trx.name || 'Pengeluaran' });
+                relatedTransactions.push({ ...trx, datetime, type: 'expense', amount: trx.nominal || 0, description: trx.name || 'Pengeluaran', sellingPrice: 0 });
             }
             if (trx.id.startsWith('reg-')) {
                  if (trx.fundSourceId === selectedCard.id && trx.costPrice && trx.costPrice > 0) {
-                    relatedTransactions.push({ ...trx, datetime, type: 'expense', amount: trx.costPrice, description: `Modal untuk ${trx.productName}` });
+                    relatedTransactions.push({ ...trx, datetime, type: 'expense', amount: trx.costPrice, description: `Modal untuk ${trx.productName}`, sellingPrice: 0 });
                 }
                  trx.payments?.forEach(payment => {
                     if (payment.cardId === selectedCard.id) {
-                        relatedTransactions.push({ ...trx, datetime, type: 'income', amount: payment.amount, description: `Pembayaran untuk ${trx.productName}` });
+                        relatedTransactions.push({ ...trx, datetime, type: 'income', amount: payment.amount, description: `Pembayaran untuk ${trx.productName}`, sellingPrice: 0 });
                     }
                 });
             }
             if (trx.id.startsWith('akrab-')) {
                 trx.fundSources?.forEach(source => {
                     if (source.cardId === selectedCard.id && source.amount > 0) {
-                        relatedTransactions.push({ ...trx, datetime, type: 'expense', amount: source.amount, description: `Modal untuk ${trx.customerName}` });
+                        relatedTransactions.push({ ...trx, datetime, type: 'expense', amount: source.amount, description: `Modal untuk ${trx.customerName}`, sellingPrice: 0 });
                     }
                 });
                 trx.payments?.forEach(payment => {
                     if (payment.cardId === selectedCard.id) {
-                        relatedTransactions.push({ ...trx, datetime, type: 'income', amount: payment.amount, description: `Pembayaran untuk ${trx.customerName}` });
+                        relatedTransactions.push({ ...trx, datetime, type: 'income', amount: payment.amount, description: `Pembayaran untuk ${trx.customerName}`, sellingPrice: 0 });
                     }
                 });
             }
@@ -442,7 +466,6 @@ export default function BalancePage() {
                 <Card className="rounded-xl shadow-sm">
                     <CardHeader>
                         <CardTitle>Riwayat Top Up Saldo</CardTitle>
-                        <CardDescription>Daftar semua transaksi top up yang pernah tercatat.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         {topUpTransactions.length === 0 ? (
@@ -470,7 +493,10 @@ export default function BalancePage() {
                                                 <td className="px-4 py-4 text-sm font-medium text-foreground">{trx.destinationAccountName}</td>
                                                 <td className="px-4 py-4 text-sm text-right text-foreground whitespace-nowrap">{formatRupiah(trx.amount)}</td>
                                                 <td className="px-4 py-4 text-sm text-right text-muted-foreground whitespace-nowrap">{formatRupiah(trx.adminFee)}</td>
-                                                <td className="px-4 py-4 text-center">
+                                                <td className="px-4 py-4 text-center space-x-1">
+                                                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleEditTopUp(trx)}>
+                                                        <Edit className="h-4 w-4" />
+                                                    </Button>
                                                     <AlertDialog>
                                                         <AlertDialogTrigger asChild>
                                                             <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive">
@@ -538,11 +564,11 @@ export default function BalancePage() {
             </Dialog>
 
             {/* Top Up Modal */}
-             <Dialog open={isTopUpModalOpen} onOpenChange={setIsTopUpModalOpen}>
+             <Dialog open={isTopUpModalOpen} onOpenChange={(isOpen) => { if (!isOpen) resetTopUpForm(); else setIsTopUpModalOpen(true); }}>
                 <DialogContent className="sm:max-w-md">
                     <form onSubmit={handleTopUpSubmit}>
                         <DialogHeader>
-                            <DialogTitle>Top Up Saldo</DialogTitle>
+                            <DialogTitle>{editingTopUp ? 'Edit Top Up Saldo' : 'Top Up Saldo'}</DialogTitle>
                             <DialogDescription>
                                 Catat transaksi penambahan saldo antar akun.
                             </DialogDescription>
@@ -580,12 +606,10 @@ export default function BalancePage() {
                             </div>
                         </div>
                         <DialogFooter>
-                            <DialogClose asChild>
-                                <Button type="button" variant="secondary" onClick={resetTopUpForm}>Batal</Button>
-                            </DialogClose>
+                            <Button type="button" variant="secondary" onClick={resetTopUpForm}>Batal</Button>
                             <Button type="submit" disabled={isSubmittingTopUp}>
                                 {isSubmittingTopUp && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                {isSubmittingTopUp ? 'Menyimpan...' : 'Simpan Top Up'}
+                                {isSubmittingTopUp ? 'Menyimpan...' : (editingTopUp ? 'Simpan Perubahan' : 'Simpan Top Up')}
                             </Button>
                         </DialogFooter>
                     </form>
