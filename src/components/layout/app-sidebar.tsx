@@ -13,6 +13,7 @@ import {
   BookUser,
   Trash2,
   ArrowDownUp,
+  Database,
 } from 'lucide-react';
 import {
   Collapsible,
@@ -54,14 +55,25 @@ const menuItems = [
       { href: '/finance/balance', label: 'Saldo Akun' },
     ]
   },
+  { 
+    href: '/master', 
+    label: 'Data Master', 
+    icon: Database,
+    submenus: [
+      { href: '/master/products', label: 'Data Barang' },
+    ]
+  },
   { href: '/recycle-bin', label: 'Folder Sampah', icon: Trash2 },
 ];
 
 export function AppSidebar() {
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();
-  const [openSales, setOpenSales] = React.useState(pathname.startsWith('/sales'));
-  const [openFinance, setOpenFinance] = React.useState(pathname.startsWith('/finance'));
+  const [openStates, setOpenStates] = React.useState({
+    sales: pathname.startsWith('/sales'),
+    finance: pathname.startsWith('/finance'),
+    master: pathname.startsWith('/master'),
+  });
 
   const handleLinkClick = () => {
     if (isMobile) {
@@ -73,6 +85,10 @@ export function AppSidebar() {
     if (href.includes('balance')) return Wallet;
     if (href === '/finance') return LayoutDashboard;
     return undefined;
+  }
+  
+  const toggleCollapsible = (key: 'sales' | 'finance' | 'master') => {
+    setOpenStates(prev => ({ ...prev, [key]: !prev[key] }));
   }
 
   return (
@@ -93,8 +109,8 @@ export function AppSidebar() {
             <SidebarMenuItem key={item.href}>
               {item.submenus ? (
                  <Collapsible 
-                    open={item.href === '/sales' ? openSales : openFinance} 
-                    onOpenChange={item.href === '/sales' ? setOpenSales : setOpenFinance}
+                    open={openStates[item.href.substring(1) as keyof typeof openStates]} 
+                    onOpenChange={() => toggleCollapsible(item.href.substring(1) as keyof typeof openStates)}
                   >
                    <CollapsibleTrigger asChild>
                      <SidebarMenuButton
@@ -105,7 +121,7 @@ export function AppSidebar() {
                      >
                        <item.icon />
                        <span>{item.label}</span>
-                       <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", (item.href === '/sales' ? openSales : openFinance) && "rotate-180")} />
+                       <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", openStates[item.href.substring(1) as keyof typeof openStates] && "rotate-180")} />
                      </SidebarMenuButton>
                    </CollapsibleTrigger>
                    <CollapsibleContent>
