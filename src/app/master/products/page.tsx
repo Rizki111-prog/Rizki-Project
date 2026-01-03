@@ -44,6 +44,14 @@ const ProductForm = ({ product, onSave, onCancel, isSubmitting }: { product: Par
   const [sellingPrice, setSellingPrice] = useState(product?.sellingPrice ? formatRupiah(product.sellingPrice) : '');
   const { toast } = useToast();
 
+  useEffect(() => {
+    if (product) {
+      setName(product.name || '');
+      setCostPrice(product.costPrice ? formatRupiah(product.costPrice) : '');
+      setSellingPrice(product.sellingPrice ? formatRupiah(product.sellingPrice) : '');
+    }
+  }, [product]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
@@ -114,7 +122,7 @@ export default function ProductsPage() {
   }, []);
   
   const handleOpenModal = (product: Partial<Product> | null = null) => {
-    setEditingProduct(product);
+    setEditingProduct(product || {}); // Set to an empty object for 'Add' case
     setIsModalOpen(true);
   };
   
@@ -346,5 +354,3 @@ export default function ProductsPage() {
     </div>
   );
 }
-
-    
