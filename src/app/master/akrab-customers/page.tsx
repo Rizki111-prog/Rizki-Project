@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { PlusCircle, Loader2, Edit, Trash2, MoreHorizontal } from 'lucide-react';
 import {
@@ -56,7 +57,6 @@ const CustomerForm = ({ customer, onSave, onCancel, isSubmitting }: { customer: 
       toast({ variant: 'destructive', title: 'Gagal', description: 'Nama pelanggan tidak boleh kosong.' });
       return;
     }
-    // Ensure nomorHp is a string, even if empty, to avoid Firebase omitting the key.
     onSave({ name, nomor_hp: nomorHp || '' });
   };
 
@@ -94,6 +94,7 @@ export default function AkrabCustomersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Partial<Customer> | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
 
   useEffect(() => {
     const customersRef = ref(db, 'pelanggan_akrab');
@@ -120,7 +121,6 @@ export default function AkrabCustomersPage() {
   const handleSave = (customerData: { name: string, nomor_hp: string }) => {
     setIsSubmitting(true);
     
-    // Logging the object before sending to Firebase
     console.log("Saving customer data to Firebase:", customerData);
 
     const promise = editingCustomer?.id 
@@ -148,6 +148,39 @@ export default function AkrabCustomersPage() {
       });
   };
 
+  const handleSelect = (id: string) => {
+    setSelectedCustomers(prev => 
+      prev.includes(id) ? prev.filter(cid => cid !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedCustomers(customers.map(c => c.id));
+    } else {
+      setSelectedCustomers([]);
+    }
+  };
+
+  const handleBulkDelete = () => {
+    const updates: { [key: string]: null } = {};
+    selectedCustomers.forEach(id => {
+      updates[`/pelanggan_akrab/${id}`] = null;
+    });
+
+    update(ref(db), updates)
+      .then(() => {
+        toast({ title: 'Sukses', description: `${selectedCustomers.length} pelanggan berhasil dihapus.` });
+        setSelectedCustomers([]);
+      })
+      .catch(error => {
+        toast({ variant: 'destructive', title: 'Gagal', description: `Gagal menghapus pelanggan: ${error.message}` });
+      });
+  };
+
+  const numSelected = selectedCustomers.length;
+  const numCustomers = customers.length;
+
   return (
     <div className="flex flex-col w-full min-h-[100dvh] bg-background">
       <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b bg-background/80 backdrop-blur-sm px-4 sm:px-6">
@@ -158,10 +191,27 @@ export default function AkrabCustomersPage() {
             <p className="text-sm text-muted-foreground truncate whitespace-nowrap">Kelola daftar pelanggan Paket Akrab.</p>
           </div>
         </div>
-        <Button onClick={() => handleOpenModal()} className="transition-all duration-300 hover:scale-105">
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Tambah Pelanggan
-        </Button>
+        <div className='flex items-center gap-2'>
+          {numSelected > 0 ? (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Hapus ({numSelected})
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                  <AlertDialogHeader><AlertDialogTitle>Anda yakin?</AlertDialogTitle><AlertDialogDescription>Tindakan ini tidak dapat diurungkan. {numSelected} pelanggan akan dihapus secara permanen.</AlertDialogDescription></AlertDialogHeader>
+                  <AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction onClick={handleBulkDelete}>Ya, Hapus</AlertDialogAction></AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : (
+            <Button onClick={() => handleOpenModal()} className="transition-all duration-300 hover:scale-105">
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Tambah Pelanggan
+            </Button>
+          )}
+        </div>
       </header>
       <main className="flex flex-1 flex-col gap-4 p-4 sm:gap-6 sm:p-6">
         <Card className="rounded-xl shadow-sm">
@@ -185,7 +235,14 @@ export default function AkrabCustomersPage() {
                   {customers.map(customer => (
                     <Card key={customer.id} className="rounded-lg border">
                       <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-base font-bold">{customer.name}</CardTitle>
+                        <div className='flex items-center gap-4'>
+                          <Checkbox
+                            checked={selectedCustomers.includes(customer.id)}
+                            onCheckedChange={() => handleSelect(customer.id)}
+                            aria-label={`Pilih ${customer.name}`}
+                          />
+                          <CardTitle className="text-base font-bold">{customer.name}</CardTitle>
+                        </div>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" className="h-8 w-8 p-0">
@@ -211,7 +268,7 @@ export default function AkrabCustomersPage() {
                             </DropdownMenuContent>
                         </DropdownMenu>
                       </CardHeader>
-                      <CardContent className="text-sm">
+                      <CardContent className="text-sm pl-12">
                         <p className="text-muted-foreground">{customer.nomor_hp || 'Tanpa ID'}</p>
                       </CardContent>
                     </Card>
@@ -223,6 +280,14 @@ export default function AkrabCustomersPage() {
                     <table className="min-w-full divide-y divide-border">
                         <thead className="bg-muted/50">
                             <tr>
+                                <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground w-12">
+                                  <Checkbox
+                                    checked={numSelected === numCustomers && numCustomers > 0}
+                                    indeterminate={numSelected > 0 && numSelected < numCustomers}
+                                    onCheckedChange={handleSelectAll}
+                                    aria-label="Pilih semua"
+                                  />
+                                </th>
                                 <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">Nama Pelanggan</th>
                                 <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">Nomor HP / ID Pelanggan</th>
                                 <th className="px-4 py-3.5 text-center text-sm font-semibold text-foreground">Aksi</th>
@@ -230,7 +295,14 @@ export default function AkrabCustomersPage() {
                         </thead>
                         <tbody className="divide-y divide-border bg-card">
                             {customers.map(customer => (
-                                <tr key={customer.id} className="hover:bg-muted/50 transition-colors">
+                                <tr key={customer.id} className="hover:bg-muted/50 transition-colors" data-state={selectedCustomers.includes(customer.id) ? 'selected' : ''}>
+                                    <td className="px-4 py-4">
+                                      <Checkbox
+                                        checked={selectedCustomers.includes(customer.id)}
+                                        onCheckedChange={() => handleSelect(customer.id)}
+                                        aria-label={`Pilih ${customer.name}`}
+                                      />
+                                    </td>
                                     <td className="px-4 py-4 text-sm font-medium text-foreground">{customer.name}</td>
                                     <td className="px-4 py-4 text-sm text-muted-foreground">{customer.nomor_hp || '-'}</td>
                                     <td className="px-4 py-4 text-center space-x-2">

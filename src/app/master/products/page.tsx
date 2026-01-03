@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { PlusCircle, Loader2, Edit, Trash2, MoreHorizontal } from 'lucide-react';
 import { formatRupiah, cleanRupiah } from '@/lib/utils';
@@ -98,6 +99,7 @@ export default function ProductsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
 
   useEffect(() => {
     const productsRef = ref(db, 'produk_master');
@@ -147,6 +149,39 @@ export default function ProductsPage() {
       });
   };
 
+  const handleSelect = (id: string) => {
+    setSelectedProducts(prev => 
+      prev.includes(id) ? prev.filter(pid => pid !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedProducts(products.map(p => p.id));
+    } else {
+      setSelectedProducts([]);
+    }
+  };
+
+  const handleBulkDelete = () => {
+    const updates: { [key: string]: null } = {};
+    selectedProducts.forEach(id => {
+      updates[`/produk_master/${id}`] = null;
+    });
+
+    update(ref(db), updates)
+      .then(() => {
+        toast({ title: 'Sukses', description: `${selectedProducts.length} produk berhasil dihapus.` });
+        setSelectedProducts([]);
+      })
+      .catch(error => {
+        toast({ variant: 'destructive', title: 'Gagal', description: `Gagal menghapus produk: ${error.message}` });
+      });
+  };
+
+  const numSelected = selectedProducts.length;
+  const numProducts = products.length;
+
   return (
     <div className="flex flex-col w-full min-h-[100dvh] bg-background">
       <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b bg-background/80 backdrop-blur-sm px-4 sm:px-6">
@@ -157,10 +192,27 @@ export default function ProductsPage() {
             <p className="text-sm text-muted-foreground truncate whitespace-nowrap">Kelola daftar produk dan harga Anda.</p>
           </div>
         </div>
-        <Button onClick={() => handleOpenModal()} className="transition-all duration-300 hover:scale-105">
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Tambah Produk
-        </Button>
+        <div className='flex items-center gap-2'>
+          {numSelected > 0 ? (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Hapus ({numSelected})
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                  <AlertDialogHeader><AlertDialogTitle>Anda yakin?</AlertDialogTitle><AlertDialogDescription>Tindakan ini tidak dapat diurungkan. {numSelected} produk akan dihapus secara permanen.</AlertDialogDescription></AlertDialogHeader>
+                  <AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction onClick={handleBulkDelete}>Ya, Hapus</AlertDialogAction></AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : (
+            <Button onClick={() => handleOpenModal()} className="transition-all duration-300 hover:scale-105">
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Tambah Produk
+            </Button>
+          )}
+        </div>
       </header>
       <main className="flex flex-1 flex-col gap-4 p-4 sm:gap-6 sm:p-6">
         <Card className="rounded-xl shadow-sm">
@@ -184,7 +236,14 @@ export default function ProductsPage() {
                   {products.map(product => (
                     <Card key={product.id} className="rounded-lg border">
                       <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-base font-bold">{product.name}</CardTitle>
+                        <div className='flex items-center gap-4'>
+                          <Checkbox
+                            checked={selectedProducts.includes(product.id)}
+                            onCheckedChange={() => handleSelect(product.id)}
+                            aria-label={`Pilih ${product.name}`}
+                          />
+                          <CardTitle className="text-base font-bold">{product.name}</CardTitle>
+                        </div>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" className="h-8 w-8 p-0">
@@ -210,7 +269,7 @@ export default function ProductsPage() {
                             </DropdownMenuContent>
                         </DropdownMenu>
                       </CardHeader>
-                      <CardContent className="text-sm space-y-2">
+                      <CardContent className="text-sm space-y-2 pl-12">
                         <div className="flex justify-between">
                             <span className="text-muted-foreground">Harga Modal:</span>
                             <span className="font-semibold">{formatRupiah(product.costPrice)}</span>
@@ -229,6 +288,14 @@ export default function ProductsPage() {
                     <table className="min-w-full divide-y divide-border">
                         <thead className="bg-muted/50">
                             <tr>
+                                <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground w-12">
+                                  <Checkbox
+                                    checked={numSelected === numProducts && numProducts > 0}
+                                    indeterminate={numSelected > 0 && numSelected < numProducts}
+                                    onCheckedChange={handleSelectAll}
+                                    aria-label="Pilih semua"
+                                  />
+                                </th>
                                 <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">Nama Produk</th>
                                 <th className="px-4 py-3.5 text-right text-sm font-semibold text-foreground">Harga Modal</th>
                                 <th className="px-4 py-3.5 text-right text-sm font-semibold text-foreground">Harga Jual</th>
@@ -237,7 +304,14 @@ export default function ProductsPage() {
                         </thead>
                         <tbody className="divide-y divide-border bg-card">
                             {products.map(product => (
-                                <tr key={product.id} className="hover:bg-muted/50 transition-colors">
+                                <tr key={product.id} className="hover:bg-muted/50 transition-colors" data-state={selectedProducts.includes(product.id) ? 'selected' : ''}>
+                                    <td className="px-4 py-4">
+                                      <Checkbox
+                                        checked={selectedProducts.includes(product.id)}
+                                        onCheckedChange={() => handleSelect(product.id)}
+                                        aria-label={`Pilih ${product.name}`}
+                                      />
+                                    </td>
                                     <td className="px-4 py-4 text-sm font-medium text-foreground">{product.name}</td>
                                     <td className="px-4 py-4 text-sm text-right text-muted-foreground">{formatRupiah(product.costPrice)}</td>
                                     <td className="px-4 py-4 text-sm text-right text-foreground font-semibold">{formatRupiah(product.sellingPrice)}</td>
