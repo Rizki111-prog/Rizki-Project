@@ -57,7 +57,9 @@ const CustomerForm = ({ customer, onSave, onCancel, isSubmitting }: { customer: 
       toast({ variant: 'destructive', title: 'Gagal', description: 'Nama pelanggan tidak boleh kosong.' });
       return;
     }
-    onSave({ name, nomor_hp: nomorHp || '' });
+    const customerData = { name, nomor_hp: nomorHp || '' };
+    console.log("Data yang akan disimpan:", customerData);
+    onSave(customerData);
   };
 
   return (
@@ -100,7 +102,11 @@ export default function AkrabCustomersPage() {
     const customersRef = ref(db, 'pelanggan_akrab');
     const unsubscribe = onValue(customersRef, (snapshot) => {
       const data = snapshot.val();
-      const loadedCustomers = data ? Object.entries(data).map(([key, value]) => ({ id: key, ...(value as Omit<Customer, 'id'>) })) : [];
+      const loadedCustomers: Customer[] = data ? Object.entries(data).map(([key, value]) => ({ 
+        id: key, 
+        name: (value as any).name || '',
+        nomor_hp: (value as any).nomor_hp || ''
+      })) : [];
       setCustomers(loadedCustomers.sort((a, b) => a.name.localeCompare(b.name)));
       setIsLoading(false);
     });
@@ -121,8 +127,6 @@ export default function AkrabCustomersPage() {
   const handleSave = (customerData: { name: string, nomor_hp: string }) => {
     setIsSubmitting(true);
     
-    console.log("Saving customer data to Firebase:", customerData);
-
     const promise = editingCustomer?.id 
         ? update(ref(db, `pelanggan_akrab/${editingCustomer.id}`), customerData)
         : push(ref(db, 'pelanggan_akrab'), customerData);
@@ -337,5 +341,3 @@ export default function AkrabCustomersPage() {
     </div>
   );
 }
-
-    
