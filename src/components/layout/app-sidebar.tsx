@@ -14,6 +14,7 @@ import {
   Trash2,
   ArrowDownUp,
   Database,
+  Users,
 } from 'lucide-react';
 import {
   Collapsible,
@@ -61,6 +62,7 @@ const menuItems = [
     icon: Database,
     submenus: [
       { href: '/master/products', label: 'Data Barang' },
+      { href: '/master/akrab-customers', label: 'Pelanggan Akrab' },
     ]
   },
   { href: '/recycle-bin', label: 'Folder Sampah', icon: Trash2 },
@@ -84,6 +86,8 @@ export function AppSidebar() {
   const getSubmenuIcon = (href: string) => {
     if (href.includes('balance')) return Wallet;
     if (href === '/finance') return LayoutDashboard;
+    if (href.includes('products')) return Database;
+    if (href.includes('akrab-customers')) return Users;
     return undefined;
   }
   
