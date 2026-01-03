@@ -181,6 +181,7 @@ export default function ProductsPage() {
 
   const numSelected = selectedProducts.length;
   const numProducts = products.length;
+  const isIndeterminate = numSelected > 0 && numSelected < numProducts;
 
   return (
     <div className="flex flex-col w-full min-h-[100dvh] bg-background">
@@ -291,8 +292,8 @@ export default function ProductsPage() {
                                 <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground w-12">
                                   <Checkbox
                                     checked={numSelected === numProducts && numProducts > 0}
-                                    indeterminate={numSelected > 0 && numSelected < numProducts}
-                                    onCheckedChange={handleSelectAll}
+                                    indeterminate={isIndeterminate}
+                                    onCheckedChange={(checked) => handleSelectAll(!!checked)}
                                     aria-label="Pilih semua"
                                   />
                                 </th>
@@ -346,3 +347,5 @@ export default function ProductsPage() {
     </div>
   );
 }
+
+    

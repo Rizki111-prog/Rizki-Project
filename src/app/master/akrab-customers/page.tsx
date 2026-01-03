@@ -180,6 +180,7 @@ export default function AkrabCustomersPage() {
 
   const numSelected = selectedCustomers.length;
   const numCustomers = customers.length;
+  const isIndeterminate = numSelected > 0 && numSelected < numCustomers;
 
   return (
     <div className="flex flex-col w-full min-h-[100dvh] bg-background">
@@ -283,8 +284,8 @@ export default function AkrabCustomersPage() {
                                 <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground w-12">
                                   <Checkbox
                                     checked={numSelected === numCustomers && numCustomers > 0}
-                                    indeterminate={numSelected > 0 && numSelected < numCustomers}
-                                    onCheckedChange={handleSelectAll}
+                                    indeterminate={isIndeterminate}
+                                    onCheckedChange={(checked) => handleSelectAll(!!checked)}
                                     aria-label="Pilih semua"
                                   />
                                 </th>
@@ -336,3 +337,5 @@ export default function AkrabCustomersPage() {
     </div>
   );
 }
+
+    
