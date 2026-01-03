@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { db } from '@/firebase';
-import { ref, onValue, update, get, query, orderByChild, equalTo, serverTimestamp, runTransaction } from 'firebase/database';
+import { ref, onValue, update, get, query, orderByChild, equalTo, serverTimestamp } from 'firebase/database';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -94,7 +94,6 @@ export default function RecycleBinPage() {
     updates[`${path}/deletedAt`] = null;
 
     try {
-        // Restore linked items first or simultaneously
         if (item.path === 'hutang' && item.data.transactionId && item.data.sourcePath) {
             const trxPath = `${item.data.sourcePath}/${item.data.transactionId}`;
             updates[`${trxPath}/isDeleted`] = null;
@@ -110,16 +109,6 @@ export default function RecycleBinPage() {
             }
         }
 
-        // Reverse financial impact
-        if (item.path === 'pengeluaran' && item.data.fundSourceId && item.data.nominal) {
-            const fundSourceRef = ref(db, `keuangan/cards/${item.data.fundSourceId}`);
-            await runTransaction(fundSourceRef, (card) => {
-                if (card) { card.balance -= item.data.nominal; }
-                return card;
-            });
-        }
-        
-        // Execute all updates
         await update(ref(db), updates);
         toast({ title: "Sukses", description: "Item berhasil dipulihkan." });
     } catch (error: any) {
@@ -166,8 +155,7 @@ export default function RecycleBinPage() {
   
   const formatDeletedAt = (deletedAt: number | string) => {
     if (!deletedAt) return 'N/A';
-    // Firebase server timestamp is a number (milliseconds since epoch)
-    const date = typeof deletedAt === 'number' ? new Date(deletedAt) : parseISO(deletedAt);
+    const date = typeof deletedAt === 'number' ? new Date(deletedAt) : parseISO(deletedAt as string);
     return format(date, "d MMM y, HH:mm", { locale: id });
   };
 

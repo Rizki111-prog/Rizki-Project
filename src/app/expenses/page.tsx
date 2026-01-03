@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { db } from '@/firebase';
-import { ref, push, onValue, update, serverTimestamp, runTransaction } from 'firebase/database';
+import { ref, push, onValue, update, serverTimestamp } from 'firebase/database';
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -43,7 +43,7 @@ interface Expense {
 interface FinancialCard {
     id: string;
     name: string;
-    balance: number;
+    isDeleted?: boolean;
 }
 
 export default function ExpensesPage() {
@@ -152,13 +152,6 @@ export default function ExpensesPage() {
 
     push(ref(db, 'pengeluaran'), newExpense)
       .then(() => {
-        const fundSourceRef = ref(db, `keuangan/cards/${fundSourceId}`);
-        runTransaction(fundSourceRef, (card) => {
-          if (card) {
-            card.balance -= expenseNominal;
-          }
-          return card;
-        });
         toast({ title: "Sukses", description: "Pengeluaran berhasil dicatat." });
         resetForm();
       })
@@ -176,13 +169,6 @@ export default function ExpensesPage() {
     updates[`/pengeluaran/${expense.id}/deletedAt`] = serverTimestamp();
 
     update(ref(db), updates).then(() => {
-      const fundSourceRef = ref(db, `keuangan/cards/${expense.fundSourceId}`);
-      runTransaction(fundSourceRef, (card) => {
-        if (card) {
-          card.balance += expense.nominal;
-        }
-        return card;
-      });
       toast({ title: "Sukses", description: "Pengeluaran dipindahkan ke folder sampah." });
     }).catch((error) => {
       toast({ variant: "destructive", title: "Gagal", description: `Terjadi kesalahan: ${error.message}` });
@@ -313,7 +299,7 @@ export default function ExpensesPage() {
                                                 <AlertDialogHeader>
                                                     <AlertDialogTitle>Pindahkan ke Sampah?</AlertDialogTitle>
                                                     <AlertDialogDescription>
-                                                        Tindakan ini akan memindahkan pengeluaran ke folder sampah dan mengembalikan saldo. Anda dapat memulihkannya nanti.
+                                                        Tindakan ini akan memindahkan pengeluaran ke folder sampah. Anda dapat memulihkannya nanti. Saldo tidak akan dikembalikan.
                                                     </AlertDialogDescription>
                                                 </AlertDialogHeader>
                                                 <AlertDialogFooter>

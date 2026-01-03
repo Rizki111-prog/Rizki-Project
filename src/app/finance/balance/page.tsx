@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '@/firebase';
-import { ref, onValue, serverTimestamp, runTransaction } from 'firebase/database';
+import { ref, onValue, push, serverTimestamp } from 'firebase/database';
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -15,13 +15,12 @@ import { DollarSign, Wallet, Landmark, CreditCard, PlusCircle, Loader2, ArrowUpC
 import { motion } from 'framer-motion';
 import { format, parseISO } from 'date-fns';
 import { id } from 'date-fns/locale';
-import { formatRupiah, cleanRupiah } from '@/lib/utils';
+import { formatRupiah } from '@/lib/utils';
 
 
 interface FinancialCard {
   id: string;
   name: string;
-  balance: number;
   createdAt: number;
   icon: string;
   isDeleted?: boolean;
@@ -54,7 +53,6 @@ interface Transaction {
   fundSourceName?: string;
 }
 
-
 const iconMap: { [key: string]: React.ElementType } = {
   Wallet,
   Landmark,
@@ -82,8 +80,8 @@ export default function BalancePage() {
     const [isHistorySheetOpen, setIsHistorySheetOpen] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [newCardName, setNewCardName] = useState('');
-    const [initialBalance, setInitialBalance] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         const cardsRef = ref(db, 'keuangan/cards');
@@ -93,44 +91,27 @@ export default function BalancePage() {
                 .map(([key, value]: [string, any]) => ({ id: key, ...value }))
                 .filter((card: any) => card.isDeleted !== true);
 
-            if (activeCards.length === 0) {
-                setCards([]);
-            } else {
-                 const loadedCards = activeCards.map((card: any) => ({
-                    ...card,
-                    icon: getIconForCard(card.name),
-                })).sort((a, b) => a.createdAt - b.createdAt);
-                setCards(loadedCards);
-            }
+            const loadedCards = activeCards.map((card: any) => ({
+                ...card,
+                icon: getIconForCard(card.name),
+            })).sort((a, b) => a.createdAt - b.createdAt);
+            
+            setCards(loadedCards);
+            setIsLoading(cards.length > 0);
         });
 
-        const regularTrxRef = ref(db, 'transaksi_reguler');
-        const unsubscribeRegular = onValue(regularTrxRef, (snapshot) => {
+        const fetchData = (path: string, prefix: string) => onValue(ref(db, path), (snapshot) => {
             const data = snapshot.val() || {};
             setAllTransactions(prev => [
-                ...prev.filter(t => !t.id.startsWith('reg-')), 
-                ...Object.entries(data).map(([key, value]: [string, any]) => ({...value, id: `reg-${key}`}))
+                ...prev.filter(t => !t.id.startsWith(prefix)), 
+                ...Object.entries(data).map(([key, value]: [string, any]) => ({...value, id: `${prefix}${key}`}))
             ]);
-        });
-        
-        const akrabTrxRef = ref(db, 'transaksi_akrab');
-        const unsubscribeAkrab = onValue(akrabTrxRef, (snapshot) => {
-            const data = snapshot.val() || {};
-            setAllTransactions(prev => [
-                ...prev.filter(t => !t.id.startsWith('akrab-')), 
-                ...Object.entries(data).map(([key, value]: [string, any]) => ({...value, id: `akrab-${key}`}))
-            ]);
-        });
-        
-        const expensesRef = ref(db, 'pengeluaran');
-        const unsubscribeExpenses = onValue(expensesRef, (snapshot) => {
-            const data = snapshot.val() || {};
-             setAllTransactions(prev => [
-                ...prev.filter(t => !t.id.startsWith('exp-')), 
-                ...Object.entries(data).map(([key, value]: [string, any]) => ({...value, id: `exp-${key}`}))
-            ]);
+            setIsLoading(false);
         });
 
+        const unsubscribeRegular = fetchData('transaksi_reguler', 'reg-');
+        const unsubscribeAkrab = fetchData('transaksi_akrab', 'akrab-');
+        const unsubscribeExpenses = fetchData('pengeluaran', 'exp-');
 
         return () => {
             unsubscribeCards();
@@ -139,6 +120,51 @@ export default function BalancePage() {
             unsubscribeExpenses();
         };
     }, []);
+
+    const cardBalances = useMemo(() => {
+        const balances: { [key: string]: number } = {};
+        const activeTransactions = allTransactions.filter(trx => trx.isDeleted !== true);
+
+        cards.forEach(card => {
+            balances[card.id] = 0;
+        });
+
+        activeTransactions.forEach(trx => {
+            // Expenses (money out)
+            if (trx.id.startsWith('exp-') && trx.fundSourceId && balances[trx.fundSourceId] !== undefined) {
+                balances[trx.fundSourceId] -= trx.nominal || 0;
+            }
+            
+            // Regular Transaction (money out from cost, money in from payment)
+            if (trx.id.startsWith('reg-')) {
+                 if (trx.fundSourceId && trx.costPrice && trx.costPrice > 0 && balances[trx.fundSourceId] !== undefined) {
+                    balances[trx.fundSourceId] -= trx.costPrice;
+                }
+                 trx.payments?.forEach(payment => {
+                    if (payment.cardId && balances[payment.cardId] !== undefined) {
+                        balances[payment.cardId] += payment.amount;
+                    }
+                });
+            }
+            
+            // Akrab Transaction (money out from fund sources, money in from payment)
+            if (trx.id.startsWith('akrab-')) {
+                trx.fundSources?.forEach(source => {
+                    if (source.cardId && source.amount > 0 && balances[source.cardId] !== undefined) {
+                        balances[source.cardId] -= source.amount;
+                    }
+                });
+                trx.payments?.forEach(payment => {
+                    if (payment.cardId && balances[payment.cardId] !== undefined) {
+                       balances[payment.cardId] += payment.amount;
+                    }
+                });
+            }
+        });
+
+        return balances;
+    }, [allTransactions, cards]);
+
 
     const handleAddCard = (e: React.FormEvent) => {
         e.preventDefault();
@@ -152,11 +178,8 @@ export default function BalancePage() {
         }
         setIsSubmitting(true);
 
-        const balance = initialBalance === '' ? 0 : cleanRupiah(initialBalance);
-
         const newCard = {
             name: newCardName,
-            balance: balance,
             createdAt: serverTimestamp(),
             icon: getIconForCard(newCardName)
         };
@@ -170,7 +193,6 @@ export default function BalancePage() {
                 });
                 setIsModalOpen(false);
                 setNewCardName('');
-                setInitialBalance('');
             })
             .catch((error) => {
                 toast({
@@ -265,12 +287,6 @@ export default function BalancePage() {
 
     }, [selectedCard, allTransactions]);
 
-    const handleBalanceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { value } = e.target;
-        const cleanedValue = value.replace(/[^0-9]/g, '');
-        setInitialBalance(formatRupiah(cleanedValue));
-    };
-
     return (
         <div className="flex flex-col w-full min-h-[100dvh] bg-background">
             <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b bg-background/80 backdrop-blur-sm px-4 sm:px-6">
@@ -287,6 +303,11 @@ export default function BalancePage() {
                 </Button>
             </header>
             <main className="flex flex-1 flex-col gap-4 p-4 sm:gap-6 sm:p-6">
+                 {isLoading ? (
+                    <div className="flex items-center justify-center h-64">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                 ) : (
                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {cards.map((card, index) => {
                         const Icon = iconMap[card.icon] || DollarSign;
@@ -307,10 +328,10 @@ export default function BalancePage() {
                                     </CardHeader>
                                     <CardContent>
                                         <div className="text-2xl font-bold tracking-tight">
-                                            {formatRupiah(card.balance || 0)}
+                                            {formatRupiah(cardBalances[card.id] || 0)}
                                         </div>
                                         <p className="text-xs text-muted-foreground">
-                                            Saldo saat ini
+                                            Saldo terhitung
                                         </p>
                                     </CardContent>
                                 </Card>
@@ -318,7 +339,8 @@ export default function BalancePage() {
                         );
                     })}
                 </div>
-                {cards.length === 0 && (
+                 )}
+                {!isLoading && cards.length === 0 && (
                     <div className="flex items-center justify-center h-64 border-2 border-dashed rounded-2xl">
                         <p className="text-muted-foreground text-sm text-center">Belum ada akun keuangan. Silakan tambahkan.</p>
                     </div>
@@ -344,17 +366,6 @@ export default function BalancePage() {
                                     placeholder="Contoh: Bank BCA, Dompet Digital"
                                     className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"
                                     required
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="initial-balance">Saldo Awal</Label>
-                                <Input
-                                    id="initial-balance"
-                                    type="text"
-                                    value={initialBalance}
-                                    onChange={handleBalanceChange}
-                                    placeholder="0 (Opsional)"
-                                    className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"
                                 />
                             </div>
                         </div>

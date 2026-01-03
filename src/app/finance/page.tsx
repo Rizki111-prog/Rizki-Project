@@ -1,43 +1,89 @@
 'use client';
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '@/firebase';
 import { ref, onValue } from 'firebase/database';
 import { formatRupiah } from '@/lib/utils';
 import { Loader2 } from "lucide-react";
 
-interface FinancialCard {
+interface Transaction {
   id: string;
-  name: string;
-  balance: number;
   isDeleted?: boolean;
+  costPrice?: number;
+  payments?: { amount: number; cardId?: string }[];
+  fundSources?: { amount: number; cardId: string }[];
+  nominal?: number;
+  fundSourceId?: string;
 }
 
 export default function FinanceDashboardPage() {
   const [totalBalance, setTotalBalance] = useState(0);
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const cardsRef = ref(db, 'keuangan/cards');
-    const unsubscribe = onValue(cardsRef, (snapshot) => {
-      const data = snapshot.val();
-      const activeCards = Object.values(data || {}).filter((card: any) => card.isDeleted !== true);
-
-      if (activeCards.length === 0) {
-        setTotalBalance(0);
-      } else {
-        const currentTotal = activeCards.reduce((acc: number, card: any) => acc + (card.balance || 0), 0);
-        setTotalBalance(currentTotal);
-      }
-      setIsLoading(false);
-    }, () => {
-      setTotalBalance(0);
-      setIsLoading(false);
+    const fetchData = (path: string, prefix: string) => onValue(ref(db, path), (snapshot) => {
+        const data = snapshot.val() || {};
+        setAllTransactions(prev => [
+            ...prev.filter(t => !t.id.startsWith(prefix)), 
+            ...Object.entries(data).map(([key, value]: [string, any]) => ({...value, id: `${prefix}${key}`}))
+        ]);
+        setIsLoading(false);
     });
 
-    return () => unsubscribe();
+    const unsubscribeRegular = fetchData('transaksi_reguler', 'reg-');
+    const unsubscribeAkrab = fetchData('transaksi_akrab', 'akrab-');
+    const unsubscribeExpenses = fetchData('pengeluaran', 'exp-');
+    const unsubscribeCards = onValue(ref(db, 'keuangan/cards'), () => {
+      // This is just to trigger re-calculation when cards change.
+    });
+
+    return () => {
+      unsubscribeRegular();
+      unsubscribeAkrab();
+      unsubscribeExpenses();
+      unsubscribeCards();
+    };
   }, []);
+
+  useEffect(() => {
+    const activeTransactions = allTransactions.filter(trx => trx.isDeleted !== true);
+
+    if(activeTransactions.length === 0) {
+      setTotalBalance(0);
+      return;
+    }
+
+    const currentTotal = activeTransactions.reduce((acc: number, trx: Transaction) => {
+        let balanceChange = 0;
+        
+        // Income from payments
+        if (trx.payments) {
+            balanceChange += trx.payments.reduce((paymentAcc, p) => paymentAcc + (p.cardId ? p.amount : 0), 0);
+        }
+
+        // Expense from product cost
+        if (trx.id.startsWith('reg-') && trx.costPrice) {
+            balanceChange -= trx.costPrice;
+        }
+
+        // Expense from Akrab fund sources
+        if (trx.id.startsWith('akrab-') && trx.fundSources) {
+            balanceChange -= trx.fundSources.reduce((fsAcc, fs) => fsAcc + fs.amount, 0);
+        }
+        
+        // Expense from 'pengeluaran'
+        if (trx.id.startsWith('exp-') && trx.nominal) {
+            balanceChange -= trx.nominal;
+        }
+
+        return acc + balanceChange;
+    }, 0);
+    
+    setTotalBalance(currentTotal);
+
+  }, [allTransactions]);
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-background">

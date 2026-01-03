@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '@/firebase';
-import { ref, onValue, update, runTransaction, get } from 'firebase/database';
+import { ref, onValue, update, get } from 'firebase/database';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,7 +32,6 @@ interface Debt {
 interface FinancialCard {
     id: string;
     name: string;
-    balance: number;
     isDeleted?: boolean;
 }
 
@@ -143,16 +142,6 @@ export default function HutangPage() {
             // Execute all updates atomically
             await update(ref(db), updates);
 
-            // Update balance of the receiving card
-            const paymentCardRef = ref(db, `keuangan/cards/${paymentMethod}`);
-            await runTransaction(paymentCardRef, (card) => {
-                if (card) {
-                    // Ensure balance is a number before adding to it
-                    card.balance = (card.balance || 0) + selectedDebt.nominal;
-                }
-                return card;
-            });
-
             if (originalTransactionUpdated) {
                 toast({
                     title: "Sukses",
@@ -161,7 +150,7 @@ export default function HutangPage() {
             } else {
                  toast({
                     title: "Hutang Lunas",
-                    description: `Catatan: Transaksi asli tidak ditemukan/diperbarui, tapi saldo telah ditambahkan.`,
+                    description: `Catatan: Transaksi asli tidak ditemukan/diperbarui.`,
                     variant: "default",
                 });
             }
@@ -243,12 +232,12 @@ export default function HutangPage() {
                     <DialogHeader>
                         <DialogTitle>Pelunasan Hutang</DialogTitle>
                         <DialogDescription>
-                            Pilih metode pembayaran untuk melunasi hutang an. <strong>{selectedDebt?.nama}</strong> sebesar <strong>{formatRupiah(selectedDebt?.nominal || 0)}</strong>.
+                            Pilih akun penerima untuk melunasi hutang an. <strong>{selectedDebt?.nama}</strong> sebesar <strong>{formatRupiah(selectedDebt?.nominal || 0)}</strong>.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="py-4 space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="payment-method">Metode Pembayaran Pelunasan</Label>
+                            <Label htmlFor="payment-method">Pindahkan ke Akun</Label>
                             <Select value={paymentMethod} onValueChange={setPaymentMethod}>
                                 <SelectTrigger id="payment-method">
                                     <SelectValue placeholder="Pilih akun penerima" />

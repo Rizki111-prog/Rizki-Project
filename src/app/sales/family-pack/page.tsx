@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { db } from '@/firebase';
-import { ref, push, onValue, update, serverTimestamp, runTransaction, query, orderByChild, equalTo, get } from 'firebase/database';
+import { ref, push, onValue, update, serverTimestamp, query, orderByChild, equalTo, get } from 'firebase/database';
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -50,7 +50,6 @@ interface Transaction {
 interface FinancialCard {
     id: string;
     name: string;
-    balance: number;
 }
 
 interface Customer {
@@ -415,7 +414,7 @@ export default function FamilyPackSalesPage() {
       customerId: customerId || '',
       customerName,
       sellingPrice: price,
-      costPrice: cost,
+      // costPrice: cost, // costPrice is dynamically calculated from fundSources sum
       payments: payments.map(({amount, method, cardId, debtorName}) => {
         const paymentData: any = { amount, method };
         if (cardId) paymentData.cardId = cardId;
@@ -434,16 +433,6 @@ export default function FamilyPackSalesPage() {
       .then(() => {
         saveToCustomerMaster(customerName);
 
-        fundSources.forEach(source => {
-            if (source.cardId && source.amount > 0) {
-              const fundSourceRef = ref(db, `keuangan/cards/${source.cardId}`);
-              runTransaction(fundSourceRef, (card) => {
-                  if (card) { card.balance -= source.amount; }
-                  return card;
-              });
-            }
-        });
-
         payments.forEach(payment => {
             if(payment.method === 'Hutang' && transactionId && payment.amount > 0) {
                 push(ref(db, 'hutang'), {
@@ -454,12 +443,6 @@ export default function FamilyPackSalesPage() {
                     transactionId: transactionId,
                     sourcePath: 'transaksi_akrab',
                     isDeleted: false
-                });
-            } else if (payment.cardId && payment.amount > 0) {
-                const paymentMethodRef = ref(db, `keuangan/cards/${payment.cardId}`);
-                runTransaction(paymentMethodRef, (card) => {
-                    if (card) { card.balance += payment.amount; }
-                    return card;
                 });
             }
         });

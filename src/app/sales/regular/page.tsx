@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { db } from '@/firebase';
-import { ref, push, onValue, update, serverTimestamp, runTransaction, query, orderByChild, equalTo, get } from 'firebase/database';
+import { ref, push, onValue, update, serverTimestamp, query, orderByChild, equalTo, get } from 'firebase/database';
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -58,7 +58,6 @@ interface Transaction {
 interface FinancialCard {
     id: string;
     name: string;
-    balance: number;
 }
 
 interface ProductMaster {
@@ -371,16 +370,6 @@ export default function RegularSalesPage() {
           saveToProductMaster({ name: productName, sellingPrice: price, costPrice: cost });
         }
         
-        if (cost > 0) {
-          const fundSourceRef = ref(db, `keuangan/cards/${fundSourceCard.id}`);
-          runTransaction(fundSourceRef, (card) => {
-              if (card) {
-                  card.balance -= cost;
-              }
-              return card;
-          });
-        }
-
         payments.forEach(payment => {
             if(payment.method === 'Hutang' && transactionId && payment.amount > 0) {
                 const debtRef = ref(db, 'hutang');
@@ -392,14 +381,6 @@ export default function RegularSalesPage() {
                     transactionId: transactionId,
                     sourcePath: 'transaksi_reguler',
                     isDeleted: false
-                });
-            } else if (payment.cardId && payment.amount > 0) {
-                const paymentMethodRef = ref(db, `keuangan/cards/${payment.cardId}`);
-                runTransaction(paymentMethodRef, (card) => {
-                    if (card) {
-                        card.balance += payment.amount;
-                    }
-                    return card;
                 });
             }
         });
