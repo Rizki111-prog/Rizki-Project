@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { db } from '@/firebase';
-import { ref, onValue, push, serverTimestamp } from 'firebase/database';
+import { ref, onValue, push, serverTimestamp, update } from 'firebase/database';
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -13,11 +13,22 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { DollarSign, Wallet, Landmark, CreditCard, PlusCircle, ArrowUp, Loader2, ArrowUpCircle, ArrowDownCircle, Info } from 'lucide-react';
+import { DollarSign, Wallet, Landmark, CreditCard, PlusCircle, ArrowUp, Loader2, ArrowUpCircle, ArrowDownCircle, Info, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { format, parseISO } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { formatRupiah, cleanRupiah } from '@/lib/utils';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 
 interface FinancialCard {
@@ -33,6 +44,20 @@ interface Payment {
   cardId?: string;
   amount: number;
   debtorName?: string;
+}
+
+interface TopUpTransaction {
+    id: string;
+    destinationAccountId: string;
+    destinationAccountName: string;
+    sourceAccountId: string;
+    sourceAccountName: string;
+    amount: number;
+    adminFee: number;
+    date: string;
+    description: string;
+    createdAt: number;
+    isDeleted?: boolean;
 }
 
 interface Transaction {
@@ -88,6 +113,7 @@ export default function BalancePage() {
     const { toast } = useToast();
     const [cards, setCards] = useState<FinancialCard[]>([]);
     const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
+    const [topUpTransactions, setTopUpTransactions] = useState<TopUpTransaction[]>([]);
     const [selectedCard, setSelectedCard] = useState<FinancialCard | null>(null);
     const [isHistorySheetOpen, setIsHistorySheetOpen] = useState(false);
     const [isAddCardModalOpen, setIsAddCardModalOpen] = useState(false);
@@ -117,22 +143,14 @@ export default function BalancePage() {
         const cardsRef = ref(db, 'keuangan/cards');
         const unsubscribeCards = onValue(cardsRef, (snapshot) => {
             const data = snapshot.val();
-            const activeData = Object.values(data || {}).filter((item: any) => item.isDeleted !== true);
-
-            if (activeData.length === 0) {
-              setCards([]);
-              setIsLoading(false);
-              return;
-            }
-
-            const activeCards = Object.entries(data || {})
+            const loadedCards = Object.entries(data || {})
                 .map(([key, value]: [string, any]) => ({ id: key, ...value }))
-                .filter((card: any) => card.isDeleted !== true);
-
-            const loadedCards = activeCards.map((card: any) => ({
-                ...card,
-                icon: getIconForCard(card.name),
-            })).sort((a, b) => a.createdAt - b.createdAt);
+                .filter((card: any) => card.isDeleted !== true)
+                .map((card: any) => ({
+                    ...card,
+                    icon: getIconForCard(card.name),
+                }))
+                .sort((a, b) => a.createdAt - b.createdAt);
             
             setCards(loadedCards);
             setIsLoading(cards.length > 0);
@@ -147,47 +165,39 @@ export default function BalancePage() {
             setIsLoading(false);
         });
 
+        const unsubscribeTopUps = onValue(ref(db, 'transaksi_topup'), (snapshot) => {
+            const data = snapshot.val() || {};
+            const loadedTopUps = Object.entries(data)
+                .map(([key, value]) => ({ id: key, ...(value as TopUpTransaction) }))
+                .filter(t => !t.isDeleted);
+            setTopUpTransactions(loadedTopUps.sort((a, b) => b.createdAt - a.createdAt));
+        });
+
         const unsubscribeRegular = fetchData('transaksi_reguler', 'reg-');
         const unsubscribeAkrab = fetchData('transaksi_akrab', 'akrab-');
         const unsubscribeExpenses = fetchData('pengeluaran', 'exp-');
-        const unsubscribeIncomes = fetchData('pemasukan', 'inc-');
-
+        // We will no longer fetch from 'pemasukan' for top-ups
+        
         return () => {
             unsubscribeCards();
             unsubscribeRegular();
             unsubscribeAkrab();
             unsubscribeExpenses();
-            unsubscribeIncomes();
+            unsubscribeTopUps();
         };
     }, []);
 
     const cardBalances = useMemo(() => {
         const balances: { [key: string]: number } = {};
+        cards.forEach(card => { balances[card.id] = 0; });
+        
         const activeTransactions = allTransactions.filter(trx => trx.isDeleted !== true);
 
-        if (activeTransactions.length === 0) {
-            cards.forEach(card => {
-                balances[card.id] = 0;
-            });
-            return balances;
-        }
-
-        cards.forEach(card => {
-            balances[card.id] = 0;
-        });
-
+        // Process standard transactions
         activeTransactions.forEach(trx => {
-            // Expenses (money out)
             if (trx.id.startsWith('exp-') && trx.fundSourceId && balances[trx.fundSourceId] !== undefined) {
                 balances[trx.fundSourceId] -= trx.nominal || 0;
             }
-
-            // Incomes (money in)
-            if (trx.id.startsWith('inc-') && trx.fundSourceId && balances[trx.fundSourceId] !== undefined) {
-                balances[trx.fundSourceId] += trx.nominal || 0;
-            }
-            
-            // Regular Transaction (money out from cost, money in from payment)
             if (trx.id.startsWith('reg-')) {
                  if (trx.fundSourceId && trx.costPrice && trx.costPrice > 0 && balances[trx.fundSourceId] !== undefined) {
                     balances[trx.fundSourceId] -= trx.costPrice;
@@ -198,8 +208,6 @@ export default function BalancePage() {
                     }
                 });
             }
-            
-            // Akrab Transaction (money out from fund sources, money in from payment)
             if (trx.id.startsWith('akrab-')) {
                 trx.fundSources?.forEach(source => {
                     if (source.cardId && source.amount > 0 && balances[source.cardId] !== undefined) {
@@ -214,48 +222,36 @@ export default function BalancePage() {
             }
         });
 
+        // Process top-up transactions
+        topUpTransactions.forEach(trx => {
+             if (balances[trx.destinationAccountId] !== undefined) {
+                balances[trx.destinationAccountId] += trx.amount;
+            }
+            if (balances[trx.sourceAccountId] !== undefined) {
+                balances[trx.sourceAccountId] -= (trx.amount + trx.adminFee);
+            }
+        });
+
         return balances;
-    }, [allTransactions, cards]);
+    }, [allTransactions, cards, topUpTransactions]);
 
 
     const handleAddCard = (e: React.FormEvent) => {
         e.preventDefault();
         if (!newCardName.trim()) {
-            toast({
-                variant: "destructive",
-                title: "Gagal",
-                description: "Nama akun tidak boleh kosong.",
-            });
+            toast({ variant: "destructive", title: "Gagal", description: "Nama akun tidak boleh kosong." });
             return;
         }
         setIsSubmitting(true);
-
-        const newCard = {
-            name: newCardName,
-            createdAt: serverTimestamp(),
-            icon: getIconForCard(newCardName)
-        };
-
-        const cardsRef = ref(db, 'keuangan/cards');
-        push(cardsRef, newCard)
+        const newCard = { name: newCardName, createdAt: serverTimestamp(), icon: getIconForCard(newCardName) };
+        push(ref(db, 'keuangan/cards'), newCard)
             .then(() => {
-                toast({
-                    title: "Sukses",
-                    description: `Akun '${newCardName}' berhasil ditambahkan.`,
-                });
+                toast({ title: "Sukses", description: `Akun '${newCardName}' berhasil ditambahkan.` });
                 setIsAddCardModalOpen(false);
                 setNewCardName('');
             })
-            .catch((error) => {
-                toast({
-                    variant: "destructive",
-                    title: "Gagal",
-                    description: `Terjadi kesalahan: ${error.message}`,
-                });
-            })
-            .finally(() => {
-                setIsSubmitting(false);
-            });
+            .catch((error) => { toast({ variant: "destructive", title: "Gagal", description: `Terjadi kesalahan: ${error.message}` }); })
+            .finally(() => { setIsSubmitting(false); });
     };
     
     const handleCardClick = (card: FinancialCard) => {
@@ -277,12 +273,11 @@ export default function BalancePage() {
 
         const amountNum = cleanRupiah(amount);
         const adminFeeNum = cleanRupiah(adminFee);
-        const totalExpenseNum = amountNum + adminFeeNum;
 
         const destinationCard = cards.find(c => c.id === destinationAccountId);
         const sourceCard = cards.find(c => c.id === sourceAccountId);
 
-        if (!destinationAccountId || !sourceAccountId || amountNum <= 0) {
+        if (!destinationAccountId || !sourceAccountId || amountNum <= 0 || !destinationCard || !sourceCard) {
             toast({ variant: "destructive", title: "Gagal", description: "Harap lengkapi semua field yang wajib diisi." });
             return;
         }
@@ -293,35 +288,20 @@ export default function BalancePage() {
 
         setIsSubmittingTopUp(true);
         
-        // 1. Record income to destination account
-        const incomeName = `Top Up ke ${destinationCard?.name}`;
-        const newIncome = {
-            name: incomeName,
-            nominal: amountNum,
-            fundSourceId: destinationAccountId,
-            fundSourceName: destinationCard?.name,
+        const newTopUpTransaction = {
+            destinationAccountId,
+            destinationAccountName: destinationCard.name,
+            sourceAccountId,
+            sourceAccountName: sourceCard.name,
+            amount: amountNum,
+            adminFee: adminFeeNum,
             date,
-            description: description || `Top Up dari ${sourceCard?.name}`,
+            description: description || `Top Up dari ${sourceCard.name} ke ${destinationCard.name}`,
             createdAt: serverTimestamp(),
-            isDeleted: false,
+            isDeleted: false
         };
-        const incomeRef = push(ref(db, 'pemasukan'), newIncome);
 
-        // 2. Record expense from source account
-        const expenseName = `Biaya Top Up ke ${destinationCard?.name}`;
-        const newExpense = {
-            name: expenseName,
-            nominal: totalExpenseNum,
-            fundSourceId: sourceAccountId,
-            fundSourceName: sourceCard?.name,
-            date,
-            description: `Top Up: ${formatRupiah(amount)} + Admin: ${formatRupiah(adminFee)}. ${description}`,
-            createdAt: serverTimestamp(),
-            isDeleted: false,
-        };
-        const expenseRef = push(ref(db, 'pengeluaran'), newExpense);
-
-        Promise.all([incomeRef, expenseRef])
+        push(ref(db, 'transaksi_topup'), newTopUpTransaction)
             .then(() => {
                 toast({ title: "Sukses", description: "Top up berhasil dicatat." });
                 resetTopUpForm();
@@ -334,6 +314,18 @@ export default function BalancePage() {
             });
     };
 
+    const handleDeleteTopUp = (id: string) => {
+      const updates: { [key: string]: any } = {};
+      updates[`/transaksi_topup/${id}/isDeleted`] = true;
+      updates[`/transaksi_topup/${id}/deletedAt`] = serverTimestamp();
+
+      update(ref(db), updates).then(() => {
+          toast({ title: "Sukses", description: "Transaksi top up dipindahkan ke folder sampah." });
+      }).catch((error) => {
+          toast({ variant: "destructive", title: "Gagal", description: `Terjadi kesalahan: ${error.message}` });
+      });
+    };
+
     const filteredTransactions = useMemo(() => {
         if (!selectedCard) return [];
         
@@ -344,86 +336,45 @@ export default function BalancePage() {
             const datetime = trx.datetime || trx.date;
             if (!datetime) return;
             
-            // Expenses (money out)
             if (trx.id.startsWith('exp-') && trx.fundSourceId === selectedCard.id) {
-                relatedTransactions.push({
-                    ...trx,
-                    datetime,
-                    type: 'expense',
-                    amount: trx.nominal || 0,
-                    description: trx.name || 'Pengeluaran'
-                });
+                relatedTransactions.push({ ...trx, datetime, type: 'expense', amount: trx.nominal || 0, description: trx.name || 'Pengeluaran' });
             }
-
-            // Incomes (money in)
-            if (trx.id.startsWith('inc-') && trx.fundSourceId === selectedCard.id) {
-                relatedTransactions.push({
-                    ...trx,
-                    datetime,
-                    type: 'income',
-                    amount: trx.nominal || 0,
-                    description: trx.name || 'Pemasukan'
-                });
-            }
-
-            // Regular Transaction (money out from cost, money in from payment)
             if (trx.id.startsWith('reg-')) {
                  if (trx.fundSourceId === selectedCard.id && trx.costPrice && trx.costPrice > 0) {
-                    relatedTransactions.push({
-                        ...trx,
-                        datetime,
-                        type: 'expense',
-                        amount: trx.costPrice,
-                        description: `Modal untuk ${trx.productName}`
-                    });
+                    relatedTransactions.push({ ...trx, datetime, type: 'expense', amount: trx.costPrice, description: `Modal untuk ${trx.productName}` });
                 }
                  trx.payments?.forEach(payment => {
                     if (payment.cardId === selectedCard.id) {
-                        relatedTransactions.push({
-                           ...trx,
-                           datetime,
-                           type: 'income',
-                           amount: payment.amount,
-                           description: `Pembayaran untuk ${trx.productName}`
-                       });
+                        relatedTransactions.push({ ...trx, datetime, type: 'income', amount: payment.amount, description: `Pembayaran untuk ${trx.productName}` });
                     }
                 });
             }
-            
-            // Akrab Transaction (money out from fund sources, money in from payment)
             if (trx.id.startsWith('akrab-')) {
                 trx.fundSources?.forEach(source => {
                     if (source.cardId === selectedCard.id && source.amount > 0) {
-                        relatedTransactions.push({
-                            ...trx,
-                            datetime,
-                            type: 'expense',
-                            amount: source.amount,
-                            description: `Modal untuk ${trx.customerName}`
-                        });
+                        relatedTransactions.push({ ...trx, datetime, type: 'expense', amount: source.amount, description: `Modal untuk ${trx.customerName}` });
                     }
                 });
                 trx.payments?.forEach(payment => {
                     if (payment.cardId === selectedCard.id) {
-                        relatedTransactions.push({
-                           ...trx,
-                           datetime,
-                           type: 'income',
-                           amount: payment.amount,
-                           description: `Pembayaran untuk ${trx.customerName}`
-                       });
+                        relatedTransactions.push({ ...trx, datetime, type: 'income', amount: payment.amount, description: `Pembayaran untuk ${trx.customerName}` });
                     }
                 });
             }
         });
 
-        return relatedTransactions.sort((a, b) => {
-          const dateA = a.datetime ? parseISO(a.datetime).getTime() : 0;
-          const dateB = b.datetime ? parseISO(b.datetime).getTime() : 0;
-          return dateB - dateA;
+        // Add top-up transactions
+        topUpTransactions.forEach(trx => {
+            if (trx.destinationAccountId === selectedCard.id) {
+                relatedTransactions.push({ id: trx.id, datetime: trx.date, type: 'income', amount: trx.amount, description: `Top Up dari ${trx.sourceAccountName}`, sellingPrice: 0 });
+            }
+            if (trx.sourceAccountId === selectedCard.id) {
+                relatedTransactions.push({ id: trx.id, datetime: trx.date, type: 'expense', amount: trx.amount + trx.adminFee, description: `Biaya Top Up ke ${trx.destinationAccountName}`, sellingPrice: 0 });
+            }
         });
 
-    }, [selectedCard, allTransactions]);
+        return relatedTransactions.sort((a, b) => parseISO(b.datetime).getTime() - parseISO(a.datetime).getTime());
+    }, [selectedCard, allTransactions, topUpTransactions]);
 
     return (
         <div className="flex flex-col w-full min-h-[100dvh] bg-background">
@@ -445,7 +396,7 @@ export default function BalancePage() {
                     </Button>
                 </div>
             </header>
-            <main className="flex flex-1 flex-col gap-4 p-4 sm:gap-6 sm:p-6">
+            <main className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
                  {isLoading ? (
                     <div className="flex items-center justify-center h-64">
                       <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -488,6 +439,66 @@ export default function BalancePage() {
                         <p className="text-muted-foreground text-sm text-center">Belum ada akun keuangan. Silakan tambahkan.</p>
                     </div>
                 )}
+                <Card className="rounded-xl shadow-sm">
+                    <CardHeader>
+                        <CardTitle>Riwayat Top Up Saldo</CardTitle>
+                        <CardDescription>Daftar semua transaksi top up yang pernah tercatat.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {topUpTransactions.length === 0 ? (
+                            <div className="flex items-center justify-center h-40 border-2 border-dashed rounded-2xl">
+                                <p className="text-muted-foreground text-sm text-center">Belum ada riwayat top up.</p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-border">
+                                    <thead className="bg-muted/50">
+                                        <tr>
+                                            <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">Tanggal</th>
+                                            <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">Dari Akun</th>
+                                            <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">Ke Akun</th>
+                                            <th className="px-4 py-3 text-right text-sm font-semibold text-foreground">Nominal</th>
+                                            <th className="px-4 py-3 text-right text-sm font-semibold text-foreground">Biaya Admin</th>
+                                            <th className="px-4 py-3 text-center text-sm font-semibold text-foreground">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-border bg-card">
+                                        {topUpTransactions.map((trx) => (
+                                            <tr key={trx.id} className="hover:bg-muted/50 transition-colors">
+                                                <td className="px-4 py-4 text-sm text-muted-foreground whitespace-nowrap">{format(parseISO(trx.date), "d MMM yyyy", { locale: id })}</td>
+                                                <td className="px-4 py-4 text-sm font-medium text-foreground">{trx.sourceAccountName}</td>
+                                                <td className="px-4 py-4 text-sm font-medium text-foreground">{trx.destinationAccountName}</td>
+                                                <td className="px-4 py-4 text-sm text-right text-foreground whitespace-nowrap">{formatRupiah(trx.amount)}</td>
+                                                <td className="px-4 py-4 text-sm text-right text-muted-foreground whitespace-nowrap">{formatRupiah(trx.adminFee)}</td>
+                                                <td className="px-4 py-4 text-center">
+                                                    <AlertDialog>
+                                                        <AlertDialogTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive">
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        </AlertDialogTrigger>
+                                                        <AlertDialogContent>
+                                                            <AlertDialogHeader>
+                                                                <AlertDialogTitle>Hapus Riwayat Top Up?</AlertDialogTitle>
+                                                                <AlertDialogDescription>
+                                                                    Tindakan ini akan memindahkan catatan ke folder sampah dan mengembalikan saldo. Anda yakin?
+                                                                </AlertDialogDescription>
+                                                            </AlertDialogHeader>
+                                                            <AlertDialogFooter>
+                                                                <AlertDialogCancel>Batal</AlertDialogCancel>
+                                                                <AlertDialogAction onClick={() => handleDeleteTopUp(trx.id)}>Ya, Hapus</AlertDialogAction>
+                                                            </AlertDialogFooter>
+                                                        </AlertDialogContent>
+                                                    </AlertDialog>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
             </main>
 
             {/* Add Card Modal */}

@@ -36,6 +36,8 @@ interface DeletedItem {
     name?: string;
     nominal?: number;
     sellingPrice?: number;
+    amount?: number;
+    destinationAccountName?: string;
     datetime?: string;
     tanggal?: string;
     date?: string;
@@ -54,7 +56,7 @@ export default function RecycleBinPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const paths = ['transaksi_reguler', 'transaksi_akrab', 'hutang', 'pengeluaran'];
+    const paths = ['transaksi_reguler', 'transaksi_akrab', 'hutang', 'pengeluaran', 'transaksi_topup'];
     const unsubscribes = paths.map(path => {
       const dbRef = query(ref(db, path), orderByChild('isDeleted'), equalTo(true));
       return onValue(dbRef, (snapshot) => {
@@ -84,8 +86,14 @@ export default function RecycleBinPage() {
       });
     });
     
+    // Set loading to false if all paths are empty initially
+    const timer = setTimeout(() => {
+        if(deletedItems.length === 0) setIsLoading(false);
+    }, 1500);
+
     return () => {
       unsubscribes.forEach(unsub => unsub());
+      clearTimeout(timer);
       setDeletedItems([]);
     };
   }, []);
@@ -118,7 +126,7 @@ export default function RecycleBinPage() {
             const trxPath = `${item.data.sourcePath}/${item.data.transactionId}`;
             updates[`${trxPath}/isDeleted`] = null;
             updates[`${trxPath}/deletedAt`] = null;
-          } else if (item.path.startsWith('transaksi')) {
+          } else if (item.path.startsWith('transaksi_reguler') || item.path.startsWith('transaksi_akrab')) {
             const debtSnapshot = await get(query(ref(db, 'hutang'), orderByChild('transactionId'), equalTo(item.id)));
             if (debtSnapshot.exists()) {
               debtSnapshot.forEach(child => {
@@ -130,7 +138,7 @@ export default function RecycleBinPage() {
         } else { // action === 'delete'
           updates[itemPath] = null;
   
-          if (item.path.startsWith('transaksi')) {
+          if (item.path.startsWith('transaksi_reguler') || item.path.startsWith('transaksi_akrab')) {
             const debtSnapshot = await get(query(ref(db, 'hutang'), orderByChild('transactionId'), equalTo(item.id)));
             if (debtSnapshot.exists()) {
               debtSnapshot.forEach(child => {
@@ -156,6 +164,9 @@ export default function RecycleBinPage() {
   };
 
   const getItemName = (item: DeletedItem) => {
+    if (item.path === 'transaksi_topup') {
+        return `Top Up ke ${item.data.destinationAccountName}`;
+    }
     return item.data.productName || item.data.customerName || item.data.name || item.data.nama || 'Item Tanpa Nama';
   };
   
@@ -183,11 +194,12 @@ export default function RecycleBinPage() {
     if (path.includes('akrab')) return { text: 'Transaksi Akrab', color: 'bg-purple-100 text-purple-800' };
     if (path.includes('hutang')) return { text: 'Catatan Hutang', color: 'bg-yellow-100 text-yellow-800' };
     if (path.includes('pengeluaran')) return { text: 'Pengeluaran', color: 'bg-red-100 text-red-800' };
+    if (path.includes('topup')) return { text: 'Top Up Saldo', color: 'bg-green-100 text-green-800' };
     return { text: 'Item', color: 'bg-gray-100 text-gray-800' };
   }
 
   const getItemValue = (item: DeletedItem) => {
-    return item.data.nominal ?? item.data.sellingPrice ?? null;
+    return item.data.nominal ?? item.data.sellingPrice ?? item.data.amount ?? null;
   }
 
   const numSelected = selectedItems.length;
@@ -201,9 +213,7 @@ export default function RecycleBinPage() {
             {numSelected > 0 ? (
                 <h1 className="text-lg font-semibold md:text-xl truncate whitespace-nowrap">{numSelected} item terpilih</h1>
             ) : (
-                <>
-                    <h1 className="text-lg font-semibold md:text-2xl truncate whitespace-nowrap">Folder Sampah</h1>
-                </>
+                <h1 className="text-lg font-semibold md:text-2xl truncate whitespace-nowrap">Folder Sampah</h1>
             )}
             </div>
         </div>

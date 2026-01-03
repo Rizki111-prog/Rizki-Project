@@ -10,6 +10,10 @@
       ".read": true,
       ".write": true
     },
+    "transaksi_topup": {
+      ".read": true,
+      ".write": true
+    },
     "pelanggan_akrab": {
       ".read": true,
       ".write": true
