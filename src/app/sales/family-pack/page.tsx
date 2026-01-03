@@ -55,6 +55,7 @@ interface FinancialCard {
 interface Customer {
     id: string;
     name: string;
+    nomor_hp: string;
 }
 
 interface Payment {
@@ -177,7 +178,9 @@ export default function FamilyPackSalesPage() {
         const loadedCards: FinancialCard[] = [];
         if (data) {
             for (const key in data) {
-                loadedCards.push({ id: key, ...data[key] });
+                if(!data[key].isDeleted) {
+                    loadedCards.push({ id: key, ...data[key] });
+                }
             }
         }
         setFinancialCards(loadedCards);
@@ -359,6 +362,7 @@ export default function FamilyPackSalesPage() {
   
   const handleCustomerSelect = (customer: Customer) => {
       setCustomerName(customer.name);
+      setCustomerId(customer.nomor_hp || '');
       setShowSuggestions(false);
   }
 
@@ -368,15 +372,14 @@ export default function FamilyPackSalesPage() {
     const snapshot = await get(customersRef);
     if (!snapshot.exists()) {
         const newCustomerRef = push(ref(db, 'pelanggan_akrab'));
-        update(newCustomerRef, { name });
+        update(newCustomerRef, { name, nomor_hp: customerId || '' });
     }
-  }, []);
+  }, [customerId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     const price = cleanRupiah(sellingPrice) || 0;
-    const cost = cleanRupiah(costPrice) || 0;
 
     if (!customerName) {
       toast({ variant: "destructive", title: "Gagal", description: "Nama Pelanggan wajib diisi." });
@@ -414,7 +417,7 @@ export default function FamilyPackSalesPage() {
       customerId: customerId || '',
       customerName,
       sellingPrice: price,
-      // costPrice: cost, // costPrice is dynamically calculated from fundSources sum
+      // costPrice is dynamically calculated from fundSources sum
       payments: payments.map(({amount, method, cardId, debtorName}) => {
         const paymentData: any = { amount, method };
         if (cardId) paymentData.cardId = cardId;
@@ -605,7 +608,7 @@ export default function FamilyPackSalesPage() {
                         </div>
                         <div className="space-y-2">
                         <Label htmlFor="customerId">Nomor HP / ID Pelanggan</Label>
-                        <Input id="customerId" placeholder="ID Pelanggan (Opsional)" value={customerId} onChange={(e) => setCustomerId(e.target.value)} />
+                        <Input id="customerId" placeholder="ID Pelanggan (Otomatis)" value={customerId} onChange={(e) => setCustomerId(e.target.value)} />
                         </div>
                         <div className="space-y-2">
                         <Label htmlFor="sellingPrice">Harga Jual</Label>
