@@ -56,7 +56,8 @@ const CustomerForm = ({ customer, onSave, onCancel, isSubmitting }: { customer: 
       toast({ variant: 'destructive', title: 'Gagal', description: 'Nama pelanggan tidak boleh kosong.' });
       return;
     }
-    onSave({ name, nomor_hp: nomorHp });
+    // Ensure nomorHp is a string, even if empty, to avoid Firebase omitting the key.
+    onSave({ name, nomor_hp: nomorHp || '' });
   };
 
   return (
@@ -118,6 +119,10 @@ export default function AkrabCustomersPage() {
 
   const handleSave = (customerData: { name: string, nomor_hp: string }) => {
     setIsSubmitting(true);
+    
+    // Logging the object before sending to Firebase
+    console.log("Saving customer data to Firebase:", customerData);
+
     const promise = editingCustomer?.id 
         ? update(ref(db, `pelanggan_akrab/${editingCustomer.id}`), customerData)
         : push(ref(db, 'pelanggan_akrab'), customerData);
