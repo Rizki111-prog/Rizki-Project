@@ -746,14 +746,13 @@ export default function FamilyPackSalesPage() {
         )}
         </AnimatePresence>
         <div className='px-4 sm:px-6'>
-            <Card className="rounded-xl shadow-sm mb-6">
-                <CardHeader>
-                    <CardTitle>Filter Transaksi</CardTitle>
-                </CardHeader>
-                <CardContent className="flex flex-col md:flex-row gap-4">
+            <Card className="rounded-xl shadow-sm w-full">
+            <CardHeader>
+                <CardTitle>Riwayat Transaksi Paket Akrab</CardTitle>
+                <div className="flex flex-col md:flex-row gap-4 pt-4">
                     <div className="relative flex-1">
-                        <Label htmlFor="search-customer">Cari Pelanggan</Label>
-                        <Search className="absolute left-2.5 top-9 h-4 w-4 text-muted-foreground" />
+                        <Label htmlFor="search-customer" className="sr-only">Cari Pelanggan</Label>
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
                             id="search-customer"
                             type="search"
@@ -764,15 +763,10 @@ export default function FamilyPackSalesPage() {
                         />
                     </div>
                     <div className="flex flex-col space-y-2">
-                        <Label>Rentang Tanggal</Label>
-                        <DatePickerWithRange date={dateRange} setDate={setDateRange} className="w-full md:w-auto" />
+                        <Label htmlFor="date-range" className="sr-only">Rentang Tanggal</Label>
+                        <DatePickerWithRange id="date-range" date={dateRange} setDate={setDateRange} className="w-full md:w-auto" />
                     </div>
-                </CardContent>
-            </Card>
-
-            <Card className="rounded-xl shadow-sm w-full">
-            <CardHeader>
-                <CardTitle>Riwayat Transaksi Paket Akrab</CardTitle>
+                </div>
             </CardHeader>
             <CardContent>
                 <div className="md:hidden space-y-4">
