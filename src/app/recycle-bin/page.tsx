@@ -5,6 +5,7 @@ import { db } from '@/firebase';
 import { ref, onValue, update, get, query, orderByChild, equalTo, serverTimestamp } from 'firebase/database';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Loader2, Info, RotateCcw, Trash2 } from 'lucide-react';
@@ -48,6 +49,7 @@ interface DeletedItem {
 export default function RecycleBinPage() {
   const { toast } = useToast();
   const [deletedItems, setDeletedItems] = useState<DeletedItem[]>([]);
+  const [selectedItems, setSelectedItems] = useState<DeletedItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -80,61 +82,77 @@ export default function RecycleBinPage() {
         setIsLoading(false);
       });
     });
-
+    
+    // Cleanup on unmount
     return () => {
       unsubscribes.forEach(unsub => unsub());
     };
   }, []);
 
-  const handleRestore = async (item: DeletedItem) => {
-    const updates: { [key: string]: any } = {};
-    const path = `${item.path}/${item.id}`;
-    
-    updates[`${path}/isDeleted`] = null;
-    updates[`${path}/deletedAt`] = null;
-
-    try {
-        if (item.path === 'hutang' && item.data.transactionId && item.data.sourcePath) {
-            const trxPath = `${item.data.sourcePath}/${item.data.transactionId}`;
-            updates[`${trxPath}/isDeleted`] = null;
-            updates[`${trxPath}/deletedAt`] = null;
-        } else if (item.path.startsWith('transaksi')) {
-            const debtSnapshot = await get(query(ref(db, 'hutang'), orderByChild('transactionId'), equalTo(item.id)));
-            if (debtSnapshot.exists()) {
-                debtSnapshot.forEach(child => {
-                const debtPath = `hutang/${child.key}`;
-                updates[`${debtPath}/isDeleted`] = null;
-                updates[`${debtPath}/deletedAt`] = null;
-                });
-            }
-        }
-
-        await update(ref(db), updates);
-        toast({ title: "Sukses", description: "Item berhasil dipulihkan." });
-    } catch (error: any) {
-        toast({ variant: "destructive", title: "Gagal", description: `Tidak dapat memulihkan item: ${error.message}` });
+  const handleSelectionChange = (item: DeletedItem, isSelected: boolean) => {
+    if (isSelected) {
+      setSelectedItems(prev => [...prev, item]);
+    } else {
+      setSelectedItems(prev => prev.filter(selected => selected.id !== item.id || selected.path !== item.path));
     }
   };
 
-  const handlePermanentDelete = async (item: DeletedItem) => {
-    const updates: { [key: string]: any } = {};
-    const path = `${item.path}/${item.id}`;
-    updates[path] = null;
-
-     if (item.path.startsWith('transaksi')) {
-        const debtSnapshot = await get(query(ref(db, 'hutang'), orderByChild('transactionId'), equalTo(item.id)));
-        if (debtSnapshot.exists()) {
-            debtSnapshot.forEach(child => {
-                updates[`hutang/${child.key}`] = null;
-            });
-        }
+  const handleBulkAction = async (action: 'restore' | 'delete') => {
+    if (selectedItems.length === 0) {
+      toast({ variant: "destructive", title: "Tidak ada item terpilih" });
+      return;
     }
-
+  
+    const updates: { [key: string]: any } = {};
+  
     try {
-        await update(ref(db), updates);
-        toast({ title: "Sukses", description: "Item berhasil dihapus permanen." });
+      for (const item of selectedItems) {
+        const itemPath = `${item.path}/${item.id}`;
+        
+        if (action === 'restore') {
+          updates[`${itemPath}/isDeleted`] = null;
+          updates[`${itemPath}/deletedAt`] = null;
+  
+          // Cascading restore for related items
+          if (item.path === 'hutang' && item.data.transactionId && item.data.sourcePath) {
+            const trxPath = `${item.data.sourcePath}/${item.data.transactionId}`;
+            updates[`${trxPath}/isDeleted`] = null;
+            updates[`${trxPath}/deletedAt`] = null;
+          } else if (item.path.startsWith('transaksi')) {
+            const debtSnapshot = await get(query(ref(db, 'hutang'), orderByChild('transactionId'), equalTo(item.id)));
+            if (debtSnapshot.exists()) {
+              debtSnapshot.forEach(child => {
+                updates[`hutang/${child.key}/isDeleted`] = null;
+                updates[`hutang/${child.key}/deletedAt`] = null;
+              });
+            }
+          }
+        } else { // action === 'delete'
+          updates[itemPath] = null;
+  
+          // Cascading permanent delete for related items
+          if (item.path.startsWith('transaksi')) {
+            const debtSnapshot = await get(query(ref(db, 'hutang'), orderByChild('transactionId'), equalTo(item.id)));
+            if (debtSnapshot.exists()) {
+              debtSnapshot.forEach(child => {
+                updates[`hutang/${child.key}`] = null;
+              });
+            }
+          }
+        }
+      }
+  
+      await update(ref(db), updates);
+      
+      const successMessage = action === 'restore' 
+        ? `${selectedItems.length} item berhasil dipulihkan.`
+        : `${selectedItems.length} item berhasil dihapus permanen.`;
+      
+      toast({ title: "Sukses", description: successMessage });
+      setSelectedItems([]); // Clear selection after action
+  
     } catch (error: any) {
-        toast({ variant: "destructive", title: "Gagal", description: `Tidak dapat menghapus item: ${error.message}` });
+      toast({ variant: "destructive", title: "Gagal", description: `Terjadi kesalahan: ${error.message}` });
     }
   };
 
@@ -167,14 +185,50 @@ export default function RecycleBinPage() {
     return 'Item';
   }
 
+  const numSelected = selectedItems.length;
+
   return (
     <div className="flex flex-col w-full min-h-screen bg-background">
-      <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-4 md:px-6">
-        <SidebarTrigger className="md:hidden" />
-        <div className='min-w-0 flex-1'>
-          <h1 className="text-lg font-semibold md:text-2xl truncate whitespace-nowrap">Folder Sampah</h1>
-          <p className="text-sm text-muted-foreground truncate whitespace-nowrap">Pulihkan atau hapus item secara permanen.</p>
+      <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b bg-background/80 backdrop-blur-sm px-4 md:px-6">
+        <div className='flex items-center gap-4'>
+            <SidebarTrigger className="md:hidden" />
+            <div className='min-w-0 flex-1'>
+            <h1 className="text-lg font-semibold md:text-2xl truncate whitespace-nowrap">Folder Sampah</h1>
+            <p className="text-sm text-muted-foreground truncate whitespace-nowrap">
+                {numSelected > 0 ? `${numSelected} item terpilih` : 'Pulihkan atau hapus item secara permanen.'}
+            </p>
+            </div>
         </div>
+        {numSelected > 0 && (
+            <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleBulkAction('restore')}>
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Pulihkan
+                </Button>
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="sm">
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Hapus
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                        <AlertDialogTitle>Hapus {numSelected} Item Secara Permanen?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Tindakan ini tidak dapat diurungkan. Item akan dihapus selamanya dari database. Anda yakin?
+                        </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                        <AlertDialogCancel>Batal</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleBulkAction('delete')}>
+                            Ya, Hapus Permanen
+                        </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </div>
+        )}
       </header>
       <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
         {isLoading ? (
@@ -184,50 +238,35 @@ export default function RecycleBinPage() {
         ) : deletedItems.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {deletedItems.map((item) => (
-              <Card key={`${item.path}-${item.id}`} className="rounded-xl shadow-sm flex flex-col justify-between">
+              <Card 
+                key={`${item.path}-${item.id}`} 
+                className="rounded-xl shadow-sm flex flex-col justify-between transition-all"
+                data-state={selectedItems.find(i => i.id === item.id) ? 'selected' : 'unselected'}
+              >
                 <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <CardTitle className="text-base font-bold">{getItemName(item)}</CardTitle>
-                    <Badge variant="secondary">{getItemType(item.path)}</Badge>
+                  <div className="flex justify-between items-start gap-4">
+                    <div className='flex items-start gap-3'>
+                        <Checkbox
+                            className='mt-1'
+                            checked={!!selectedItems.find(i => i.id === item.id)}
+                            onCheckedChange={(checked) => handleSelectionChange(item, !!checked)}
+                        />
+                        <div className="flex-1">
+                            <CardTitle className="text-base font-bold">{getItemName(item)}</CardTitle>
+                            <CardDescription>
+                                {getItemDate(item)}
+                                {item.data.nominal && <div className='font-semibold'>{formatRupiah(item.data.nominal)}</div>}
+                            </CardDescription>
+                        </div>
+                    </div>
+                    <Badge variant="secondary" className='whitespace-nowrap'>{getItemType(item.path)}</Badge>
                   </div>
-                  <CardDescription>
-                    {getItemDate(item)}
-                    {item.data.nominal && <div className='font-semibold'>{formatRupiah(item.data.nominal)}</div>}
-                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <p className="text-xs text-muted-foreground">
                     Dihapus pada: {formatDeletedAt(item.data.deletedAt)}
                   </p>
                 </CardContent>
-                <CardFooter className="flex justify-end gap-2 border-t pt-4">
-                   <Button variant="outline" size="sm" onClick={() => handleRestore(item)}>
-                        <RotateCcw className="mr-2 h-4 w-4" />
-                        Pulihkan
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                         <Button variant="destructive" size="sm">
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Hapus
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Hapus Permanen?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Tindakan ini tidak dapat diurungkan. Item akan dihapus selamanya dari database. Anda yakin?
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Batal</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handlePermanentDelete(item)}>
-                            Ya, Hapus Permanen
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                </CardFooter>
               </Card>
             ))}
           </div>
