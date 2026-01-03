@@ -4,19 +4,15 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '@/firebase';
 import { ref, onValue } from 'firebase/database';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Loader2, Search, Info, Calendar as CalendarIcon } from 'lucide-react';
+import { Loader2, Search, Info } from 'lucide-react';
 import { format, parseISO, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { formatRupiah } from '@/lib/utils';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { cn } from '@/lib/utils';
-
 
 interface Transaction {
   id: string;
@@ -41,7 +37,7 @@ export default function HistoryPage() {
     const [akrabTransactions, setAkrabTransactions] = useState<Transaction[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+    const [selectedDate, setSelectedDate] = useState<string>('');
 
     useEffect(() => {
         const fetchData = (path: string, setData: React.Dispatch<React.SetStateAction<Transaction[]>>) => {
@@ -84,9 +80,8 @@ export default function HistoryPage() {
     
     const filterAndSearch = (transactions: Transaction[]) => {
         return transactions.filter(trx => {
-            const transactionDate = parseISO(trx.datetime);
             const isDateMatch = selectedDate 
-                ? isWithinInterval(transactionDate, { start: startOfDay(selectedDate), end: endOfDay(selectedDate) })
+                ? format(parseISO(trx.datetime), 'yyyy-MM-dd') === selectedDate
                 : true;
 
             const searchableName = trx.productName || trx.customerName || '';
@@ -213,30 +208,14 @@ export default function HistoryPage() {
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
                             </div>
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                <Button
-                                    variant={"outline"}
-                                    className={cn(
-                                    "w-full justify-start text-left font-normal md:w-auto",
-                                    !selectedDate && "text-muted-foreground"
-                                    )}
-                                >
-                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                    {selectedDate ? format(selectedDate, "PPP", { locale: id }) : <span>Pilih tanggal</span>}
-                                </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0">
-                                <Calendar
-                                    mode="single"
-                                    selected={selectedDate}
-                                    onSelect={setSelectedDate}
-                                    initialFocus
-                                />
-                                </PopoverContent>
-                            </Popover>
+                            <Input
+                                type="date"
+                                value={selectedDate}
+                                onChange={(e) => setSelectedDate(e.target.value)}
+                                className="w-full md:w-auto"
+                            />
                              {selectedDate && (
-                                <Button variant="ghost" onClick={() => setSelectedDate(undefined)}>
+                                <Button variant="ghost" onClick={() => setSelectedDate('')}>
                                     Hapus Filter
                                 </Button>
                             )}
