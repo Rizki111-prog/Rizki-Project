@@ -108,7 +108,6 @@ export default function AkrabCustomersPage() {
 
   const handleSave = (customerData: { name: string, nomor_hp: string }) => {
     setIsSubmitting(true);
-    console.log("Menyimpan data:", customerData); // Diagnostic log
     const promise = editingCustomer?.id 
         ? update(ref(db, `pelanggan_akrab/${editingCustomer.id}`), customerData)
         : push(ref(db, 'pelanggan_akrab'), customerData);
