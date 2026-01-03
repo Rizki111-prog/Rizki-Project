@@ -196,7 +196,6 @@ export default function HistoryPage() {
                 <SidebarTrigger className="md:hidden" />
                 <div className='min-w-0 flex-1'>
                     <h1 className="text-lg font-semibold md:text-2xl truncate whitespace-nowrap">Riwayat Transaksi</h1>
-                    <p className="text-sm text-muted-foreground truncate whitespace-nowrap">Lihat, filter, dan lacak semua aktivitas penjualan.</p>
                 </div>
             </header>
             <main className="flex flex-1 flex-col gap-4 p-4 md:gap-6 md:p-6">

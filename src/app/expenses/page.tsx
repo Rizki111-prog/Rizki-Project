@@ -182,7 +182,6 @@ export default function ExpensesPage() {
             <SidebarTrigger className="md:hidden" />
             <div className="min-w-0 flex-1">
                 <h1 className="text-lg font-semibold md:text-2xl truncate whitespace-nowrap">Pengeluaran</h1>
-                <p className="text-sm text-muted-foreground truncate whitespace-nowrap">Catat dan kelola biaya operasional.</p>
             </div>
         </div>
         <div className="flex items-center gap-2">

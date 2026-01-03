@@ -87,6 +87,14 @@ export default function BalancePage() {
         const cardsRef = ref(db, 'keuangan/cards');
         const unsubscribeCards = onValue(cardsRef, (snapshot) => {
             const data = snapshot.val();
+            const activeData = Object.values(data || {}).filter((item: any) => item.isDeleted !== true);
+
+            if (activeData.length === 0) {
+              setCards([]);
+              setIsLoading(false);
+              return;
+            }
+
             const activeCards = Object.entries(data || {})
                 .map(([key, value]: [string, any]) => ({ id: key, ...value }))
                 .filter((card: any) => card.isDeleted !== true);
@@ -124,6 +132,13 @@ export default function BalancePage() {
     const cardBalances = useMemo(() => {
         const balances: { [key: string]: number } = {};
         const activeTransactions = allTransactions.filter(trx => trx.isDeleted !== true);
+
+        if (activeTransactions.length === 0) {
+            cards.forEach(card => {
+                balances[card.id] = 0;
+            });
+            return balances;
+        }
 
         cards.forEach(card => {
             balances[card.id] = 0;
@@ -294,7 +309,6 @@ export default function BalancePage() {
                     <SidebarTrigger className="md:hidden" />
                     <div className="min-w-0 flex-1">
                         <h1 className="text-lg font-semibold tracking-tight md:text-2xl truncate whitespace-nowrap">Saldo Akun</h1>
-                        <p className="text-sm text-muted-foreground truncate whitespace-nowrap">Kelola semua sumber saldo dan akun keuangan Anda.</p>
                     </div>
                 </div>
                 <Button onClick={() => setIsModalOpen(true)} className="transition-all duration-300 hover:scale-105 text-sm shrink-0 md:w-auto w-full max-w-[150px] md:max-w-none">

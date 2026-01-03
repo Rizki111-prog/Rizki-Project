@@ -203,7 +203,6 @@ export default function RecycleBinPage() {
             ) : (
                 <>
                     <h1 className="text-lg font-semibold md:text-2xl truncate whitespace-nowrap">Folder Sampah</h1>
-                    <p className="text-sm text-muted-foreground truncate whitespace-nowrap">Pulihkan atau hapus item secara permanen.</p>
                 </>
             )}
             </div>

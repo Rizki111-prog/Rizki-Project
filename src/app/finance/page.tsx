@@ -25,6 +25,8 @@ export default function FinanceDashboardPage() {
   useEffect(() => {
     const fetchData = (path: string, prefix: string) => onValue(ref(db, path), (snapshot) => {
         const data = snapshot.val() || {};
+        const activeData = Object.values(data).filter((item: any) => item.isDeleted !== true);
+
         setAllTransactions(prev => [
             ...prev.filter(t => !t.id.startsWith(prefix)), 
             ...Object.entries(data).map(([key, value]: [string, any]) => ({...value, id: `${prefix}${key}`}))
@@ -91,7 +93,6 @@ export default function FinanceDashboardPage() {
         <SidebarTrigger className="md:hidden" />
         <div className="min-w-0 flex-1">
           <h1 className="text-lg font-semibold tracking-tight md:text-2xl truncate whitespace-nowrap">Dashboard Keuangan</h1>
-          <p className="text-sm text-muted-foreground truncate whitespace-nowrap">Ringkasan dan statistik keuangan Anda.</p>
         </div>
       </header>
       <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">

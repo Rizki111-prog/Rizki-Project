@@ -540,7 +540,6 @@ export default function FamilyPackSalesPage() {
             <SidebarTrigger className="md:hidden" />
             <div className="min-w-0 flex-1">
                 <h1 className="text-lg font-semibold tracking-tight md:text-2xl truncate whitespace-nowrap">Paket Akrab</h1>
-                <p className="text-xs text-muted-foreground sm:text-sm truncate whitespace-nowrap">Proses transaksi baru untuk Paket Akrab.</p>
             </div>
         </div>
         <div className="flex items-center gap-2">

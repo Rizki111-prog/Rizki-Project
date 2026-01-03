@@ -190,7 +190,6 @@ export default function ProductsPage() {
           <SidebarTrigger className="md:hidden" />
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-semibold tracking-tight md:text-2xl truncate whitespace-nowrap">Data Barang</h1>
-            <p className="text-sm text-muted-foreground truncate whitespace-nowrap">Kelola daftar produk dan harga Anda.</p>
           </div>
         </div>
         <div className='flex items-center gap-2'>
