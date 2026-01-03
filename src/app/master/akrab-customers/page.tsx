@@ -32,12 +32,12 @@ import {
 interface Customer {
   id: string;
   name: string;
-  customerId: string;
+  nomor_hp: string;
 }
 
-const CustomerForm = ({ customer, onSave, onCancel, isSubmitting }: { customer: Partial<Customer> | null, onSave: (customer: { name: string, customerId: string }) => void, onCancel: () => void, isSubmitting: boolean }) => {
+const CustomerForm = ({ customer, onSave, onCancel, isSubmitting }: { customer: Partial<Customer> | null, onSave: (customer: { name: string, nomor_hp: string }) => void, onCancel: () => void, isSubmitting: boolean }) => {
   const [name, setName] = useState(customer?.name || '');
-  const [customerId, setCustomerId] = useState(customer?.customerId || '');
+  const [nomorHp, setNomorHp] = useState(customer?.nomor_hp || '');
   const { toast } = useToast();
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -46,7 +46,7 @@ const CustomerForm = ({ customer, onSave, onCancel, isSubmitting }: { customer: 
       toast({ variant: 'destructive', title: 'Gagal', description: 'Nama pelanggan tidak boleh kosong.' });
       return;
     }
-    onSave({ name, customerId });
+    onSave({ name, nomor_hp: nomorHp });
   };
 
   return (
@@ -61,8 +61,8 @@ const CustomerForm = ({ customer, onSave, onCancel, isSubmitting }: { customer: 
           <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Contoh: Budi Santoso" required />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="customerId">Nomor HP / ID Pelanggan</Label>
-          <Input id="customerId" value={customerId} onChange={(e) => setCustomerId(e.target.value)} placeholder="Contoh: 08123456789" />
+          <Label htmlFor="nomor_hp">Nomor HP / ID Pelanggan</Label>
+          <Input id="nomor_hp" value={nomorHp} onChange={(e) => setNomorHp(e.target.value)} placeholder="Contoh: 08123456789" />
         </div>
       </div>
       <DialogFooter>
@@ -106,8 +106,9 @@ export default function AkrabCustomersPage() {
     setEditingCustomer(null);
   };
 
-  const handleSave = (customerData: { name: string, customerId: string }) => {
+  const handleSave = (customerData: { name: string, nomor_hp: string }) => {
     setIsSubmitting(true);
+    console.log("Menyimpan data:", customerData); // Diagnostic log
     const promise = editingCustomer?.id 
         ? update(ref(db, `pelanggan_akrab/${editingCustomer.id}`), customerData)
         : push(ref(db, 'pelanggan_akrab'), customerData);
@@ -117,6 +118,7 @@ export default function AkrabCustomersPage() {
         handleCloseModal();
     }).catch(error => {
         toast({ variant: 'destructive', title: 'Gagal', description: `Terjadi kesalahan: ${error.message}` });
+        console.error("Firebase save error:", error);
     }).finally(() => {
         setIsSubmitting(false);
     });
@@ -196,7 +198,7 @@ export default function AkrabCustomersPage() {
                         </DropdownMenu>
                       </CardHeader>
                       <CardContent className="text-sm">
-                        <p className="text-muted-foreground">{customer.customerId || 'Tanpa ID'}</p>
+                        <p className="text-muted-foreground">{customer.nomor_hp || 'Tanpa ID'}</p>
                       </CardContent>
                     </Card>
                   ))}
@@ -216,7 +218,7 @@ export default function AkrabCustomersPage() {
                             {customers.map(customer => (
                                 <tr key={customer.id} className="hover:bg-muted/50 transition-colors">
                                     <td className="px-4 py-4 text-sm font-medium text-foreground">{customer.name}</td>
-                                    <td className="px-4 py-4 text-sm text-muted-foreground">{customer.customerId || '-'}</td>
+                                    <td className="px-4 py-4 text-sm text-muted-foreground">{customer.nomor_hp || '-'}</td>
                                     <td className="px-4 py-4 text-center space-x-2">
                                         <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleOpenModal(customer)}><Edit className="h-4 w-4" /></Button>
                                         <AlertDialog>
