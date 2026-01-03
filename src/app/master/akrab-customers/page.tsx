@@ -35,7 +35,7 @@ interface Customer {
   customerId: string;
 }
 
-const CustomerForm = ({ customer, onSave, onCancel, isSubmitting }: { customer: Partial<Customer> | null, onSave: (customer: Omit<Customer, 'id'>) => void, onCancel: () => void, isSubmitting: boolean }) => {
+const CustomerForm = ({ customer, onSave, onCancel, isSubmitting }: { customer: Partial<Customer> | null, onSave: (customer: { name: string, customerId: string }) => void, onCancel: () => void, isSubmitting: boolean }) => {
   const [name, setName] = useState(customer?.name || '');
   const [customerId, setCustomerId] = useState(customer?.customerId || '');
   const { toast } = useToast();
@@ -106,7 +106,7 @@ export default function AkrabCustomersPage() {
     setEditingCustomer(null);
   };
 
-  const handleSave = (customerData: Omit<Customer, 'id'>) => {
+  const handleSave = (customerData: { name: string, customerId: string }) => {
     setIsSubmitting(true);
     const promise = editingCustomer?.id 
         ? update(ref(db, `pelanggan_akrab/${editingCustomer.id}`), customerData)
