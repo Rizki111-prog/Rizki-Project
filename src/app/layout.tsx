@@ -8,6 +8,7 @@ import { GeistSans } from 'geist/font/sans';
 export const metadata: Metadata = {
   title: 'FinTrack Pro',
   description: 'Aplikasi pelacakan keuangan modern',
+  manifest: '/manifest.json',
 };
 
 export default function RootLayout({

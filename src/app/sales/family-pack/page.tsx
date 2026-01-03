@@ -749,22 +749,26 @@ export default function FamilyPackSalesPage() {
             <Card className="rounded-xl shadow-sm w-full">
             <CardHeader>
                 <CardTitle>Riwayat Transaksi Paket Akrab</CardTitle>
-                <div className="flex flex-col md:flex-row gap-4 pt-4">
-                    <div className="relative flex-1">
-                        <Label htmlFor="search-customer" className="sr-only">Cari Pelanggan</Label>
-                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            id="search-customer"
-                            type="search"
-                            placeholder="Cari berdasarkan nama pelanggan..."
-                            className="pl-8 w-full"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
+                <div className="relative mt-4">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        id="search-customer"
+                        type="search"
+                        placeholder="Cari berdasarkan nama pelanggan..."
+                        className="pl-9 pr-28 w-full"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                    <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                        <DatePickerWithRange 
+                            date={dateRange} 
+                            setDate={setDateRange} 
+                            trigger={
+                                <Button variant="ghost" className="h-auto px-3 py-1">
+                                    <CalendarDays className="h-4 w-4" />
+                                </Button>
+                            }
                         />
-                    </div>
-                    <div className="flex flex-col space-y-2">
-                        <Label htmlFor="date-range" className="sr-only">Rentang Tanggal</Label>
-                        <DatePickerWithRange id="date-range" date={dateRange} setDate={setDateRange} className="w-full md:w-auto" />
                     </div>
                 </div>
             </CardHeader>

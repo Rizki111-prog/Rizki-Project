@@ -18,42 +18,51 @@ import {
 interface DatePickerWithRangeProps extends React.HTMLAttributes<HTMLDivElement> {
     date: DateRange | undefined;
     setDate: (date: DateRange | undefined) => void;
+    trigger?: React.ReactNode;
 }
 
 export function DatePickerWithRange({
   className,
   date,
-  setDate
+  setDate,
+  trigger
 }: DatePickerWithRangeProps) {
+
+  const triggerContent = trigger ? (
+      React.cloneElement(trigger as React.ReactElement, { "aria-label": "Pilih rentang tanggal" })
+  ) : (
+      <Button
+        id="date"
+        variant={"outline"}
+        className={cn(
+          "w-[300px] justify-start text-left font-normal",
+          !date && "text-muted-foreground"
+        )}
+      >
+        <CalendarIcon className="mr-2 h-4 w-4" />
+        {date?.from ? (
+          date.to ? (
+            <>
+              {format(date.from, "d MMM y", { locale: id })} -{" "}
+              {format(date.to, "d MMM y", { locale: id })}
+            </>
+          ) : (
+            format(date.from, "d MMM y", { locale: id })
+          )
+        ) : (
+          <span>Pilih rentang tanggal</span>
+        )}
+      </Button>
+  );
+
 
   return (
     <div className={cn("grid gap-2", className)}>
       <Popover>
         <PopoverTrigger asChild>
-          <Button
-            id="date"
-            variant={"outline"}
-            className={cn(
-              "w-[300px] justify-start text-left font-normal",
-              !date && "text-muted-foreground"
-            )}
-          >
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            {date?.from ? (
-              date.to ? (
-                <>
-                  {format(date.from, "d MMM y", { locale: id })} -{" "}
-                  {format(date.to, "d MMM y", { locale: id })}
-                </>
-              ) : (
-                format(date.from, "d MMM y", { locale: id })
-              )
-            ) : (
-              <span>Pilih rentang tanggal</span>
-            )}
-          </Button>
+          {triggerContent}
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
+        <PopoverContent className="w-auto p-0" align="end">
           <Calendar
             initialFocus
             mode="range"
