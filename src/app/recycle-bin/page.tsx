@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '@/firebase';
 import { ref, onValue, update, get, query, orderByChild, equalTo, serverTimestamp } from 'firebase/database';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,7 @@ interface DeletedItem {
     nama?: string;
     name?: string;
     nominal?: number;
+    sellingPrice?: number;
     datetime?: string;
     tanggal?: string;
     date?: string;
@@ -69,8 +70,8 @@ export default function RecycleBinPage() {
           const otherItems = prev.filter(item => item.path !== path);
           const newItems = [...otherItems, ...loadedItems];
           newItems.sort((a, b) => {
-              const dateA = typeof a.data.deletedAt === 'number' ? a.data.deletedAt : 0;
-              const dateB = typeof b.data.deletedAt === 'number' ? b.data.deletedAt : 0;
+              const dateA = typeof a.data.deletedAt === 'number' ? a.data.deletedAt : parseISO(a.data.deletedAt as string).getTime();
+              const dateB = typeof b.data.deletedAt === 'number' ? b.data.deletedAt : parseISO(b.data.deletedAt as string).getTime();
               return dateB - dateA;
           });
           return newItems;
@@ -83,9 +84,9 @@ export default function RecycleBinPage() {
       });
     });
     
-    // Cleanup on unmount
     return () => {
       unsubscribes.forEach(unsub => unsub());
+      setDeletedItems([]);
     };
   }, []);
 
@@ -113,7 +114,6 @@ export default function RecycleBinPage() {
           updates[`${itemPath}/isDeleted`] = null;
           updates[`${itemPath}/deletedAt`] = null;
   
-          // Cascading restore for related items
           if (item.path === 'hutang' && item.data.transactionId && item.data.sourcePath) {
             const trxPath = `${item.data.sourcePath}/${item.data.transactionId}`;
             updates[`${trxPath}/isDeleted`] = null;
@@ -130,7 +130,6 @@ export default function RecycleBinPage() {
         } else { // action === 'delete'
           updates[itemPath] = null;
   
-          // Cascading permanent delete for related items
           if (item.path.startsWith('transaksi')) {
             const debtSnapshot = await get(query(ref(db, 'hutang'), orderByChild('transactionId'), equalTo(item.id)));
             if (debtSnapshot.exists()) {
@@ -149,7 +148,7 @@ export default function RecycleBinPage() {
         : `${selectedItems.length} item berhasil dihapus permanen.`;
       
       toast({ title: "Sukses", description: successMessage });
-      setSelectedItems([]); // Clear selection after action
+      setSelectedItems([]);
   
     } catch (error: any) {
       toast({ variant: "destructive", title: "Gagal", description: `Terjadi kesalahan: ${error.message}` });
@@ -157,32 +156,38 @@ export default function RecycleBinPage() {
   };
 
   const getItemName = (item: DeletedItem) => {
-    if (item.path.startsWith('transaksi')) {
-      return item.data.productName || item.data.customerName || 'Transaksi Tanpa Nama';
-    }
-    if (item.path === 'hutang' || item.path === 'pengeluaran') {
-      return item.data.name || item.data.nama || 'Item Tanpa Nama';
-    }
-    return 'Item Tidak Dikenali';
+    return item.data.productName || item.data.customerName || item.data.name || item.data.nama || 'Item Tanpa Nama';
   };
   
   const getItemDate = (item: DeletedItem) => {
     const dateValue = item.data.datetime || item.data.tanggal || item.data.date;
-    return dateValue ? format(parseISO(dateValue), "d MMM y, HH:mm", { locale: id }) : 'Tanggal tidak ada';
+    try {
+      return dateValue ? format(parseISO(dateValue), "d MMM y, HH:mm", { locale: id }) : 'Tanggal tidak ada';
+    } catch (e) {
+      return 'Tanggal tidak valid';
+    }
   }
   
   const formatDeletedAt = (deletedAt: number | string) => {
     if (!deletedAt) return 'N/A';
-    const date = typeof deletedAt === 'number' ? new Date(deletedAt) : parseISO(deletedAt as string);
-    return format(date, "d MMM y, HH:mm", { locale: id });
+    try {
+      const date = typeof deletedAt === 'number' ? new Date(deletedAt) : parseISO(deletedAt as string);
+      return format(date, "d MMM y, HH:mm", { locale: id });
+    } catch (e) {
+      return 'Tanggal tidak valid';
+    }
   };
 
   const getItemType = (path: string) => {
-    if (path.includes('reguler')) return 'Transaksi Reguler';
-    if (path.includes('akrab')) return 'Transaksi Akrab';
-    if (path.includes('hutang')) return 'Catatan Hutang';
-    if (path.includes('pengeluaran')) return 'Pengeluaran';
-    return 'Item';
+    if (path.includes('reguler')) return { text: 'Transaksi Reguler', color: 'bg-blue-100 text-blue-800' };
+    if (path.includes('akrab')) return { text: 'Transaksi Akrab', color: 'bg-purple-100 text-purple-800' };
+    if (path.includes('hutang')) return { text: 'Catatan Hutang', color: 'bg-yellow-100 text-yellow-800' };
+    if (path.includes('pengeluaran')) return { text: 'Pengeluaran', color: 'bg-red-100 text-red-800' };
+    return { text: 'Item', color: 'bg-gray-100 text-gray-800' };
+  }
+
+  const getItemValue = (item: DeletedItem) => {
+    return item.data.nominal ?? item.data.sellingPrice ?? null;
   }
 
   const numSelected = selectedItems.length;
@@ -193,15 +198,19 @@ export default function RecycleBinPage() {
         <div className='flex items-center gap-4'>
             <SidebarTrigger className="md:hidden" />
             <div className='min-w-0 flex-1'>
-            <h1 className="text-lg font-semibold md:text-2xl truncate whitespace-nowrap">Folder Sampah</h1>
-            <p className="text-sm text-muted-foreground truncate whitespace-nowrap">
-                {numSelected > 0 ? `${numSelected} item terpilih` : 'Pulihkan atau hapus item secara permanen.'}
-            </p>
+            {numSelected > 0 ? (
+                <h1 className="text-lg font-semibold md:text-xl truncate whitespace-nowrap">{numSelected} item terpilih</h1>
+            ) : (
+                <>
+                    <h1 className="text-lg font-semibold md:text-2xl truncate whitespace-nowrap">Folder Sampah</h1>
+                    <p className="text-sm text-muted-foreground truncate whitespace-nowrap">Pulihkan atau hapus item secara permanen.</p>
+                </>
+            )}
             </div>
         </div>
         {numSelected > 0 && (
             <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => handleBulkAction('restore')}>
+                <Button variant="outline" size="sm" onClick={() => handleBulkAction('restore')} className="hover:bg-emerald-50 hover:text-emerald-700 border-emerald-300 text-emerald-600">
                     <RotateCcw className="mr-2 h-4 w-4" />
                     Pulihkan
                 </Button>
@@ -221,7 +230,7 @@ export default function RecycleBinPage() {
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                         <AlertDialogCancel>Batal</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleBulkAction('delete')}>
+                        <AlertDialogAction onClick={() => handleBulkAction('delete')} className='bg-destructive text-destructive-foreground hover:bg-destructive/90'>
                             Ya, Hapus Permanen
                         </AlertDialogAction>
                         </AlertDialogFooter>
@@ -230,45 +239,53 @@ export default function RecycleBinPage() {
             </div>
         )}
       </header>
-      <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
+      <main className="flex flex-1 flex-col gap-4 p-4 md:gap-6 md:p-6">
         {isLoading ? (
           <div className="flex items-center justify-center h-64">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : deletedItems.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {deletedItems.map((item) => (
+            {deletedItems.map((item) => {
+              const isSelected = !!selectedItems.find(i => i.id === item.id && i.path === item.path);
+              const itemType = getItemType(item.path);
+              const itemValue = getItemValue(item);
+              return (
               <Card 
                 key={`${item.path}-${item.id}`} 
-                className="rounded-xl shadow-sm flex flex-col justify-between transition-all"
-                data-state={selectedItems.find(i => i.id === item.id) ? 'selected' : 'unselected'}
+                className={`rounded-xl shadow-sm flex flex-col justify-between transition-all duration-200 cursor-pointer ${isSelected ? 'border-primary ring-2 ring-primary shadow-lg' : 'border-border hover:shadow-md'}`}
+                onClick={() => handleSelectionChange(item, !isSelected)}
               >
                 <CardHeader>
                   <div className="flex justify-between items-start gap-4">
-                    <div className='flex items-start gap-3'>
+                    <div className='flex items-start gap-3 flex-1 min-w-0'>
                         <Checkbox
-                            className='mt-1'
-                            checked={!!selectedItems.find(i => i.id === item.id)}
+                            className='mt-1 flex-shrink-0'
+                            checked={isSelected}
                             onCheckedChange={(checked) => handleSelectionChange(item, !!checked)}
+                            aria-label={`Pilih ${getItemName(item)}`}
+                            onClick={(e) => e.stopPropagation()}
                         />
-                        <div className="flex-1">
-                            <CardTitle className="text-base font-bold">{getItemName(item)}</CardTitle>
-                            <CardDescription>
+                        <div className="flex-1 min-w-0">
+                            <CardTitle className="text-base font-bold truncate">{getItemName(item)}</CardTitle>
+                            <CardDescription className="truncate">
                                 {getItemDate(item)}
-                                {item.data.nominal && <div className='font-semibold'>{formatRupiah(item.data.nominal)}</div>}
                             </CardDescription>
                         </div>
                     </div>
-                    <Badge variant="secondary" className='whitespace-nowrap'>{getItemType(item.path)}</Badge>
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className='pt-2'>
+                  <div className='flex justify-between items-center mb-3'>
+                    {itemValue !== null && <p className='text-xl font-bold'>{formatRupiah(itemValue)}</p>}
+                    <Badge variant="secondary" className={`whitespace-nowrap text-xs font-medium ${itemType.color}`}>{itemType.text}</Badge>
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     Dihapus pada: {formatDeletedAt(item.data.deletedAt)}
                   </p>
                 </CardContent>
               </Card>
-            ))}
+            )})}
           </div>
         ) : (
           <div className="flex items-center justify-center h-64 border-2 border-dashed rounded-2xl">
