@@ -15,6 +15,7 @@ interface Transaction {
   fundSources?: { amount: number; cardId: string }[];
   nominal?: number;
   fundSourceId?: string;
+  type?: 'income' | 'expense';
 }
 
 export default function FinanceDashboardPage() {
@@ -37,6 +38,7 @@ export default function FinanceDashboardPage() {
     const unsubscribeRegular = fetchData('transaksi_reguler', 'reg-');
     const unsubscribeAkrab = fetchData('transaksi_akrab', 'akrab-');
     const unsubscribeExpenses = fetchData('pengeluaran', 'exp-');
+    const unsubscribeIncomes = fetchData('pemasukan', 'inc-');
     const unsubscribeCards = onValue(ref(db, 'keuangan/cards'), () => {
       // This is just to trigger re-calculation when cards change.
     });
@@ -45,6 +47,7 @@ export default function FinanceDashboardPage() {
       unsubscribeRegular();
       unsubscribeAkrab();
       unsubscribeExpenses();
+      unsubscribeIncomes();
       unsubscribeCards();
     };
   }, []);
@@ -60,12 +63,17 @@ export default function FinanceDashboardPage() {
     const currentTotal = activeTransactions.reduce((acc: number, trx: Transaction) => {
         let balanceChange = 0;
         
-        // Income from payments
+        // Income from payments (Regular & Akrab)
         if (trx.payments) {
             balanceChange += trx.payments.reduce((paymentAcc, p) => paymentAcc + (p.cardId ? p.amount : 0), 0);
         }
 
-        // Expense from product cost
+        // Specific Incomes
+        if (trx.id.startsWith('inc-') && trx.nominal) {
+            balanceChange += trx.nominal;
+        }
+
+        // Expense from product cost (Regular)
         if (trx.id.startsWith('reg-') && trx.costPrice) {
             balanceChange -= trx.costPrice;
         }
@@ -75,7 +83,7 @@ export default function FinanceDashboardPage() {
             balanceChange -= trx.fundSources.reduce((fsAcc, fs) => fsAcc + fs.amount, 0);
         }
         
-        // Expense from 'pengeluaran'
+        // General expenses from 'pengeluaran'
         if (trx.id.startsWith('exp-') && trx.nominal) {
             balanceChange -= trx.nominal;
         }

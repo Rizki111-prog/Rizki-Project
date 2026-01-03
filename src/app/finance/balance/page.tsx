@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { db } from '@/firebase';
 import { ref, onValue, push, serverTimestamp } from 'firebase/database';
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -10,12 +10,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { DollarSign, Wallet, Landmark, CreditCard, PlusCircle, Loader2, ArrowUpCircle, ArrowDownCircle, Info } from 'lucide-react';
+import { DollarSign, Wallet, Landmark, CreditCard, PlusCircle, ArrowUp, Loader2, ArrowUpCircle, ArrowDownCircle, Info } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { format, parseISO } from 'date-fns';
 import { id } from 'date-fns/locale';
-import { formatRupiah } from '@/lib/utils';
+import { formatRupiah, cleanRupiah } from '@/lib/utils';
 
 
 interface FinancialCard {
@@ -53,6 +55,16 @@ interface Transaction {
   fundSourceName?: string;
 }
 
+interface TopUpState {
+    destinationAccountId: string;
+    sourceAccountId: string;
+    amount: string;
+    adminFee: string;
+    date: string;
+    description: string;
+}
+
+
 const iconMap: { [key: string]: React.ElementType } = {
   Wallet,
   Landmark,
@@ -78,10 +90,28 @@ export default function BalancePage() {
     const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
     const [selectedCard, setSelectedCard] = useState<FinancialCard | null>(null);
     const [isHistorySheetOpen, setIsHistorySheetOpen] = useState(false);
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isAddCardModalOpen, setIsAddCardModalOpen] = useState(false);
+    const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
     const [newCardName, setNewCardName] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+
+    const initialTopUpState: TopUpState = {
+        destinationAccountId: '',
+        sourceAccountId: '',
+        amount: '',
+        adminFee: '',
+        date: new Date().toISOString().split('T')[0],
+        description: ''
+    };
+    const [topUpState, setTopUpState] = useState<TopUpState>(initialTopUpState);
+    const [isSubmittingTopUp, setIsSubmittingTopUp] = useState(false);
+
+    const resetTopUpForm = useCallback(() => {
+        setTopUpState(initialTopUpState);
+        setIsTopUpModalOpen(false);
+    }, [initialTopUpState]);
+
 
     useEffect(() => {
         const cardsRef = ref(db, 'keuangan/cards');
@@ -120,12 +150,14 @@ export default function BalancePage() {
         const unsubscribeRegular = fetchData('transaksi_reguler', 'reg-');
         const unsubscribeAkrab = fetchData('transaksi_akrab', 'akrab-');
         const unsubscribeExpenses = fetchData('pengeluaran', 'exp-');
+        const unsubscribeIncomes = fetchData('pemasukan', 'inc-');
 
         return () => {
             unsubscribeCards();
             unsubscribeRegular();
             unsubscribeAkrab();
             unsubscribeExpenses();
+            unsubscribeIncomes();
         };
     }, []);
 
@@ -148,6 +180,11 @@ export default function BalancePage() {
             // Expenses (money out)
             if (trx.id.startsWith('exp-') && trx.fundSourceId && balances[trx.fundSourceId] !== undefined) {
                 balances[trx.fundSourceId] -= trx.nominal || 0;
+            }
+
+            // Incomes (money in)
+            if (trx.id.startsWith('inc-') && trx.fundSourceId && balances[trx.fundSourceId] !== undefined) {
+                balances[trx.fundSourceId] += trx.nominal || 0;
             }
             
             // Regular Transaction (money out from cost, money in from payment)
@@ -206,7 +243,7 @@ export default function BalancePage() {
                     title: "Sukses",
                     description: `Akun '${newCardName}' berhasil ditambahkan.`,
                 });
-                setIsModalOpen(false);
+                setIsAddCardModalOpen(false);
                 setNewCardName('');
             })
             .catch((error) => {
@@ -224,6 +261,77 @@ export default function BalancePage() {
     const handleCardClick = (card: FinancialCard) => {
         setSelectedCard(card);
         setIsHistorySheetOpen(true);
+    };
+
+    const handleTopUpStateChange = (field: keyof TopUpState, value: string) => {
+        if (field === 'amount' || field === 'adminFee') {
+            setTopUpState(prev => ({...prev, [field]: formatRupiah(value)}));
+        } else {
+            setTopUpState(prev => ({...prev, [field]: value}));
+        }
+    };
+
+    const handleTopUpSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const { destinationAccountId, sourceAccountId, amount, adminFee, date, description } = topUpState;
+
+        const amountNum = cleanRupiah(amount);
+        const adminFeeNum = cleanRupiah(adminFee);
+        const totalExpenseNum = amountNum + adminFeeNum;
+
+        const destinationCard = cards.find(c => c.id === destinationAccountId);
+        const sourceCard = cards.find(c => c.id === sourceAccountId);
+
+        if (!destinationAccountId || !sourceAccountId || amountNum <= 0) {
+            toast({ variant: "destructive", title: "Gagal", description: "Harap lengkapi semua field yang wajib diisi." });
+            return;
+        }
+        if(destinationAccountId === sourceAccountId) {
+            toast({ variant: "destructive", title: "Gagal", description: "Akun tujuan dan sumber dana tidak boleh sama." });
+            return;
+        }
+
+        setIsSubmittingTopUp(true);
+        
+        // 1. Record income to destination account
+        const incomeName = `Top Up ke ${destinationCard?.name}`;
+        const newIncome = {
+            name: incomeName,
+            nominal: amountNum,
+            fundSourceId: destinationAccountId,
+            fundSourceName: destinationCard?.name,
+            date,
+            description: description || `Top Up dari ${sourceCard?.name}`,
+            createdAt: serverTimestamp(),
+            isDeleted: false,
+        };
+        const incomeRef = push(ref(db, 'pemasukan'), newIncome);
+
+        // 2. Record expense from source account
+        const expenseName = `Biaya Top Up ke ${destinationCard?.name}`;
+        const newExpense = {
+            name: expenseName,
+            nominal: totalExpenseNum,
+            fundSourceId: sourceAccountId,
+            fundSourceName: sourceCard?.name,
+            date,
+            description: `Top Up: ${formatRupiah(amount)} + Admin: ${formatRupiah(adminFee)}. ${description}`,
+            createdAt: serverTimestamp(),
+            isDeleted: false,
+        };
+        const expenseRef = push(ref(db, 'pengeluaran'), newExpense);
+
+        Promise.all([incomeRef, expenseRef])
+            .then(() => {
+                toast({ title: "Sukses", description: "Top up berhasil dicatat." });
+                resetTopUpForm();
+            })
+            .catch((error) => {
+                toast({ variant: "destructive", title: "Gagal", description: `Terjadi kesalahan: ${error.message}` });
+            })
+            .finally(() => {
+                setIsSubmittingTopUp(false);
+            });
     };
 
     const filteredTransactions = useMemo(() => {
@@ -244,6 +352,17 @@ export default function BalancePage() {
                     type: 'expense',
                     amount: trx.nominal || 0,
                     description: trx.name || 'Pengeluaran'
+                });
+            }
+
+            // Incomes (money in)
+            if (trx.id.startsWith('inc-') && trx.fundSourceId === selectedCard.id) {
+                relatedTransactions.push({
+                    ...trx,
+                    datetime,
+                    type: 'income',
+                    amount: trx.nominal || 0,
+                    description: trx.name || 'Pemasukan'
                 });
             }
 
@@ -298,7 +417,11 @@ export default function BalancePage() {
             }
         });
 
-        return relatedTransactions.sort((a, b) => parseISO(b.datetime).getTime() - parseISO(a.datetime).getTime());
+        return relatedTransactions.sort((a, b) => {
+          const dateA = a.datetime ? parseISO(a.datetime).getTime() : 0;
+          const dateB = b.datetime ? parseISO(b.datetime).getTime() : 0;
+          return dateB - dateA;
+        });
 
     }, [selectedCard, allTransactions]);
 
@@ -311,10 +434,16 @@ export default function BalancePage() {
                         <h1 className="text-lg font-semibold tracking-tight md:text-2xl truncate whitespace-nowrap">Saldo Akun</h1>
                     </div>
                 </div>
-                <Button onClick={() => setIsModalOpen(true)} className="transition-all duration-300 hover:scale-105 text-sm shrink-0 md:w-auto w-full max-w-[150px] md:max-w-none">
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Tambah Akun
-                </Button>
+                <div className='flex items-center gap-2'>
+                    <Button onClick={() => setIsTopUpModalOpen(true)} variant="outline" className="transition-all duration-300 hover:scale-105 text-sm shrink-0">
+                        <ArrowUp className="mr-2 h-4 w-4" />
+                        Top Up Saldo
+                    </Button>
+                    <Button onClick={() => setIsAddCardModalOpen(true)} className="transition-all duration-300 hover:scale-105 text-sm shrink-0">
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Tambah Akun
+                    </Button>
+                </div>
             </header>
             <main className="flex flex-1 flex-col gap-4 p-4 sm:gap-6 sm:p-6">
                  {isLoading ? (
@@ -361,7 +490,8 @@ export default function BalancePage() {
                 )}
             </main>
 
-            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+            {/* Add Card Modal */}
+            <Dialog open={isAddCardModalOpen} onOpenChange={setIsAddCardModalOpen}>
                 <DialogContent className="sm:max-w-[425px]">
                     <form onSubmit={handleAddCard}>
                         <DialogHeader>
@@ -396,6 +526,62 @@ export default function BalancePage() {
                 </DialogContent>
             </Dialog>
 
+            {/* Top Up Modal */}
+             <Dialog open={isTopUpModalOpen} onOpenChange={setIsTopUpModalOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <form onSubmit={handleTopUpSubmit}>
+                        <DialogHeader>
+                            <DialogTitle>Top Up Saldo</DialogTitle>
+                            <DialogDescription>
+                                Catat transaksi penambahan saldo antar akun.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                             <div className="space-y-2">
+                                <Label htmlFor="topup-destination">Akun Tujuan (Yang di Top Up)</Label>
+                                <Select value={topUpState.destinationAccountId} onValueChange={(value) => handleTopUpStateChange('destinationAccountId', value)} required>
+                                    <SelectTrigger id="topup-destination"><SelectValue placeholder="Pilih akun..." /></SelectTrigger>
+                                    <SelectContent>{cards.map(card => (<SelectItem key={card.id} value={card.id}>{card.name}</SelectItem>))}</SelectContent>
+                                </Select>
+                            </div>
+                             <div className="space-y-2">
+                                <Label htmlFor="topup-amount">Nominal Top Up</Label>
+                                <Input id="topup-amount" value={topUpState.amount} onChange={(e) => handleTopUpStateChange('amount', e.target.value)} placeholder="0" required />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="topup-admin">Biaya Admin</Label>
+                                <Input id="topup-admin" value={topUpState.adminFee} onChange={(e) => handleTopUpStateChange('adminFee', e.target.value)} placeholder="0 (Opsional)" />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="topup-source">Sumber Dana (Yang Membayar)</Label>
+                                <Select value={topUpState.sourceAccountId} onValueChange={(value) => handleTopUpStateChange('sourceAccountId', value)} required>
+                                    <SelectTrigger id="topup-source"><SelectValue placeholder="Pilih akun..." /></SelectTrigger>
+                                    <SelectContent>{cards.map(card => (<SelectItem key={card.id} value={card.id}>{card.name}</SelectItem>))}</SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="topup-date">Tanggal Transaksi</Label>
+                                <Input id="topup-date" type="date" value={topUpState.date} onChange={(e) => handleTopUpStateChange('date', e.target.value)} required />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="topup-description">Keterangan</Label>
+                                <Textarea id="topup-description" value={topUpState.description} onChange={(e) => handleTopUpStateChange('description', e.target.value)} placeholder="Catatan tambahan (opsional)" />
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <DialogClose asChild>
+                                <Button type="button" variant="secondary" onClick={resetTopUpForm}>Batal</Button>
+                            </DialogClose>
+                            <Button type="submit" disabled={isSubmittingTopUp}>
+                                {isSubmittingTopUp && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                {isSubmittingTopUp ? 'Menyimpan...' : 'Simpan Top Up'}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            {/* History Sheet */}
             <Sheet open={isHistorySheetOpen} onOpenChange={setIsHistorySheetOpen}>
                 <SheetContent className="w-full sm:max-w-lg">
                     <SheetHeader className="pr-10">
