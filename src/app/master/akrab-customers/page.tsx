@@ -36,9 +36,19 @@ interface Customer {
 }
 
 const CustomerForm = ({ customer, onSave, onCancel, isSubmitting }: { customer: Partial<Customer> | null, onSave: (customer: { name: string, nomor_hp: string }) => void, onCancel: () => void, isSubmitting: boolean }) => {
-  const [name, setName] = useState(customer?.name || '');
-  const [nomorHp, setNomorHp] = useState(customer?.nomor_hp || '');
+  const [name, setName] = useState('');
+  const [nomorHp, setNomorHp] = useState('');
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (customer) {
+      setName(customer.name || '');
+      setNomorHp(customer.nomor_hp || '');
+    } else {
+      setName('');
+      setNomorHp('');
+    }
+  }, [customer]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -243,7 +253,7 @@ export default function AkrabCustomersPage() {
 
       <Dialog open={isModalOpen} onOpenChange={(open) => !open && handleCloseModal()}>
         <DialogContent className="sm:max-w-md">
-            {editingCustomer !== null && <CustomerForm customer={editingCustomer} onSave={handleSave} onCancel={handleCloseModal} isSubmitting={isSubmitting} />}
+            <CustomerForm customer={editingCustomer} onSave={handleSave} onCancel={handleCloseModal} isSubmitting={isSubmitting} />
         </DialogContent>
       </Dialog>
     </div>
