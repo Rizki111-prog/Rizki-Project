@@ -219,15 +219,15 @@ export default function RecycleBinPage() {
         </div>
         {numSelected > 0 && (
             <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => handleBulkAction('restore')} className="hover:bg-emerald-50 hover:text-emerald-700 border-emerald-300 text-emerald-600">
-                    <RotateCcw className="mr-2 h-4 w-4" />
-                    Pulihkan
+                <Button variant="outline" size="sm" onClick={() => handleBulkAction('restore')} className="hover:bg-emerald-50 hover:text-emerald-700 border-emerald-300 text-emerald-600 md:w-auto w-10 md:px-4 px-0">
+                    <RotateCcw className="h-4 w-4 md:mr-2" />
+                    <span className="hidden md:inline">Pulihkan</span>
                 </Button>
                 <AlertDialog>
                     <AlertDialogTrigger asChild>
-                        <Button variant="destructive" size="sm">
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Hapus
+                        <Button variant="destructive" size="sm" className="md:w-auto w-10 md:px-4 px-0">
+                            <Trash2 className="h-4 w-4 md:mr-2" />
+                            <span className="hidden md:inline">Hapus</span>
                         </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
