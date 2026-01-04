@@ -220,12 +220,12 @@ export default function HomePage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-            <Button asChild variant="outline" size="sm" className="transition-all duration-300 hover:scale-105">
+            <Button asChild variant="outline" size="sm" className="transition-all duration-300 hover:scale-105 hidden md:inline-flex">
                 <Link href="/sales/regular">
                     <PlusCircle className="mr-2 h-4 w-4" /> Tambah Transaksi
                 </Link>
             </Button>
-             <Button asChild size="sm" className="transition-all duration-300 hover:scale-105">
+             <Button asChild size="sm" className="transition-all duration-300 hover:scale-105 hidden md:inline-flex">
                 <Link href="/expenses">
                     <ArrowDownUp className="mr-2 h-4 w-4" /> Catat Pengeluaran
                 </Link>
