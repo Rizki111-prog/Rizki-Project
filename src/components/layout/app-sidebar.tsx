@@ -94,6 +94,7 @@ export function AppSidebar() {
   }
   
   const toggleCollapsible = (key: 'sales' | 'finance' | 'master') => {
+    if (state === 'collapsed') return;
     setOpenStates(prev => ({ ...prev, [key]: !prev[key] }));
   }
 
@@ -113,10 +114,10 @@ export function AppSidebar() {
             <SidebarMenuItem key={item.href}>
               {item.submenus ? (
                  <Collapsible 
-                    open={openStates[item.href.substring(1) as keyof typeof openStates]} 
+                    open={openStates[item.href.substring(1) as keyof typeof openStates] && state === 'expanded'} 
                     onOpenChange={() => toggleCollapsible(item.href.substring(1) as keyof typeof openStates)}
                   >
-                   <CollapsibleTrigger asChild>
+                   <CollapsibleTrigger asChild disabled={state === 'collapsed'}>
                      <SidebarMenuButton
                        variant="ghost"
                        className="w-full justify-start"
@@ -125,7 +126,10 @@ export function AppSidebar() {
                      >
                        <item.icon />
                        <span>{item.label}</span>
-                       <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", openStates[item.href.substring(1) as keyof typeof openStates] && "rotate-180")} />
+                       <ChevronDown className={cn(
+                          "ml-auto h-4 w-4 transition-transform group-data-[collapsible=icon]:hidden",
+                          openStates[item.href.substring(1) as keyof typeof openStates] && "rotate-180"
+                        )} />
                      </SidebarMenuButton>
                    </CollapsibleTrigger>
                    <CollapsibleContent>
