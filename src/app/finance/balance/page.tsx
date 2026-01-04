@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { db } from '@/firebase';
 import { ref, onValue, push, serverTimestamp, update } from 'firebase/database';
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { AppHeader } from '@/components/layout/app-header';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
@@ -409,49 +409,42 @@ export default function BalancePage() {
 
     return (
         <div className="flex flex-col w-full min-h-[100dvh] bg-background">
-            <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b bg-background/80 backdrop-blur-sm px-4 sm:px-6">
-                <div className="flex items-center gap-4">
-                    <SidebarTrigger className="md:hidden" />
-                    <div className="min-w-0 flex-1">
-                        <h1 className="text-lg font-semibold tracking-tight md:text-2xl truncate whitespace-nowrap">Saldo Akun</h1>
-                    </div>
-                </div>
-                <div className='flex items-center gap-2'>
-                    <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button onClick={() => setIsTopUpModalOpen(true)} variant="outline" size="icon" className="md:hidden">
-                                    <span className="sr-only">Top Up Saldo</span>
-                                    <ArrowUp className="h-4 w-4" />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>Top Up Saldo</p>
-                            </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button onClick={() => setIsAddCardModalOpen(true)} size="icon" className="md:hidden">
-                                    <span className="sr-only">Tambah Akun</span>
-                                    <PlusCircle className="h-4 w-4" />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>Tambah Akun</p>
-                            </TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
+            <AppHeader title="Saldo Akun" />
+             <div className='flex items-center justify-end gap-2 p-4 border-b md:border-none md:p-0 md:h-0'>
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button onClick={() => setIsTopUpModalOpen(true)} variant="outline" size="icon" className="md:hidden">
+                                <span className="sr-only">Top Up Saldo</span>
+                                <ArrowUp className="h-4 w-4" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>Top Up Saldo</p>
+                        </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button onClick={() => setIsAddCardModalOpen(true)} size="icon" className="md:hidden">
+                                <span className="sr-only">Tambah Akun</span>
+                                <PlusCircle className="h-4 w-4" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>Tambah Akun</p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
 
-                    <Button onClick={() => setIsTopUpModalOpen(true)} variant="outline" className="hidden md:inline-flex transition-all duration-300 hover:scale-105 text-sm shrink-0">
-                        <ArrowUp className="mr-2 h-4 w-4" />
-                        Top Up Saldo
-                    </Button>
-                    <Button onClick={() => setIsAddCardModalOpen(true)} className="hidden md:inline-flex transition-all duration-300 hover:scale-105 text-sm shrink-0">
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        Tambah Akun
-                    </Button>
-                </div>
-            </header>
+                <Button onClick={() => setIsTopUpModalOpen(true)} variant="outline" className="hidden md:inline-flex transition-all duration-300 hover:scale-105 text-sm shrink-0">
+                    <ArrowUp className="mr-2 h-4 w-4" />
+                    Top Up Saldo
+                </Button>
+                <Button onClick={() => setIsAddCardModalOpen(true)} className="hidden md:inline-flex transition-all duration-300 hover:scale-105 text-sm shrink-0">
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Tambah Akun
+                </Button>
+            </div>
             <main className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
                  {isLoading ? (
                     <div className="flex items-center justify-center h-64">

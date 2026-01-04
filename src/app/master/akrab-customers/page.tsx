@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '@/firebase';
 import { ref, onValue, push, update, remove } from 'firebase/database';
-import { SidebarTrigger } from '@/components/ui/sidebar';
+import { AppHeader } from '@/components/layout/app-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -188,14 +188,8 @@ export default function AkrabCustomersPage() {
 
   return (
     <div className="flex flex-col w-full min-h-[100dvh] bg-background">
-      <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b bg-background/80 backdrop-blur-sm px-4 sm:px-6">
-        <div className="flex items-center gap-4">
-          <SidebarTrigger className="md:hidden" />
-          <div className="min-w-0 flex-1">
-            <h1 className="text-lg font-semibold tracking-tight md:text-2xl truncate whitespace-nowrap">Pelanggan Akrab</h1>
-          </div>
-        </div>
-        <div className='flex items-center gap-2'>
+      <AppHeader title="Pelanggan Akrab" />
+      <div className='flex items-center justify-end gap-2 p-4 border-b md:border-none md:p-0 md:h-0'>
           {numSelected > 0 ? (
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -222,7 +216,6 @@ export default function AkrabCustomersPage() {
             </>
           )}
         </div>
-      </header>
       <main className="flex flex-1 flex-col gap-4 p-4 sm:gap-6 sm:p-6">
         <Card className="rounded-xl shadow-sm">
           <CardHeader>

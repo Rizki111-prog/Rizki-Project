@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '@/firebase';
 import { ref, onValue, update, get, query, orderByChild, equalTo, serverTimestamp } from 'firebase/database';
-import { SidebarTrigger } from '@/components/ui/sidebar';
+import { AppHeader } from '@/components/layout/app-header';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
@@ -206,19 +206,10 @@ export default function RecycleBinPage() {
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-background">
-      <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b bg-background/80 backdrop-blur-sm px-4 md:px-6">
-        <div className='flex items-center gap-4'>
-            <SidebarTrigger className="md:hidden" />
-            <div className='min-w-0 flex-1'>
-            {numSelected > 0 ? (
-                <h1 className="text-lg font-semibold md:text-xl truncate whitespace-nowrap">{numSelected} item terpilih</h1>
-            ) : (
-                <h1 className="text-lg font-semibold md:text-2xl truncate whitespace-nowrap">Folder Sampah</h1>
-            )}
-            </div>
-        </div>
+      <AppHeader title={numSelected > 0 ? `${numSelected} item terpilih` : 'Folder Sampah'} />
+      <div className="flex items-center justify-end gap-2 p-4 border-b md:border-none md:h-0 md:p-0">
         {numSelected > 0 && (
-            <div className="flex items-center gap-2">
+            <div className="flex w-full md:w-auto items-center gap-2">
                 <Button variant="outline" size="sm" onClick={() => handleBulkAction('restore')} className="hover:bg-emerald-50 hover:text-emerald-700 border-emerald-300 text-emerald-600 md:w-auto w-10 md:px-4 px-0">
                     <RotateCcw className="h-4 w-4 md:mr-2" />
                     <span className="hidden md:inline">Pulihkan</span>
@@ -247,7 +238,7 @@ export default function RecycleBinPage() {
                 </AlertDialog>
             </div>
         )}
-      </header>
+      </div>
       <main className="flex flex-1 flex-col gap-4 p-4 md:gap-6 md:p-6">
         {isLoading ? (
           <div className="flex items-center justify-center h-64">

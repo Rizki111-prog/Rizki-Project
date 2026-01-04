@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { db } from '@/firebase';
 import { ref, push, onValue, update, serverTimestamp, query, orderByChild, equalTo, get } from 'firebase/database';
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { AppHeader } from '@/components/layout/app-header';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -765,24 +765,17 @@ export default function FamilyPackSalesPage() {
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-background overflow-x-hidden">
-      <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b bg-background/80 backdrop-blur-sm px-4 sm:px-6">
-        <div className="flex items-center gap-4">
-            <SidebarTrigger className="md:hidden" />
-            <div className="min-w-0 flex-1">
-                <h1 className="text-lg font-semibold tracking-tight md:text-2xl truncate whitespace-nowrap">Paket Akrab</h1>
-            </div>
-        </div>
-        <div className="flex items-center gap-2">
-            <Button onClick={() => setShowForm(!showForm)} variant={showForm ? "outline" : "default"} className="hidden md:flex">
-                {showForm ? <X className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-                {showForm ? 'Tutup' : 'Tambah Transaksi'}
-            </Button>
-             <Button onClick={() => setShowForm(true)} className="md:hidden">
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Tambah
-            </Button>
-        </div>
-      </header>
+      <AppHeader title="Paket Akrab" />
+      <div className="flex items-center justify-end gap-2 p-4 border-b md:border-none md:p-0 md:h-0">
+          <Button onClick={() => setShowForm(!showForm)} variant={showForm ? "outline" : "default"} className="hidden md:flex">
+              {showForm ? <X className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+              {showForm ? 'Tutup' : 'Tambah Transaksi'}
+          </Button>
+           <Button onClick={() => setShowForm(true)} className="md:hidden">
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Tambah
+          </Button>
+      </div>
       <main className="flex flex-1 flex-col">
         {isMobile ? (
           <Sheet open={showForm} onOpenChange={setShowForm}>

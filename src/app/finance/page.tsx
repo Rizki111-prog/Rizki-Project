@@ -1,5 +1,5 @@
 'use client';
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { AppHeader } from "@/components/layout/app-header";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '@/firebase';
@@ -97,12 +97,7 @@ export default function FinanceDashboardPage() {
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-background">
-      <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-4 md:px-6">
-        <SidebarTrigger className="md:hidden" />
-        <div className="min-w-0 flex-1">
-          <h1 className="text-lg font-semibold tracking-tight md:text-2xl truncate whitespace-nowrap">Dashboard Keuangan</h1>
-        </div>
-      </header>
+      <AppHeader title="Dashboard Keuangan" />
       <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <Card className="rounded-xl shadow-sm">

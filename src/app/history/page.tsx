@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '@/firebase';
 import { ref, onValue } from 'firebase/database';
-import { SidebarTrigger } from '@/components/ui/sidebar';
+import { AppHeader } from '@/components/layout/app-header';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -187,12 +187,7 @@ export default function HistoryPage() {
 
     return (
         <div className="flex flex-col w-full min-h-screen bg-background">
-            <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-4 md:px-6">
-                <SidebarTrigger className="md:hidden" />
-                <div className='min-w-0 flex-1'>
-                    <h1 className="text-lg font-semibold md:text-2xl truncate whitespace-nowrap">Riwayat Transaksi</h1>
-                </div>
-            </header>
+            <AppHeader title="Riwayat Transaksi" />
             <main className="flex flex-1 flex-col gap-4 p-4 md:gap-6 md:p-6">
                 <Card className="rounded-xl shadow-sm">
                     <CardHeader>

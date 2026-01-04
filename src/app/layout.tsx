@@ -36,7 +36,7 @@ export default function RootLayout({
               <AppSidebar />
             </Sidebar>
             <SidebarInset>
-              {children}
+                {children}
             </SidebarInset>
           </SidebarProvider>
         </AuthProvider>

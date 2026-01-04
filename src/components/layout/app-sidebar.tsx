@@ -15,6 +15,7 @@ import {
   Database,
   Users,
   LogOut,
+  User
 } from 'lucide-react';
 import {
   Collapsible,
@@ -48,6 +49,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 
 const menuItems = [
   { href: '/', label: 'Dasbor', icon: LayoutDashboard },
@@ -125,7 +127,18 @@ export function AppSidebar() {
     setOpenStates(prev => ({ ...prev, [key]: !prev[key] }));
   }
 
+  const getInitials = (name: string) => {
+    if (!name) return 'U';
+    const names = name.split(' ');
+    if (names.length > 1) {
+      return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
+    }
+    return name[0].toUpperCase();
+  };
+
   if (!user) return null;
+
+  const displayName = user.displayName || user.email?.split('@')[0] || 'User';
 
   return (
     <>
@@ -212,29 +225,51 @@ export function AppSidebar() {
           ))}
         </SidebarMenu>
       </SidebarContent>
-      <SidebarFooter>
-         <AlertDialog>
-          <AlertDialogTrigger asChild>
-              <SidebarMenuButton variant="ghost" className="w-full justify-start text-red-500 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/50 dark:hover:text-red-400">
-                <LogOut />
-                <span>Keluar</span>
-              </SidebarMenuButton>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-              <AlertDialogHeader>
-                  <AlertDialogTitle>Konfirmasi Keluar</AlertDialogTitle>
-                  <AlertDialogDescription>
-                      Apakah Anda yakin ingin keluar dari akun Anda?
-                  </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                  <AlertDialogCancel>Batal</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleLogout} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                      Ya, Keluar
-                  </AlertDialogAction>
-              </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+      <SidebarFooter className="border-t p-2">
+         <div className='group/user-item flex w-full items-center gap-2 overflow-hidden rounded-md px-2 py-2 text-left text-sm font-medium'>
+            <Avatar className="h-9 w-9 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10">
+              {user.photoURL && <AvatarImage src={user.photoURL} alt={displayName} />}
+              <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
+            </Avatar>
+            <div className="grow overflow-hidden group-data-[collapsible=icon]:hidden">
+              <p className="font-semibold text-sidebar-foreground truncate">{displayName}</p>
+              <p className="text-xs text-sidebar-foreground/70 truncate">{user.email}</p>
+            </div>
+         </div>
+         <SidebarMenu>
+            <SidebarMenuItem>
+                <SidebarMenuButton asChild variant='ghost' tooltip={{children: "Profil", side: 'right'}} onClick={handleLinkClick}>
+                    <Link href="/profile">
+                        <User />
+                        <span>Profil</span>
+                    </Link>
+                </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <SidebarMenuButton variant="ghost" className="w-full justify-start text-red-500 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/50 dark:hover:text-red-400" tooltip={{children: "Keluar", side: 'right'}}>
+                            <LogOut />
+                            <span>Keluar</span>
+                        </SidebarMenuButton>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Konfirmasi Keluar</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Apakah Anda yakin ingin keluar dari akun Anda?
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Batal</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleLogout} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                Ya, Keluar
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </SidebarMenuItem>
+         </SidebarMenu>
       </SidebarFooter>
     </>
   );
