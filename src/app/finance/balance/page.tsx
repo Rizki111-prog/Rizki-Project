@@ -420,7 +420,7 @@ export default function BalancePage() {
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <Button onClick={() => setIsTopUpModalOpen(true)} variant="outline" size="sm" className="md:hidden h-9 w-9 p-0">
+                                <Button onClick={() => setIsTopUpModalOpen(true)} variant="outline" size="icon" className="md:hidden">
                                     <span className="sr-only">Top Up Saldo</span>
                                     <ArrowUp className="h-4 w-4" />
                                 </Button>
@@ -431,7 +431,7 @@ export default function BalancePage() {
                         </Tooltip>
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <Button onClick={() => setIsAddCardModalOpen(true)} size="sm" className="md:hidden h-9 w-9 p-0">
+                                <Button onClick={() => setIsAddCardModalOpen(true)} size="icon" className="md:hidden">
                                     <span className="sr-only">Tambah Akun</span>
                                     <PlusCircle className="h-4 w-4" />
                                 </Button>
@@ -505,7 +505,7 @@ export default function BalancePage() {
                                 <p className="text-muted-foreground text-sm text-center">Belum ada riwayat top up.</p>
                             </div>
                         ) : (
-                            <div>
+                            <div className="w-full">
                                 {/* Mobile View */}
                                 <div className="md:hidden space-y-4">
                                     {topUpTransactions.map((trx) => (

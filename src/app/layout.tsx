@@ -33,36 +33,7 @@ export default function RootLayout({
             <AppSidebar />
           </Sidebar>
           <SidebarInset>
-            {React.Children.map(children, (child) => {
-              if (React.isValidElement(child)) {
-                // This logic is to inject the SidebarTrigger into the header of each page
-                const header = React.Children.toArray(child.props.children).find(
-                  (c: any) => c.type === 'header'
-                );
-
-                if (header && React.isValidElement(header)) {
-                  const headerChildren = React.Children.toArray(header.props.children);
-                  const firstChild = headerChildren[0];
-                  
-                  if (firstChild && React.isValidElement(firstChild) && firstChild.props.className?.includes('flex')) {
-                      const newFirstChild = React.cloneElement(firstChild, {
-                          children: [
-                            <SidebarTrigger key="desktop-trigger" className="hidden md:flex" />,
-                            ...React.Children.toArray(firstChild.props.children)
-                          ]
-                      });
-
-                      const newChildren = [newFirstChild, ...headerChildren.slice(1)];
-                      const newHeader = React.cloneElement(header, {}, newChildren);
-
-                      return React.cloneElement(child, {
-                          children: [newHeader, ...React.Children.toArray(child.props.children).filter((c: any) => c.type !== 'header')]
-                      });
-                  }
-                }
-              }
-              return child;
-            })}
+            {children}
           </SidebarInset>
         </SidebarProvider>
         <Toaster />
