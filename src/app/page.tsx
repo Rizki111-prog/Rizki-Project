@@ -1,18 +1,15 @@
 
 'use client';
 
+import React, { useState, useEffect, useMemo } from 'react';
+import { db } from '@/firebase';
+import { ref, onValue } from 'firebase/database';
 import {
   Activity,
-  ArrowUpRight,
-  CircleUser,
+  ArrowDownUp,
   CreditCard,
   DollarSign,
-  Menu,
-  Package2,
-  Search,
-  Users,
   LineChart,
-  ArrowDownUp,
   PlusCircle,
 } from 'lucide-react';
 import {
@@ -31,7 +28,6 @@ import {
   YAxis,
 } from 'recharts';
 
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -57,58 +53,160 @@ import {
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import Link from 'next/link';
 import { formatRupiah } from '@/lib/utils';
-import { useMemo } from 'react';
+import { format, subDays, startOfMonth, isWithinInterval, parseISO } from 'date-fns';
+import { id } from 'date-fns/locale';
+import { Skeleton } from "@/components/ui/skeleton";
 
-const salesData = [
-  { date: '2024-05-20', sales: 231400 },
-  { date: '2024-05-21', sales: 342500 },
-  { date: '2024-05-22', sales: 287900, average: 300000 },
-  { date: '2024-05-23', sales: 410200 },
-  { date: '2024-05-24', sales: 380100 },
-  { date: '2024-05-25', sales: 450500 },
-  { date: '2024-05-26', sales: 423400 },
-];
 
-const salesComposition = [
-  { name: 'Pulsa', value: 400, fill: 'var(--color-pulsa)' },
-  { name: 'Paket Data', value: 300, fill: 'var(--color-data)' },
-  { name: 'Token Listrik', value: 200, fill: 'var(--color-token)' },
-  { name: 'Lainnya', value: 100, fill: 'var(--color-lainnya)' },
-];
+interface Transaction {
+    id: string;
+    datetime: string;
+    productName?: string;
+    customerName?: string;
+    sellingPrice?: number;
+    costPrice?: number;
+    profit: number;
+    isDeleted?: boolean;
+    createdAt: number;
+    type: 'Reguler' | 'Paket Akrab' | 'Pengeluaran';
+    name?: string;
+    nominal?: number;
+    fundSources?: { amount: number }[];
+}
+
+interface Debt {
+    id: string;
+    nominal: number;
+    status: 'Belum Lunas' | 'Lunas';
+    isDeleted?: boolean;
+}
+
+interface Expense {
+    id: string;
+    nominal: number;
+    date: string;
+    isDeleted?: boolean;
+    createdAt: number;
+    name: string;
+}
 
 const chartConfig = {
-  sales: {
-    label: 'Penjualan',
-  },
-  pulsa: {
-    label: 'Pulsa',
-    color: 'hsl(var(--chart-1))',
-  },
-  data: {
-    label: 'Paket Data',
-    color: 'hsl(var(--chart-2))',
-  },
-  token: {
-    label: 'Token Listrik',
-    color: 'hsl(var(--chart-3))',
-  },
-  lainnya: {
-    label: 'Lainnya',
-    color: 'hsl(var(--chart-4))',
-  },
+  penjualan: { label: 'Penjualan' },
+  reguler: { label: 'Reguler', color: 'hsl(var(--chart-1))' },
+  akrab: { label: 'Paket Akrab', color: 'hsl(var(--chart-2))' },
 };
 
-const recentTransactions = [
-    { name: "Telkomsel 5rb", status: "Berhasil", date: "26 Mei 2024, 10:42", amount: 7000 },
-    { name: "Listrik 20rb", status: "Berhasil", date: "26 Mei 2024, 09:15", amount: 22000 },
-    { name: "Paket Akrab", status: "Berhasil", date: "25 Mei 2024, 21:30", amount: 67000 },
-    { name: "Bayar Hutang", status: "Lunas", date: "25 Mei 2024, 18:05", amount: 50000 },
-    { name: "Indosat 10rb", status: "Gagal", date: "25 Mei 2024, 15:22", amount: 12000 },
-];
-
 export default function HomePage() {
-  const totalSales = useMemo(() => salesData.reduce((acc, curr) => acc + curr.sales, 0), []);
-  const totalProfit = useMemo(() => totalSales * 0.15, [totalSales]); // Placeholder profit calculation
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
+  const [debts, setDebts] = useState<Debt[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const now = new Date();
+    const oneMonthAgo = subDays(now, 30).getTime();
+    
+    const listeners = [
+      onValue(ref(db, 'transaksi_reguler'), (snapshot) => {
+        const data = snapshot.val() || {};
+        const transactions = Object.entries(data).map(([id, trx]: [string, any]) => ({
+          ...trx,
+          id,
+          type: 'Reguler',
+          profit: (trx.sellingPrice || 0) - (trx.costPrice || 0),
+        })).filter(t => !t.isDeleted);
+        setAllTransactions(prev => [...prev.filter(t => t.type !== 'Reguler'), ...transactions]);
+      }),
+      onValue(ref(db, 'transaksi_akrab'), (snapshot) => {
+        const data = snapshot.val() || {};
+        const transactions = Object.entries(data).map(([id, trx]: [string, any]) => ({
+          ...trx,
+          id,
+          type: 'Paket Akrab',
+          profit: (trx.sellingPrice || 0) - ((trx.fundSources || []).reduce((acc: number, src: any) => acc + (src.amount || 0), 0)),
+        })).filter(t => !t.isDeleted);
+        setAllTransactions(prev => [...prev.filter(t => t.type !== 'Paket Akrab'), ...transactions]);
+      }),
+      onValue(ref(db, 'pengeluaran'), (snapshot) => {
+        const data = snapshot.val() || {};
+        const loadedExpenses = Object.entries(data).map(([id, exp]: [string, any]) => ({ ...exp, id, type: 'Pengeluaran' })).filter(e => !e.isDeleted);
+        setExpenses(loadedExpenses);
+      }),
+      onValue(ref(db, 'hutang'), (snapshot) => {
+        const data = snapshot.val() || {};
+        const loadedDebts = Object.entries(data).map(([id, debt]: [string, any]) => ({ ...debt, id })).filter(d => !d.isDeleted);
+        setDebts(loadedDebts);
+      })
+    ];
+
+    const timer = setTimeout(() => setIsLoading(false), 2000); // Failsafe loader
+
+    return () => {
+        listeners.forEach(unsub => unsub());
+        clearTimeout(timer);
+    };
+  }, []);
+
+  const summaryData = useMemo(() => {
+      const now = new Date();
+      const monthStart = startOfMonth(now);
+
+      const transactionsThisMonth = allTransactions.filter(trx => 
+          parseISO(trx.datetime).getTime() >= monthStart.getTime()
+      );
+
+      const totalSales = transactionsThisMonth.reduce((acc, trx) => acc + (trx.sellingPrice || 0), 0);
+      const totalProfit = transactionsThisMonth.reduce((acc, trx) => acc + trx.profit, 0);
+      
+      const activeDebts = debts.filter(d => d.status === 'Belum Lunas');
+      const totalActiveDebt = activeDebts.reduce((acc, debt) => acc + debt.nominal, 0);
+
+      const expensesThisMonth = expenses.filter(exp => 
+        isWithinInterval(parseISO(exp.date), { start: monthStart, end: now })
+      );
+      const totalExpenses = expensesThisMonth.reduce((acc, exp) => acc + exp.nominal, 0);
+
+      return {
+          totalSales,
+          totalProfit,
+          totalActiveDebt,
+          activeDebtCount: activeDebts.length,
+          totalExpenses
+      };
+  }, [allTransactions, debts, expenses]);
+
+  const salesTrendData = useMemo(() => {
+    const last7Days = Array.from({ length: 7 }, (_, i) => format(subDays(new Date(), i), 'yyyy-MM-dd')).reverse();
+    return last7Days.map(date => {
+        const salesOnDate = allTransactions
+            .filter(trx => format(parseISO(trx.datetime), 'yyyy-MM-dd') === date)
+            .reduce((sum, trx) => sum + (trx.sellingPrice || 0), 0);
+        return { date, sales: salesOnDate };
+    });
+  }, [allTransactions]);
+
+  const salesCompositionData = useMemo(() => {
+    const composition = allTransactions.reduce((acc, trx) => {
+        const type = trx.type === 'Reguler' ? 'reguler' : 'akrab';
+        acc[type] = (acc[type] || 0) + (trx.sellingPrice || 0);
+        return acc;
+    }, {} as { [key: string]: number });
+
+    return [
+        { name: 'Reguler', value: composition.reguler || 0, fill: 'var(--color-reguler)' },
+        { name: 'Paket Akrab', value: composition.akrab || 0, fill: 'var(--color-akrab)' },
+    ].filter(item => item.value > 0);
+  }, [allTransactions]);
+  
+  const recentActivities = useMemo(() => {
+      const combined = [
+          ...allTransactions.map(t => ({...t, name: t.productName || t.customerName, amount: t.sellingPrice, date: t.datetime, type: 'Penjualan' })),
+          ...expenses.map(e => ({ ...e, amount: e.nominal, type: 'Pengeluaran' }))
+      ];
+
+      return combined.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 5);
+  }, [allTransactions, expenses]);
+
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-gray-50/50 dark:bg-background">
@@ -138,30 +236,22 @@ export default function HomePage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card className="rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Total Penjualan (Bulan Ini)
-              </CardTitle>
+              <CardTitle className="text-sm font-medium">Total Penjualan (30 Hari)</CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatRupiah(totalSales)}</div>
-              <p className="text-xs text-muted-foreground">
-                +20.1% dari bulan lalu
-              </p>
+              {isLoading ? <Skeleton className="h-8 w-3/4" /> : <div className="text-2xl font-bold">{formatRupiah(summaryData.totalSales)}</div>}
+              {isLoading ? <Skeleton className="h-4 w-1/2 mt-1" /> : <p className="text-xs text-muted-foreground">Penjualan dalam 30 hari terakhir</p>}
             </CardContent>
           </Card>
           <Card className="rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Total Laba (Bulan Ini)
-              </CardTitle>
+              <CardTitle className="text-sm font-medium">Total Laba (30 Hari)</CardTitle>
               <LineChart className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatRupiah(totalProfit)}</div>
-              <p className="text-xs text-muted-foreground">
-                +180.1% dari bulan lalu
-              </p>
+                {isLoading ? <Skeleton className="h-8 w-3/4" /> : <div className="text-2xl font-bold">{formatRupiah(summaryData.totalProfit)}</div>}
+                {isLoading ? <Skeleton className="h-4 w-1/2 mt-1" /> : <p className="text-xs text-muted-foreground">Laba dari penjualan 30 hari terakhir</p>}
             </CardContent>
           </Card>
           <Card className="rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300">
@@ -170,22 +260,18 @@ export default function HomePage() {
               <CreditCard className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatRupiah(125000)}</div>
-              <p className="text-xs text-muted-foreground">3 catatan belum lunas</p>
+                {isLoading ? <Skeleton className="h-8 w-3/4" /> : <div className="text-2xl font-bold">{formatRupiah(summaryData.totalActiveDebt)}</div>}
+                {isLoading ? <Skeleton className="h-4 w-1/2 mt-1" /> : <p className="text-xs text-muted-foreground">{summaryData.activeDebtCount} catatan belum lunas</p>}
             </CardContent>
           </Card>
           <Card className="rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Pengeluaran (Bulan Ini)
-              </CardTitle>
+              <CardTitle className="text-sm font-medium">Pengeluaran (Bulan Ini)</CardTitle>
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatRupiah(450000)}</div>
-              <p className="text-xs text-muted-foreground">
-                -15% dari bulan lalu
-              </p>
+                {isLoading ? <Skeleton className="h-8 w-3/4" /> : <div className="text-2xl font-bold">{formatRupiah(summaryData.totalExpenses)}</div>}
+                {isLoading ? <Skeleton className="h-4 w-1/2 mt-1" /> : <p className="text-xs text-muted-foreground">Total pengeluaran bulan ini</p>}
             </CardContent>
           </Card>
         </div>
@@ -197,8 +283,9 @@ export default function HomePage() {
               <CardDescription>7 hari terakhir</CardDescription>
             </CardHeader>
             <CardContent>
+                {isLoading ? <Skeleton className="h-[250px] w-full" /> : (
               <ChartContainer config={chartConfig} className="h-[250px] w-full">
-                <AreaChart data={salesData}>
+                <AreaChart data={salesTrendData}>
                   <defs>
                     <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8}/>
@@ -206,68 +293,41 @@ export default function HomePage() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="date"
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={8}
-                    tickFormatter={(value) => new Date(value).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
-                  />
+                  <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} tickFormatter={(value) => new Date(value).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} />
                   <YAxis tickLine={false} axisLine={false} tickMargin={8} tickFormatter={(value) => `${value / 1000}k`} />
-                  <Tooltip
-                    cursor={{ strokeDasharray: '3 3' }}
-                    content={<ChartTooltipContent formatter={(value) => formatRupiah(value as number)} />}
-                  />
+                  <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<ChartTooltipContent formatter={(value) => formatRupiah(value as number)} />} />
                   <Area type="monotone" dataKey="sales" stroke="hsl(var(--primary))" strokeWidth={2} fillOpacity={1} fill="url(#colorSales)" />
-                  <ReferenceLine y={300000} label="Rata-rata" stroke="hsl(var(--destructive))" strokeDasharray="3 3" />
                 </AreaChart>
               </ChartContainer>
+              )}
             </CardContent>
           </Card>
 
           <Card className="col-span-1 rounded-2xl shadow-sm lg:col-span-3">
             <CardHeader>
               <CardTitle>Komposisi Penjualan</CardTitle>
-              <CardDescription>Bulan ini</CardDescription>
+              <CardDescription>Berdasarkan tipe transaksi</CardDescription>
             </CardHeader>
             <CardContent>
+            {isLoading ? <Skeleton className="h-[250px] w-full" /> : salesCompositionData.length > 0 ? (
               <ChartContainer config={chartConfig} className="h-[250px] w-full">
                 <PieChart>
-                  <Tooltip content={<ChartTooltipContent hideLabel />} />
-                  <Pie
-                    data={salesComposition}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={100}
-                    innerRadius={60}
-                    labelLine={false}
-                    label={({
-                      cx,
-                      cy,
-                      midAngle,
-                      innerRadius,
-                      outerRadius,
-                      percent,
-                    }) => {
+                  <Tooltip content={<ChartTooltipContent hideLabel formatter={(value, name) => <div><div className="font-medium">{chartConfig[name as keyof typeof chartConfig]?.label}</div><div className="text-muted-foreground">{formatRupiah(value as number)}</div></div>} />} />
+                  <Pie data={salesCompositionData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} innerRadius={60} labelLine={false}
+                    label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
                       const RADIAN = Math.PI / 180;
                       const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
                       const x = cx + radius * Math.cos(-midAngle * RADIAN);
                       const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                      return (
-                        <text x={x} y={y} fill="hsl(var(--primary-foreground))" textAnchor="middle" dominantBaseline="central">
-                          {`${(percent * 100).toFixed(0)}%`}
-                        </text>
-                      );
+                      return ( <text x={x} y={y} fill="hsl(var(--primary-foreground))" textAnchor="middle" dominantBaseline="central"> {`${(percent * 100).toFixed(0)}%`}</text> );
                     }}
                   >
-                    {salesComposition.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
+                    {salesCompositionData.map((entry, index) => ( <Cell key={`cell-${index}`} fill={entry.fill} /> ))}
                   </Pie>
                 </PieChart>
               </ChartContainer>
+              ) : <div className="flex h-[250px] items-center justify-center text-sm text-muted-foreground">Belum ada data penjualan.</div>
+            }
             </CardContent>
           </Card>
         </div>
@@ -277,6 +337,13 @@ export default function HomePage() {
             <CardTitle>Aktivitas Terbaru</CardTitle>
           </CardHeader>
           <CardContent>
+          {isLoading ? (
+            <div className="space-y-4">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+            </div>
+            ) : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -287,25 +354,33 @@ export default function HomePage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recentTransactions.map((trx, index) => (
+                {recentActivities.length > 0 ? recentActivities.map((trx, index) => (
                     <TableRow key={index}>
                         <TableCell>
                             <div className="font-medium">{trx.name}</div>
                         </TableCell>
                         <TableCell>
-                            <Badge variant={trx.status === "Gagal" ? "destructive" : "secondary"}>
-                                {trx.status}
+                            <Badge variant={trx.type === "Pengeluaran" ? "destructive" : "secondary"}>
+                                {trx.type}
                             </Badge>
                         </TableCell>
-                        <TableCell>{trx.date}</TableCell>
-                        <TableCell className="text-right">{formatRupiah(trx.amount)}</TableCell>
+                        <TableCell>{format(parseISO(trx.date), 'd MMM, HH:mm', { locale: id })}</TableCell>
+                        <TableCell className={`text-right font-semibold ${trx.type === 'Pengeluaran' ? 'text-destructive' : ''}`}>
+                            {trx.type === 'Pengeluaran' ? '-' : ''}{formatRupiah(trx.amount || 0)}
+                        </TableCell>
                     </TableRow>
-                ))}
+                )) : (
+                    <TableRow>
+                        <TableCell colSpan={4} className="text-center text-muted-foreground h-24">Belum ada aktivitas.</TableCell>
+                    </TableRow>
+                )}
               </TableBody>
             </Table>
+          )}
           </CardContent>
         </Card>
       </main>
     </div>
   );
 }
+
