@@ -98,7 +98,7 @@ export function AppSidebar() {
   return (
     <>
       <SidebarHeader className="border-b border-sidebar-border h-16">
-        <div className="flex items-center gap-3 px-3">
+        <div className="flex items-center h-full gap-3 px-3">
             <Link href="/" className="flex items-center gap-2.5 font-bold text-lg text-sidebar-foreground">
                 <DollarSign className="h-6 w-6 text-primary" />
                 <span className="group-data-[collapsible=icon]:hidden">Rizki App</span>
