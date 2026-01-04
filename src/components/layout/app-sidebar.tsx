@@ -100,12 +100,20 @@ export function AppSidebar() {
 
   return (
     <>
-      <SidebarHeader className="border-b border-sidebar-border h-16">
-        <div className="flex items-center h-full gap-3 px-3">
-            <Link href="/" className="flex items-center gap-2.5 font-bold text-lg text-sidebar-foreground">
+      <SidebarHeader
+        className="border-b border-sidebar-border h-16 p-0"
+        role="button"
+        aria-label="Toggle Sidebar"
+        onClick={toggleSidebar}
+      >
+        <div className={cn(
+            "flex items-center h-full gap-3 px-3 cursor-pointer",
+            "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+        )}>
+            <div className="flex items-center gap-2.5 font-bold text-lg text-sidebar-foreground">
                 <DollarSign className="h-6 w-6 text-primary" />
                 <span className="group-data-[collapsible=icon]:hidden">Rizki App</span>
-            </Link>
+            </div>
         </div>
       </SidebarHeader>
       <SidebarContent>
@@ -174,18 +182,6 @@ export function AppSidebar() {
           ))}
         </SidebarMenu>
       </SidebarContent>
-       <SidebarFooter className="hidden md:flex">
-          <SidebarMenuButton
-            onClick={toggleSidebar}
-            tooltip={{
-              children: state === 'expanded' ? 'Cuitkan' : 'Lebarkan',
-              side: 'right',
-            }}
-          >
-            {state === 'expanded' ? <PanelLeftClose /> : <PanelLeftOpen />}
-            <span>Cuitkan</span>
-          </SidebarMenuButton>
-        </SidebarFooter>
     </>
   );
 }
