@@ -39,6 +39,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFo
 import { useIsMobile } from '@/hooks/use-mobile';
 import { formatRupiah, cleanRupiah } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 
 interface Transaction {
   id: string;
@@ -104,7 +105,7 @@ interface FormComponentProps {
     setSelectedProductId: (id: string | null) => void;
 }
 
-const FormComponent: React.FC<FormComponentProps> = React.memo(({
+const FormComponent: React.FC<FormComponentProps> = ({
     handleSubmit,
     datetime, setDatetime,
     customerId, setCustomerId,
@@ -333,7 +334,7 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({
         </CardFooter>
         </form>
     );
-});
+};
 
 
 export default function RegularSalesPage() {

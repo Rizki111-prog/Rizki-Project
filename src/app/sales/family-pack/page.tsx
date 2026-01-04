@@ -125,7 +125,7 @@ interface FormComponentProps {
     isFundSourceValid: boolean;
 }
 
-const FormComponent: React.FC<FormComponentProps> = React.memo(({
+const FormComponent: React.FC<FormComponentProps> = ({
     handleSubmit, datetime, handleDatetimeChange, customerName, setCustomerName,
     akrabCustomers, isLoadingCustomers, showSuggestions, setShowSuggestions,
     handleCustomerSelect, customerNameInputRef, customerId, setCustomerId, sellingPrice,
@@ -276,7 +276,7 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({
         </Button>
         </CardFooter>
     </form>
-));
+);
 
 export default function FamilyPackSalesPage() {
   const { toast } = useToast();
