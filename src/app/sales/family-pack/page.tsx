@@ -30,6 +30,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { formatRupiah, cleanRupiah } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter, SheetClose } from "@/components/ui/sheet";
+import { SidebarTrigger } from '@/components/ui/sidebar';
 
 interface Transaction {
   id: string;
@@ -124,7 +125,7 @@ interface FormComponentProps {
     isFundSourceValid: boolean;
 }
 
-const FormComponent: React.FC<FormComponentProps> = ({
+const FormComponent: React.FC<FormComponentProps> = React.memo(({
     handleSubmit, datetime, handleDatetimeChange, customerName, setCustomerName,
     akrabCustomers, isLoadingCustomers, showSuggestions, setShowSuggestions,
     handleCustomerSelect, customerNameInputRef, customerId, setCustomerId, sellingPrice,
@@ -275,7 +276,7 @@ const FormComponent: React.FC<FormComponentProps> = ({
         </Button>
         </CardFooter>
     </form>
-);
+));
 
 export default function FamilyPackSalesPage() {
   const { toast } = useToast();
@@ -764,16 +765,22 @@ export default function FamilyPackSalesPage() {
   };
 
   return (
-    <div className="flex flex-col w-full min-h-screen bg-background overflow-x-hidden">
-      <AppHeader title="Paket Akrab">
-        <Button onClick={() => setShowForm(!showForm)} variant={showForm ? "outline" : "default"} className="hidden md:flex">
-            {showForm ? <X className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-            {showForm ? 'Tutup' : 'Tambah Transaksi'}
-        </Button>
-         <Button onClick={() => setShowForm(true)} className="md:hidden">
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Tambah
-        </Button>
+    <div className="flex flex-col w-full min-h-screen bg-background">
+       <AppHeader>
+        <div className="flex items-center gap-4">
+          <SidebarTrigger className="md:hidden" />
+          <h1 className="text-lg font-semibold md:text-2xl truncate whitespace-nowrap">Paket Akrab</h1>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button onClick={() => setShowForm(!showForm)} variant={showForm ? "outline" : "default"} className="hidden md:flex">
+                {showForm ? <X className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                {showForm ? 'Tutup' : 'Tambah Transaksi'}
+            </Button>
+            <Button onClick={() => setShowForm(true)} className="md:hidden">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Tambah
+            </Button>
+        </div>
       </AppHeader>
       <main className="flex flex-1 flex-col">
         {isMobile ? (

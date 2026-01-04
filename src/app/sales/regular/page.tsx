@@ -104,7 +104,7 @@ interface FormComponentProps {
     setSelectedProductId: (id: string | null) => void;
 }
 
-const FormComponent: React.FC<FormComponentProps> = ({
+const FormComponent: React.FC<FormComponentProps> = React.memo(({
     handleSubmit,
     datetime, setDatetime,
     customerId, setCustomerId,
@@ -334,6 +334,7 @@ const FormComponent: React.FC<FormComponentProps> = ({
         </form>
     );
 });
+
 
 export default function RegularSalesPage() {
   const { toast } = useToast();
@@ -705,12 +706,18 @@ export default function RegularSalesPage() {
   };
 
   return (
-    <div className="flex flex-col w-full min-h-screen bg-background overflow-x-hidden">
-      <AppHeader title="Pulsa, Token, & Paket Data">
-        <Button onClick={() => setShowForm(!showForm)} variant={showForm ? "outline" : "default"} className="hidden md:flex">
-            {showForm ? <X className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-            {showForm ? 'Tutup' : 'Tambah Transaksi'}
-        </Button>
+    <div className="flex flex-col w-full min-h-screen bg-background">
+      <AppHeader>
+        <div className="flex items-center gap-4">
+          <SidebarTrigger className="md:hidden" />
+          <h1 className="text-lg font-semibold md:text-2xl truncate whitespace-nowrap">Pulsa, Token, & Paket Data</h1>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button onClick={() => setShowForm(!showForm)} variant={showForm ? "outline" : "default"} className="hidden md:flex">
+                {showForm ? <X className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                {showForm ? 'Tutup' : 'Tambah Transaksi'}
+            </Button>
+        </div>
       </AppHeader>
       <main className="flex flex-1 flex-col">
         <div className="p-4 md:hidden">
