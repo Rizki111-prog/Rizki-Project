@@ -743,29 +743,35 @@ export default function FamilyPackSalesPage() {
             <Card className="rounded-xl shadow-sm w-full">
             <CardHeader>
                 <CardTitle>Riwayat Transaksi Paket Akrab</CardTitle>
-                <div className="flex flex-col md:flex-row gap-2 mt-2">
-                    <div className="relative flex-1">
-                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <div className="relative w-full">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        type="search"
+                        placeholder="Cari berdasarkan nama pelanggan..."
+                        className="w-full pl-9 pr-12 h-11"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                    <div className="absolute right-1 top-1/2 -translate-y-1/2">
                         <Input
-                            type="search"
-                            placeholder="Cari berdasarkan nama pelanggan..."
-                            className="pl-8 sm:w-full"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
+                            type="date"
+                            value={selectedDate}
+                            onChange={(e) => setSelectedDate(e.target.value)}
+                            className="w-10 h-10 border-none bg-transparent focus:ring-0 appearance-none p-0 text-transparent"
+                            style={{
+                                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' class='lucide lucide-calendar-days'%3E%3Crect width='18' height='18' x='3' y='4' rx='2' ry='2'/%3E%3Cline x1='16' x2='16' y1='2' y2='6'/%3E%3Cline x1='8' x2='8' y1='2' y2='6'/%3E%3Cline x1='3' x2='21' y1='10' y2='10'/%3E%3C/svg%3E")`,
+                                backgroundRepeat: 'no-repeat',
+                                backgroundPosition: 'center',
+                                backgroundSize: '16px 16px',
+                            }}
                         />
                     </div>
-                    <Input
-                        type="date"
-                        value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
-                        className="w-full md:w-auto"
-                    />
-                    {selectedDate && (
-                        <Button variant="ghost" onClick={() => setSelectedDate('')}>
-                            Hapus Filter
-                        </Button>
-                    )}
                 </div>
+                {selectedDate && (
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedDate('')} className="mt-2 text-primary hover:text-primary">
+                        Hapus Filter Tanggal
+                    </Button>
+                )}
             </CardHeader>
             <CardContent>
                 <div className="md:hidden space-y-4">

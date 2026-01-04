@@ -5,7 +5,7 @@ import { db } from '@/firebase';
 import { ref, onValue, push, serverTimestamp, update } from 'firebase/database';
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { DollarSign, Wallet, Landmark, CreditCard, PlusCircle, ArrowUp, Loader2, ArrowUpCircle, ArrowDownCircle, Info, Trash2, Edit } from 'lucide-react';
+import { DollarSign, Wallet, Landmark, CreditCard, PlusCircle, ArrowUp, Loader2, ArrowUpCircle, ArrowDownCircle, Info, Trash2, Edit, MoreHorizontal } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { format, parseISO } from 'date-fns';
 import { id } from 'date-fns/locale';
@@ -29,6 +29,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 
 interface FinancialCard {
@@ -473,54 +479,101 @@ export default function BalancePage() {
                                 <p className="text-muted-foreground text-sm text-center">Belum ada riwayat top up.</p>
                             </div>
                         ) : (
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full divide-y divide-border">
-                                    <thead className="bg-muted/50">
-                                        <tr>
-                                            <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">Tanggal</th>
-                                            <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">Dari Akun</th>
-                                            <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">Ke Akun</th>
-                                            <th className="px-4 py-3 text-right text-sm font-semibold text-foreground">Nominal</th>
-                                            <th className="px-4 py-3 text-right text-sm font-semibold text-foreground">Biaya Admin</th>
-                                            <th className="px-4 py-3 text-center text-sm font-semibold text-foreground">Aksi</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-border bg-card">
-                                        {topUpTransactions.map((trx) => (
-                                            <tr key={trx.id} className="hover:bg-muted/50 transition-colors">
-                                                <td className="px-4 py-4 text-sm text-muted-foreground whitespace-nowrap">{format(parseISO(trx.date), "d MMM yyyy", { locale: id })}</td>
-                                                <td className="px-4 py-4 text-sm font-medium text-foreground">{trx.sourceAccountName}</td>
-                                                <td className="px-4 py-4 text-sm font-medium text-foreground">{trx.destinationAccountName}</td>
-                                                <td className="px-4 py-4 text-sm text-right text-foreground whitespace-nowrap">{formatRupiah(trx.amount)}</td>
-                                                <td className="px-4 py-4 text-sm text-right text-muted-foreground whitespace-nowrap">{formatRupiah(trx.adminFee)}</td>
-                                                <td className="px-4 py-4 text-center space-x-1">
-                                                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleEditTopUp(trx)}>
-                                                        <Edit className="h-4 w-4" />
-                                                    </Button>
-                                                    <AlertDialog>
-                                                        <AlertDialogTrigger asChild>
-                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive">
-                                                                <Trash2 className="h-4 w-4" />
+                            <div>
+                                {/* Mobile View */}
+                                <div className="md:hidden space-y-4">
+                                    {topUpTransactions.map((trx) => (
+                                        <Card key={trx.id} className="rounded-lg">
+                                            <CardContent className="p-4 space-y-3">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <p className="text-sm text-muted-foreground">Ke: <span className="font-semibold text-foreground">{trx.destinationAccountName}</span></p>
+                                                        <p className="text-sm text-muted-foreground">Dari: <span className="font-semibold text-foreground">{trx.sourceAccountName}</span></p>
+                                                    </div>
+                                                     <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button variant="ghost" className="h-8 w-8 p-0">
+                                                                <span className="sr-only">Buka menu</span>
+                                                                <MoreHorizontal className="h-4 w-4" />
                                                             </Button>
-                                                        </AlertDialogTrigger>
-                                                        <AlertDialogContent>
-                                                            <AlertDialogHeader>
-                                                                <AlertDialogTitle>Hapus Riwayat Top Up?</AlertDialogTitle>
-                                                                <AlertDialogDescription>
-                                                                    Tindakan ini akan memindahkan catatan ke folder sampah dan mengembalikan saldo. Anda yakin?
-                                                                </AlertDialogDescription>
-                                                            </AlertDialogHeader>
-                                                            <AlertDialogFooter>
-                                                                <AlertDialogCancel>Batal</AlertDialogCancel>
-                                                                <AlertDialogAction onClick={() => handleDeleteTopUp(trx.id)}>Ya, Hapus</AlertDialogAction>
-                                                            </AlertDialogFooter>
-                                                        </AlertDialogContent>
-                                                    </AlertDialog>
-                                                </td>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end">
+                                                            <DropdownMenuItem onClick={() => handleEditTopUp(trx)}>
+                                                                <Edit className="mr-2 h-4 w-4" /> Edit
+                                                            </DropdownMenuItem>
+                                                            <AlertDialog>
+                                                                <AlertDialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Hapus</DropdownMenuItem></AlertDialogTrigger>
+                                                                <AlertDialogContent>
+                                                                    <AlertDialogHeader><AlertDialogTitle>Hapus Riwayat Top Up?</AlertDialogTitle><AlertDialogDescription>Tindakan ini akan memindahkan catatan ke folder sampah dan mengembalikan saldo. Anda yakin?</AlertDialogDescription></AlertDialogHeader>
+                                                                    <AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteTopUp(trx.id)}>Ya, Hapus</AlertDialogAction></AlertDialogFooter>
+                                                                </AlertDialogContent>
+                                                            </AlertDialog>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                </div>
+                                                <div className="border-t pt-3">
+                                                    <div className="flex justify-between items-center">
+                                                        <div className="text-sm">
+                                                            <p className="font-bold text-lg">{formatRupiah(trx.amount)}</p>
+                                                            <p className="text-xs text-muted-foreground">Biaya Admin: {formatRupiah(trx.adminFee)}</p>
+                                                        </div>
+                                                        <p className="text-xs text-muted-foreground text-right">{format(parseISO(trx.date), "d MMM yyyy", { locale: id })}</p>
+                                                    </div>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    ))}
+                                </div>
+                                {/* Desktop View */}
+                                <div className="hidden md:block overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-border">
+                                        <thead className="bg-muted/50">
+                                            <tr>
+                                                <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">Tanggal</th>
+                                                <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">Dari Akun</th>
+                                                <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">Ke Akun</th>
+                                                <th className="px-4 py-3 text-right text-sm font-semibold text-foreground">Nominal</th>
+                                                <th className="px-4 py-3 text-right text-sm font-semibold text-foreground">Biaya Admin</th>
+                                                <th className="px-4 py-3 text-center text-sm font-semibold text-foreground">Aksi</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody className="divide-y divide-border bg-card">
+                                            {topUpTransactions.map((trx) => (
+                                                <tr key={trx.id} className="hover:bg-muted/50 transition-colors">
+                                                    <td className="px-4 py-4 text-sm text-muted-foreground whitespace-nowrap">{format(parseISO(trx.date), "d MMM yyyy", { locale: id })}</td>
+                                                    <td className="px-4 py-4 text-sm font-medium text-foreground">{trx.sourceAccountName}</td>
+                                                    <td className="px-4 py-4 text-sm font-medium text-foreground">{trx.destinationAccountName}</td>
+                                                    <td className="px-4 py-4 text-sm text-right text-foreground whitespace-nowrap">{formatRupiah(trx.amount)}</td>
+                                                    <td className="px-4 py-4 text-sm text-right text-muted-foreground whitespace-nowrap">{formatRupiah(trx.adminFee)}</td>
+                                                    <td className="px-4 py-4 text-center space-x-1">
+                                                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleEditTopUp(trx)}>
+                                                            <Edit className="h-4 w-4" />
+                                                        </Button>
+                                                        <AlertDialog>
+                                                            <AlertDialogTrigger asChild>
+                                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive">
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            </AlertDialogTrigger>
+                                                            <AlertDialogContent>
+                                                                <AlertDialogHeader>
+                                                                    <AlertDialogTitle>Hapus Riwayat Top Up?</AlertDialogTitle>
+                                                                    <AlertDialogDescription>
+                                                                        Tindakan ini akan memindahkan catatan ke folder sampah dan mengembalikan saldo. Anda yakin?
+                                                                    </AlertDialogDescription>
+                                                                </AlertDialogHeader>
+                                                                <AlertDialogFooter>
+                                                                    <AlertDialogCancel>Batal</AlertDialogCancel>
+                                                                    <AlertDialogAction onClick={() => handleDeleteTopUp(trx.id)}>Ya, Hapus</AlertDialogAction>
+                                                                </AlertDialogFooter>
+                                                            </AlertDialogContent>
+                                                        </AlertDialog>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         )}
                     </CardContent>
