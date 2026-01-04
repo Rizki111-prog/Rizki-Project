@@ -6,7 +6,7 @@ import { db } from '@/firebase';
 import { ref, onValue } from 'firebase/database';
 import {
   Activity,
-  ArrowDownUp,
+  ArrowUp,
   CreditCard,
   DollarSign,
   LineChart,
@@ -206,7 +206,20 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-gray-50/50 dark:bg-background">
-      <AppHeader title="Dasbor" />
+      <AppHeader title="Dasbor">
+        <Link href="/sales/regular" passHref>
+          <Button size="sm" className="hidden md:inline-flex">
+            <PlusCircle />
+            Tambah Transaksi
+          </Button>
+        </Link>
+        <Link href="/expenses" passHref>
+          <Button size="sm" variant="outline" className="hidden md:inline-flex">
+            <ArrowUp />
+            Catat Pengeluaran
+          </Button>
+        </Link>
+      </AppHeader>
       <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
         <div className="w-full">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

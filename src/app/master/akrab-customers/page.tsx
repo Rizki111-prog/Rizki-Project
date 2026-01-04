@@ -188,34 +188,33 @@ export default function AkrabCustomersPage() {
 
   return (
     <div className="flex flex-col w-full min-h-[100dvh] bg-background">
-      <AppHeader title="Pelanggan Akrab" />
-      <div className='flex items-center justify-end gap-2 p-4 border-b md:border-none md:p-0 md:h-0'>
-          {numSelected > 0 ? (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive">
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Hapus ({numSelected})
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                  <AlertDialogHeader><AlertDialogTitle>Anda yakin?</AlertDialogTitle><AlertDialogDescription>Tindakan ini tidak dapat diurungkan. {numSelected} pelanggan akan dihapus secara permanen.</AlertDialogDescription></AlertDialogHeader>
-                  <AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction onClick={handleBulkDelete}>Ya, Hapus</AlertDialogAction></AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          ) : (
-            <>
-              <Button onClick={() => handleOpenModal()} className="md:hidden" size="icon">
-                <PlusCircle className="h-4 w-4" />
-                <span className="sr-only">Tambah Pelanggan</span>
+      <AppHeader title="Pelanggan Akrab">
+        {numSelected > 0 ? (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive">
+                <Trash2 className="mr-2 h-4 w-4" />
+                Hapus ({numSelected})
               </Button>
-              <Button onClick={() => handleOpenModal()} className="hidden md:inline-flex transition-all duration-300 hover:scale-105">
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Tambah Pelanggan
-              </Button>
-            </>
-          )}
-        </div>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+                <AlertDialogHeader><AlertDialogTitle>Anda yakin?</AlertDialogTitle><AlertDialogDescription>Tindakan ini tidak dapat diurungkan. {numSelected} pelanggan akan dihapus secara permanen.</AlertDialogDescription></AlertDialogHeader>
+                <AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction onClick={handleBulkDelete}>Ya, Hapus</AlertDialogAction></AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        ) : (
+          <>
+            <Button onClick={() => handleOpenModal()} className="md:hidden" size="icon">
+              <PlusCircle className="h-4 w-4" />
+              <span className="sr-only">Tambah Pelanggan</span>
+            </Button>
+            <Button onClick={() => handleOpenModal()} className="hidden md:inline-flex transition-all duration-300 hover:scale-105">
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Tambah Pelanggan
+            </Button>
+          </>
+        )}
+      </AppHeader>
       <main className="flex flex-1 flex-col gap-4 p-4 sm:gap-6 sm:p-6">
         <Card className="rounded-xl shadow-sm">
           <CardHeader>

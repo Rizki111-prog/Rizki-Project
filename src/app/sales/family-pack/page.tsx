@@ -124,7 +124,7 @@ interface FormComponentProps {
     isFundSourceValid: boolean;
 }
 
-const FormComponent: React.FC<FormComponentProps> = React.memo(({
+const FormComponent: React.FC<FormComponentProps> = ({
     handleSubmit, datetime, handleDatetimeChange, customerName, setCustomerName,
     akrabCustomers, isLoadingCustomers, showSuggestions, setShowSuggestions,
     handleCustomerSelect, customerNameInputRef, customerId, setCustomerId, sellingPrice,
@@ -275,7 +275,7 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({
         </Button>
         </CardFooter>
     </form>
-));
+);
 
 export default function FamilyPackSalesPage() {
   const { toast } = useToast();
@@ -765,17 +765,16 @@ export default function FamilyPackSalesPage() {
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-background overflow-x-hidden">
-      <AppHeader title="Paket Akrab" />
-      <div className="flex items-center justify-end gap-2 p-4 border-b md:border-none md:p-0 md:h-0">
-          <Button onClick={() => setShowForm(!showForm)} variant={showForm ? "outline" : "default"} className="hidden md:flex">
-              {showForm ? <X className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-              {showForm ? 'Tutup' : 'Tambah Transaksi'}
-          </Button>
-           <Button onClick={() => setShowForm(true)} className="md:hidden">
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Tambah
-          </Button>
-      </div>
+      <AppHeader title="Paket Akrab">
+        <Button onClick={() => setShowForm(!showForm)} variant={showForm ? "outline" : "default"} className="hidden md:flex">
+            {showForm ? <X className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+            {showForm ? 'Tutup' : 'Tambah Transaksi'}
+        </Button>
+         <Button onClick={() => setShowForm(true)} className="md:hidden">
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Tambah
+        </Button>
+      </AppHeader>
       <main className="flex flex-1 flex-col">
         {isMobile ? (
           <Sheet open={showForm} onOpenChange={setShowForm}>

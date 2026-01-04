@@ -409,8 +409,7 @@ export default function BalancePage() {
 
     return (
         <div className="flex flex-col w-full min-h-[100dvh] bg-background">
-            <AppHeader title="Saldo Akun" />
-             <div className='flex items-center justify-end gap-2 p-4 border-b md:border-none md:p-0 md:h-0'>
+            <AppHeader title="Saldo Akun">
                 <TooltipProvider>
                     <Tooltip>
                         <TooltipTrigger asChild>
@@ -444,7 +443,7 @@ export default function BalancePage() {
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Tambah Akun
                 </Button>
-            </div>
+            </AppHeader>
             <main className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
                  {isLoading ? (
                     <div className="flex items-center justify-center h-64">
