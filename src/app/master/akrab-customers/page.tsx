@@ -210,10 +210,16 @@ export default function AkrabCustomersPage() {
               </AlertDialogContent>
             </AlertDialog>
           ) : (
-            <Button onClick={() => handleOpenModal()} className="transition-all duration-300 hover:scale-105">
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Tambah Pelanggan
-            </Button>
+            <>
+              <Button onClick={() => handleOpenModal()} className="md:hidden" size="icon">
+                <PlusCircle className="h-4 w-4" />
+                <span className="sr-only">Tambah Pelanggan</span>
+              </Button>
+              <Button onClick={() => handleOpenModal()} className="hidden md:inline-flex transition-all duration-300 hover:scale-105">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Tambah Pelanggan
+              </Button>
+            </>
           )}
         </div>
       </header>
