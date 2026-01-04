@@ -35,6 +35,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 
 
 interface FinancialCard {
@@ -416,11 +417,36 @@ export default function BalancePage() {
                     </div>
                 </div>
                 <div className='flex items-center gap-2'>
-                    <Button onClick={() => setIsTopUpModalOpen(true)} variant="outline" className="transition-all duration-300 hover:scale-105 text-sm shrink-0">
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button onClick={() => setIsTopUpModalOpen(true)} variant="outline" size="sm" className="md:hidden h-9 w-9 p-0">
+                                    <span className="sr-only">Top Up Saldo</span>
+                                    <ArrowUp className="h-4 w-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Top Up Saldo</p>
+                            </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button onClick={() => setIsAddCardModalOpen(true)} size="sm" className="md:hidden h-9 w-9 p-0">
+                                    <span className="sr-only">Tambah Akun</span>
+                                    <PlusCircle className="h-4 w-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Tambah Akun</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+
+                    <Button onClick={() => setIsTopUpModalOpen(true)} variant="outline" className="hidden md:inline-flex transition-all duration-300 hover:scale-105 text-sm shrink-0">
                         <ArrowUp className="mr-2 h-4 w-4" />
                         Top Up Saldo
                     </Button>
-                    <Button onClick={() => setIsAddCardModalOpen(true)} className="transition-all duration-300 hover:scale-105 text-sm shrink-0">
+                    <Button onClick={() => setIsAddCardModalOpen(true)} className="hidden md:inline-flex transition-all duration-300 hover:scale-105 text-sm shrink-0">
                         <PlusCircle className="mr-2 h-4 w-4" />
                         Tambah Akun
                     </Button>
