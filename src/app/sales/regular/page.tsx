@@ -38,6 +38,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFo
 import { useIsMobile } from '@/hooks/use-mobile';
 import { formatRupiah, cleanRupiah } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 
 interface Transaction {
   id: string;
@@ -633,6 +634,7 @@ export default function RegularSalesPage() {
     <div className="flex flex-col w-full min-h-screen bg-background overflow-x-hidden">
       <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b bg-background/80 backdrop-blur-sm px-4 sm:px-6">
         <div className="flex items-center gap-4">
+            <SidebarTrigger className="md:hidden" />
             <div className="min-w-0 flex-1">
                 <h1 className="text-lg font-semibold tracking-tight md:text-xl xl:text-2xl truncate whitespace-nowrap">Pulsa, Token, & Paket Data</h1>
             </div>
@@ -692,7 +694,7 @@ export default function RegularSalesPage() {
           </AnimatePresence>
         )}
 
-        <div className="px-4 sm:px-6 md:mt-6">
+        <div className="px-4 sm:px-6">
             <Card className="rounded-xl shadow-sm w-full">
             <CardHeader>
                 <CardTitle>Riwayat Transaksi Reguler</CardTitle>
