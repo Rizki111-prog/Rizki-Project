@@ -27,7 +27,6 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarContent,
-  SidebarTrigger,
   useSidebar,
 } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
@@ -103,8 +102,6 @@ export function AppSidebar() {
                 <DollarSign className="h-6 w-6 text-primary" />
                 <span className="group-data-[collapsible=icon]:hidden">Rizki App</span>
             </Link>
-            <div className="flex-1" />
-            <SidebarTrigger className="hidden md:flex" />
         </div>
       </SidebarHeader>
       <SidebarContent>
