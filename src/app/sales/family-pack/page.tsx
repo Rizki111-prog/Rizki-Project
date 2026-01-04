@@ -79,7 +79,7 @@ const getThirtyDaysFromDate = (date: Date) => {
 }
 
 interface FormComponentProps {
-    handleSubmit: (e: React-FormEvent) => void;
+    handleSubmit: (e: React.FormEvent) => void;
     datetime: string;
     handleDatetimeChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
     customerName: string;
@@ -821,7 +821,7 @@ export default function FamilyPackSalesPage() {
           </AnimatePresence>
         )}
 
-        <div className='px-4 sm:px-6 mt-6'>
+        <div className='px-4 sm:px-6 md:mt-6'>
             <Card className="rounded-xl shadow-sm w-full">
             <CardHeader>
                 <CardTitle>Riwayat Transaksi Paket Akrab</CardTitle>
