@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   ChevronDown,
-  DollarSign,
   History,
   LayoutDashboard,
   LineChart,
@@ -34,6 +33,7 @@ import {
 } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 import React from 'react';
+import { Logo } from '../logo';
 
 const menuItems = [
   { href: '/', label: 'Dasbor', icon: LayoutDashboard },
@@ -111,7 +111,7 @@ export function AppSidebar() {
             "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
         )}>
             <div className="flex items-center gap-2.5 font-bold text-lg text-sidebar-foreground">
-                <DollarSign className="h-6 w-6 text-primary" />
+                <Logo />
                 <span className="group-data-[collapsible=icon]:hidden">Rizki App</span>
             </div>
         </div>
@@ -123,6 +123,7 @@ export function AppSidebar() {
               {item.submenus ? (
                  <Collapsible 
                     open={openStates[item.href.substring(1) as keyof typeof openStates] && state === 'expanded'} 
+                    disabled={state==='collapsed'}
                     onOpenChange={() => toggleCollapsible(item.href.substring(1) as keyof typeof openStates)}
                   >
                    <CollapsibleTrigger asChild disabled={state === 'collapsed'}>

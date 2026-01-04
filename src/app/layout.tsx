@@ -5,13 +5,15 @@ import { SidebarProvider, Sidebar, SidebarInset, SidebarTrigger } from '@/compon
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { Toaster } from "@/components/ui/toaster";
 import { GeistSans } from 'geist/font/sans';
-import { DollarSign } from 'lucide-react';
-import Link from 'next/link';
+import { Logo } from '@/components/logo';
 
 export const metadata: Metadata = {
   title: 'Rizki App',
   description: 'Aplikasi pelacakan keuangan modern',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/favicon.ico',
+  }
 };
 
 export default function RootLayout({
