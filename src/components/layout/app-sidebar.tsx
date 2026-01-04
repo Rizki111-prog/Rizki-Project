@@ -96,6 +96,7 @@ export function AppSidebar() {
     sales: pathname.startsWith('/sales'),
     finance: pathname.startsWith('/finance'),
     master: pathname.startsWith('/master'),
+    profile: false,
   });
 
   const handleLinkClick = () => {
@@ -105,6 +106,7 @@ export function AppSidebar() {
   };
 
   const handleLogout = async () => {
+    handleLinkClick();
     try {
       await signOut(auth);
       toast({ title: "Berhasil Keluar", description: "Anda telah keluar dari akun Anda." });
@@ -122,7 +124,7 @@ export function AppSidebar() {
     return undefined;
   }
   
-  const toggleCollapsible = (key: 'sales' | 'finance' | 'master') => {
+  const toggleCollapsible = (key: 'sales' | 'finance' | 'master' | 'profile') => {
     if (state === 'collapsed') return;
     setOpenStates(prev => ({ ...prev, [key]: !prev[key] }));
   }
@@ -158,7 +160,52 @@ export function AppSidebar() {
             </div>
         </div>
       </SidebarHeader>
+      
       <SidebarContent>
+        <div className="w-full md:hidden border-b pb-2 mb-2">
+            <Collapsible 
+                open={openStates.profile}
+                onOpenChange={() => toggleCollapsible('profile')}
+            >
+                <CollapsibleTrigger className='w-full'>
+                    <div className='group/user-item flex w-full items-center gap-2 overflow-hidden rounded-md px-2 py-2 text-left text-sm font-medium'>
+                        <Avatar className="h-9 w-9">
+                          {user.photoURL && <AvatarImage src={user.photoURL} alt={displayName} />}
+                          <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
+                        </Avatar>
+                        <div className="grow overflow-hidden">
+                          <p className="font-semibold text-sidebar-foreground truncate">{displayName}</p>
+                          <p className="text-xs text-sidebar-foreground/70 truncate">{user.email}</p>
+                        </div>
+                        <ChevronDown className={cn("ml-auto h-4 w-4 shrink-0 transition-transform", openStates.profile && "rotate-180")} />
+                    </div>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                    <div className='pl-4 mt-2 flex flex-col gap-1'>
+                        <SidebarMenuButton asChild size="sm" variant="ghost" isActive={pathname === '/profile'} onClick={handleLinkClick}>
+                           <Link href="/profile"><User className="h-4 w-4"/> Profil</Link>
+                        </SidebarMenuButton>
+                         <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                               <SidebarMenuButton size="sm" variant="ghost" className="w-full justify-start text-red-500 hover:text-red-500">
+                                  <LogOut className="h-4 w-4" /> Keluar
+                                </SidebarMenuButton>
+                            </AlertDialogTrigger>
+                             <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Konfirmasi Keluar</AlertDialogTitle>
+                                    <AlertDialogDescription>Apakah Anda yakin ingin keluar?</AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Batal</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleLogout} className="bg-destructive hover:bg-destructive/90">Keluar</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </div>
+                </CollapsibleContent>
+            </Collapsible>
+        </div>
         <SidebarMenu>
           {menuItems.map((item) => (
             <SidebarMenuItem key={item.href}>
@@ -225,7 +272,7 @@ export function AppSidebar() {
           ))}
         </SidebarMenu>
       </SidebarContent>
-      <SidebarFooter className="border-t p-2">
+      <SidebarFooter className="border-t p-2 hidden md:block">
          <div className='group/user-item flex w-full items-center gap-2 overflow-hidden rounded-md px-2 py-2 text-left text-sm font-medium'>
             <Avatar className="h-9 w-9 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10">
               {user.photoURL && <AvatarImage src={user.photoURL} alt={displayName} />}
