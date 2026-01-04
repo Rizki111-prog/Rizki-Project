@@ -29,9 +29,6 @@ import { DetailModal } from '@/components/modals/detail-modal';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { formatRupiah, cleanRupiah } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
-import { DateRange } from "react-day-picker";
-import { DatePickerWithRange } from "@/components/ui/date-range-picker";
-
 
 interface Transaction {
   id: string;
@@ -118,7 +115,7 @@ export default function FamilyPackSalesPage() {
   
   // Filter state
   const [searchTerm, setSearchTerm] = useState("");
-  const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  const [selectedDate, setSelectedDate] = useState<string>('');
 
   const resetForm = useCallback(() => {
     const now = new Date();
@@ -505,16 +502,13 @@ export default function FamilyPackSalesPage() {
             : true;
         
         let isDateMatch = true;
-        if (dateRange?.from) {
-            const trxDate = startOfDay(parseISO(trx.datetime));
-            const fromDate = startOfDay(dateRange.from);
-            const toDate = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
-            isDateMatch = isWithinInterval(trxDate, { start: fromDate, end: toDate });
+        if (selectedDate) {
+            isDateMatch = format(parseISO(trx.datetime), 'yyyy-MM-dd') === selectedDate;
         }
         
         return isSearchMatch && isDateMatch;
     });
-  }, [transactions, searchTerm, dateRange]);
+  }, [transactions, searchTerm, selectedDate]);
 
 
   const getPaymentMethodsString = (payments: Payment[] | undefined) => {
@@ -749,27 +743,28 @@ export default function FamilyPackSalesPage() {
             <Card className="rounded-xl shadow-sm w-full">
             <CardHeader>
                 <CardTitle>Riwayat Transaksi Paket Akrab</CardTitle>
-                <div className="relative mt-4">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        id="search-customer"
-                        type="search"
-                        placeholder="Cari berdasarkan nama pelanggan..."
-                        className="pl-9 pr-28 w-full"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                    <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                        <DatePickerWithRange 
-                            date={dateRange} 
-                            setDate={setDateRange} 
-                            trigger={
-                                <Button variant="ghost" className="h-auto px-3 py-1">
-                                    <CalendarDays className="h-4 w-4" />
-                                </Button>
-                            }
+                <div className="flex flex-col md:flex-row gap-2 mt-2">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            type="search"
+                            placeholder="Cari berdasarkan nama pelanggan..."
+                            className="pl-8 sm:w-full"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
+                    <Input
+                        type="date"
+                        value={selectedDate}
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                        className="w-full md:w-auto"
+                    />
+                    {selectedDate && (
+                        <Button variant="ghost" onClick={() => setSelectedDate('')}>
+                            Hapus Filter
+                        </Button>
+                    )}
                 </div>
             </CardHeader>
             <CardContent>
