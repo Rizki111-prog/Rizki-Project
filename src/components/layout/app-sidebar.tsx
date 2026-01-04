@@ -145,13 +145,13 @@ export function AppSidebar() {
   return (
     <>
       <SidebarHeader
-        className="border-b border-sidebar-border h-16 p-0"
+        className="hidden md:flex border-b border-sidebar-border h-16 p-0"
         role="button"
         aria-label="Toggle Sidebar"
         onClick={toggleSidebar}
       >
         <div className={cn(
-            "hidden md:flex items-center h-full gap-3 px-3 cursor-pointer",
+            "flex items-center h-full gap-3 px-3 cursor-pointer",
             "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
         )}>
             <div className="flex items-center gap-2.5 font-bold text-lg text-sidebar-foreground">
