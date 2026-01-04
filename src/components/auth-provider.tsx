@@ -6,6 +6,8 @@ import { auth } from '@/firebase';
 import { usePathname, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { Logo } from './logo';
+import { SidebarProvider, Sidebar, SidebarInset } from '@/components/ui/sidebar';
+import { AppSidebar } from '@/components/layout/app-sidebar';
 
 interface AuthContextType {
   user: User | null;
@@ -14,8 +16,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({ user: null, isLoading: true });
 
-const publicRoutes = ['/login', '/register', '/forgot-password'];
-const verificationRoute = '/verify-email';
+const publicRoutes = ['/login', '/register', '/forgot-password', '/verify-email'];
+const isPublicRoute = (path: string) => publicRoutes.includes(path);
+
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -25,14 +28,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (currentUser) {
-        // Force a reload of the user's properties to get the latest `emailVerified` state
-        currentUser.reload().then(() => {
-          const freshUser = auth.currentUser;
-          setUser(freshUser);
-          setIsLoading(false);
-        });
-      } else {
+      // Force a reload of the user's properties to get the latest `emailVerified` state
+      currentUser?.reload().then(() => {
+        const freshUser = auth.currentUser;
+        setUser(freshUser);
+        setIsLoading(false);
+      }).catch(() => {
+        // If reload fails (e.g. user deleted), sign them out client-side
+        setUser(null);
+        setIsLoading(false);
+      });
+
+      if(!currentUser){
         setUser(null);
         setIsLoading(false);
       }
@@ -44,47 +51,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isLoading) return;
 
-    const isPublicRoute = publicRoutes.includes(pathname);
-    const isVerificationRoute = pathname === verificationRoute;
+    const onPublicRoute = isPublicRoute(pathname);
 
     if (user) {
-      if (!user.emailVerified && !isVerificationRoute) {
-        // User is logged in but email is not verified, and they are not on the verification page
-        router.push(verificationRoute);
-      } else if (user.emailVerified && (isPublicRoute || isVerificationRoute)) {
-        // User is logged in and verified, but on a public/verification page
+      if (!user.emailVerified && pathname !== '/verify-email') {
+        router.push('/verify-email');
+      } else if (user.emailVerified && onPublicRoute) {
         router.push('/');
       }
     } else {
-      if (!isPublicRoute && !isVerificationRoute) {
-        // User is not logged in and not on a public/verification page
+      if (!onPublicRoute) {
         router.push('/login');
       }
     }
   }, [user, isLoading, pathname, router]);
 
-  // Determine if a loading screen should be shown
   const shouldShowLoader = () => {
-    // Initial auth check
-    if (isLoading) return true;
-
-    const isPublicRoute = publicRoutes.includes(pathname);
-    const isVerificationRoute = pathname === verificationRoute;
-
+    if (isLoading) return true; // Initial auth check
+    
+    const onPublicRoute = isPublicRoute(pathname);
+    
+    // Redirecting scenarios
     if (user) {
-      // Show loader if user is logged in but on a public/verification route (will be redirected)
-      if (user.emailVerified && (isPublicRoute || isVerificationRoute)) return true;
-      // Show loader if user is not verified and not on the verification page (will be redirected)
-      if (!user.emailVerified && !isVerificationRoute) return true;
+        if (!user.emailVerified && pathname !== '/verify-email') return true;
+        if (user.emailVerified && onPublicRoute) return true;
     } else {
-      // Show loader if user is not logged in and trying to access a protected route (will be redirected)
-      if (!isPublicRoute && !isVerificationRoute) return true;
+        if (!onPublicRoute) return true;
     }
 
-    // Don't show loader on public/verification pages for unauthenticated users, or on correct pages for authenticated users
     return false;
   };
-
+  
   if (shouldShowLoader()) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-background">
@@ -94,10 +91,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
+
+  // If on a public route, render children without the main layout
+  if (isPublicRoute(pathname)) {
+      return (
+        <AuthContext.Provider value={{ user, isLoading }}>
+            {children}
+        </AuthContext.Provider>
+      );
+  }
   
   return (
     <AuthContext.Provider value={{ user, isLoading }}>
-      {children}
+        <SidebarProvider>
+            <Sidebar collapsible="icon" variant="sidebar" side="left">
+              <AppSidebar />
+            </Sidebar>
+            <SidebarInset>
+                {children}
+            </SidebarInset>
+        </SidebarProvider>
     </AuthContext.Provider>
   );
 }

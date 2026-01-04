@@ -1,8 +1,6 @@
 import React from 'react';
 import type { Metadata } from 'next';
 import './globals.css';
-import { SidebarProvider, Sidebar, SidebarInset } from '@/components/ui/sidebar';
-import { AppSidebar } from '@/components/layout/app-sidebar';
 import { Toaster } from "@/components/ui/toaster";
 import { GeistSans } from 'geist/font/sans';
 import { AuthProvider } from '@/components/auth-provider';
@@ -31,14 +29,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased h-full bg-background overflow-x-hidden">
         <AuthProvider>
-          <SidebarProvider>
-            <Sidebar collapsible="icon" variant="sidebar" side="left">
-              <AppSidebar />
-            </Sidebar>
-            <SidebarInset>
-                {children}
-            </SidebarInset>
-          </SidebarProvider>
+          {children}
         </AuthProvider>
         <Toaster />
       </body>
