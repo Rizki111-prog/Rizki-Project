@@ -644,13 +644,17 @@ export default function RegularSalesPage() {
                 {showForm ? <X className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
                 {showForm ? 'Tutup' : 'Tambah Transaksi'}
             </Button>
-            <Button onClick={() => setShowForm(true)} className="md:hidden">
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Tambah
-            </Button>
         </div>
       </header>
       <main className="flex flex-1 flex-col">
+        <div className="p-4 md:p-6 md:hidden">
+            {!showForm && (
+                <Button onClick={() => setShowForm(true)} className="w-full">
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Tambah Transaksi
+                </Button>
+            )}
+        </div>
         {isMobile ? (
           <Sheet open={showForm} onOpenChange={setShowForm}>
             <SheetContent side="right" className="w-full p-0">
