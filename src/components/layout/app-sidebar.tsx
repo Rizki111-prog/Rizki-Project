@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   ChevronDown,
   History,
@@ -14,8 +14,7 @@ import {
   ArrowDownUp,
   Database,
   Users,
-  PanelLeftClose,
-  PanelLeftOpen,
+  LogOut,
 } from 'lucide-react';
 import {
   Collapsible,
@@ -34,6 +33,21 @@ import {
 import { cn } from '@/lib/utils';
 import React from 'react';
 import { Logo } from '../logo';
+import { useAuth } from '../auth-provider';
+import { signOut } from 'firebase/auth';
+import { auth } from '@/firebase';
+import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const menuItems = [
   { href: '/', label: 'Dasbor', icon: LayoutDashboard },
@@ -72,6 +86,9 @@ const menuItems = [
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { toast } = useToast();
+  const { user } = useAuth();
   const { isMobile, setOpenMobile, toggleSidebar, state } = useSidebar();
   const [openStates, setOpenStates] = React.useState({
     sales: pathname.startsWith('/sales'),
@@ -82,6 +99,16 @@ export function AppSidebar() {
   const handleLinkClick = () => {
     if (isMobile) {
       setOpenMobile(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      toast({ title: "Berhasil Keluar", description: "Anda telah keluar dari akun Anda." });
+      router.push('/login');
+    } catch (error) {
+      toast({ variant: "destructive", title: "Gagal Keluar", description: "Terjadi kesalahan saat mencoba keluar." });
     }
   };
 
@@ -97,6 +124,8 @@ export function AppSidebar() {
     if (state === 'collapsed') return;
     setOpenStates(prev => ({ ...prev, [key]: !prev[key] }));
   }
+
+  if (!user) return null;
 
   return (
     <>
@@ -183,6 +212,30 @@ export function AppSidebar() {
           ))}
         </SidebarMenu>
       </SidebarContent>
+      <SidebarFooter>
+         <AlertDialog>
+          <AlertDialogTrigger asChild>
+              <SidebarMenuButton variant="ghost" className="w-full justify-start text-red-500 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/50 dark:hover:text-red-400">
+                <LogOut />
+                <span>Keluar</span>
+              </SidebarMenuButton>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+              <AlertDialogHeader>
+                  <AlertDialogTitle>Konfirmasi Keluar</AlertDialogTitle>
+                  <AlertDialogDescription>
+                      Apakah Anda yakin ingin keluar dari akun Anda?
+                  </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                  <AlertDialogCancel>Batal</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleLogout} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                      Ya, Keluar
+                  </AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </SidebarFooter>
     </>
   );
 }

@@ -1,11 +1,11 @@
 import React from 'react';
 import type { Metadata } from 'next';
 import './globals.css';
-import { SidebarProvider, Sidebar, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
+import { SidebarProvider, Sidebar, SidebarInset } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { Toaster } from "@/components/ui/toaster";
 import { GeistSans } from 'geist/font/sans';
-import { Logo } from '@/components/logo';
+import { AuthProvider } from '@/components/auth-provider';
 
 export const metadata: Metadata = {
   title: 'Rizki App',
@@ -30,14 +30,16 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body className="font-body antialiased h-full bg-background overflow-x-hidden">
-        <SidebarProvider>
-          <Sidebar collapsible="icon" variant="sidebar" side="left">
-            <AppSidebar />
-          </Sidebar>
-          <SidebarInset>
-            {children}
-          </SidebarInset>
-        </SidebarProvider>
+        <AuthProvider>
+          <SidebarProvider>
+            <Sidebar collapsible="icon" variant="sidebar" side="left">
+              <AppSidebar />
+            </Sidebar>
+            <SidebarInset>
+              {children}
+            </SidebarInset>
+          </SidebarProvider>
+        </AuthProvider>
         <Toaster />
       </body>
     </html>
