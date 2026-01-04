@@ -39,7 +39,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFo
 import { useIsMobile } from '@/hooks/use-mobile';
 import { formatRupiah, cleanRupiah } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
-import { SidebarTrigger } from '@/components/ui/sidebar';
 
 interface Transaction {
   id: string;
