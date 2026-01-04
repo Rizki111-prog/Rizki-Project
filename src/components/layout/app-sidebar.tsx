@@ -125,7 +125,7 @@ export function AppSidebar() {
   }
   
   const toggleCollapsible = (key: 'sales' | 'finance' | 'master' | 'profile') => {
-    if (state === 'collapsed') return;
+    if (isMobile || state === 'collapsed') return;
     setOpenStates(prev => ({ ...prev, [key]: !prev[key] }));
   }
 
@@ -151,7 +151,7 @@ export function AppSidebar() {
         onClick={toggleSidebar}
       >
         <div className={cn(
-            "flex items-center h-full gap-3 px-3 cursor-pointer",
+            "hidden md:flex items-center h-full gap-3 px-3 cursor-pointer",
             "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
         )}>
             <div className="flex items-center gap-2.5 font-bold text-lg text-sidebar-foreground">
@@ -165,10 +165,10 @@ export function AppSidebar() {
         <div className="w-full md:hidden border-b pb-2 mb-2">
             <Collapsible 
                 open={openStates.profile}
-                onOpenChange={() => toggleCollapsible('profile')}
+                onOpenChange={() => setOpenStates(prev => ({...prev, profile: !prev.profile}))}
             >
                 <CollapsibleTrigger className='w-full'>
-                    <div className='group/user-item flex w-full items-center gap-2 overflow-hidden rounded-md px-2 py-2 text-left text-sm font-medium'>
+                    <div className='group/user-item flex w-full items-center gap-3 overflow-hidden rounded-md px-2 py-2 text-left text-sm font-medium'>
                         <Avatar className="h-9 w-9">
                           {user.photoURL && <AvatarImage src={user.photoURL} alt={displayName} />}
                           <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
