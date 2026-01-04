@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { db } from '@/firebase';
 import { ref, push, onValue, update, serverTimestamp, query, orderByChild, equalTo, get } from 'firebase/database';
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -634,7 +633,6 @@ export default function RegularSalesPage() {
     <div className="flex flex-col w-full min-h-screen bg-background overflow-x-hidden">
       <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b bg-background/80 backdrop-blur-sm px-4 sm:px-6">
         <div className="flex items-center gap-4">
-            <SidebarTrigger className="md:hidden" />
             <div className="min-w-0 flex-1">
                 <h1 className="text-lg font-semibold tracking-tight md:text-xl xl:text-2xl truncate whitespace-nowrap">Pulsa, Token, & Paket Data</h1>
             </div>
@@ -694,7 +692,7 @@ export default function RegularSalesPage() {
           </AnimatePresence>
         )}
 
-        <div className="px-4 sm:px-6 mt-6">
+        <div className="px-4 sm:px-6 mt-4 md:mt-6">
             <Card className="rounded-xl shadow-sm w-full">
             <CardHeader>
                 <CardTitle>Riwayat Transaksi Reguler</CardTitle>
