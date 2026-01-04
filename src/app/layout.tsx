@@ -6,7 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { GeistSans } from 'geist/font/sans';
 
 export const metadata: Metadata = {
-  title: 'Rizi App',
+  title: 'Rizki App',
   description: 'Aplikasi pelacakan keuangan modern',
   manifest: '/manifest.json',
 };

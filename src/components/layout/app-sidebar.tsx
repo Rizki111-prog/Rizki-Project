@@ -101,7 +101,7 @@ export function AppSidebar() {
         <div className="flex items-center gap-3 px-3">
             <Link href="/" className="flex items-center gap-2.5 font-bold text-lg text-sidebar-foreground">
                 <DollarSign className="h-6 w-6 text-primary" />
-                <span className="group-data-[collapsible=icon]:hidden">Rizi App</span>
+                <span className="group-data-[collapsible=icon]:hidden">Rizki App</span>
             </Link>
             <div className="flex-1" />
             <SidebarTrigger className="hidden md:flex" />
