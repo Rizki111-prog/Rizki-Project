@@ -15,6 +15,8 @@ import {
   ArrowDownUp,
   Database,
   Users,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import {
   Collapsible,
@@ -27,6 +29,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarContent,
+  SidebarFooter,
   useSidebar,
 } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
@@ -69,7 +72,7 @@ const menuItems = [
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { isMobile, setOpenMobile } = useSidebar();
+  const { isMobile, setOpenMobile, toggleSidebar, state } = useSidebar();
   const [openStates, setOpenStates] = React.useState({
     sales: pathname.startsWith('/sales'),
     finance: pathname.startsWith('/finance'),
@@ -167,6 +170,18 @@ export function AppSidebar() {
           ))}
         </SidebarMenu>
       </SidebarContent>
+       <SidebarFooter className="hidden md:flex">
+          <SidebarMenuButton
+            onClick={toggleSidebar}
+            tooltip={{
+              children: state === 'expanded' ? 'Cuitkan' : 'Lebarkan',
+              side: 'right',
+            }}
+          >
+            {state === 'expanded' ? <PanelLeftClose /> : <PanelLeftOpen />}
+            <span>Cuitkan</span>
+          </SidebarMenuButton>
+        </SidebarFooter>
     </>
   );
 }
