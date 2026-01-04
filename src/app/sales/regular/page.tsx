@@ -692,7 +692,7 @@ export default function RegularSalesPage() {
           </AnimatePresence>
         )}
 
-        <div className="px-4 sm:px-6 mt-4 md:mt-6">
+        <div className="px-4 sm:px-6 md:mt-6">
             <Card className="rounded-xl shadow-sm w-full">
             <CardHeader>
                 <CardTitle>Riwayat Transaksi Reguler</CardTitle>
