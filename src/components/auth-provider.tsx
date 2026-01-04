@@ -65,10 +65,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Determine if a loading screen should be shown
   const shouldShowLoader = () => {
+    // Initial auth check
     if (isLoading) return true;
-    if (user && !user.emailVerified && pathname !== verificationRoute) return true;
-    if (user && user.emailVerified && (publicRoutes.includes(pathname) || pathname === verificationRoute)) return true;
-    if (!user && !publicRoutes.includes(pathname) && pathname !== verificationRoute) return true;
+
+    const isPublicRoute = publicRoutes.includes(pathname);
+    const isVerificationRoute = pathname === verificationRoute;
+
+    if (user) {
+      // Show loader if user is logged in but on a public/verification route (will be redirected)
+      if (user.emailVerified && (isPublicRoute || isVerificationRoute)) return true;
+      // Show loader if user is not verified and not on the verification page (will be redirected)
+      if (!user.emailVerified && !isVerificationRoute) return true;
+    } else {
+      // Show loader if user is not logged in and trying to access a protected route (will be redirected)
+      if (!isPublicRoute && !isVerificationRoute) return true;
+    }
+
+    // Don't show loader on public/verification pages for unauthenticated users, or on correct pages for authenticated users
     return false;
   };
 

@@ -125,7 +125,7 @@ export function AppSidebar() {
   }
   
   const toggleCollapsible = (key: 'sales' | 'finance' | 'master' | 'profile') => {
-    if (isMobile || state === 'collapsed') return;
+     if (!isMobile && state === 'collapsed') return;
     setOpenStates(prev => ({ ...prev, [key]: !prev[key] }));
   }
 
@@ -211,11 +211,11 @@ export function AppSidebar() {
             <SidebarMenuItem key={item.href}>
               {item.submenus ? (
                  <Collapsible 
-                    open={openStates[item.href.substring(1) as keyof typeof openStates] && state === 'expanded'} 
-                    disabled={state==='collapsed'}
+                    open={isMobile ? openStates[item.href.substring(1) as keyof typeof openStates] : openStates[item.href.substring(1) as keyof typeof openStates] && state === 'expanded'} 
+                    disabled={!isMobile && state==='collapsed'}
                     onOpenChange={() => toggleCollapsible(item.href.substring(1) as keyof typeof openStates)}
                   >
-                   <CollapsibleTrigger asChild disabled={state === 'collapsed'}>
+                   <CollapsibleTrigger asChild disabled={!isMobile && state === 'collapsed'}>
                      <SidebarMenuButton
                        variant="ghost"
                        className="w-full justify-start"
