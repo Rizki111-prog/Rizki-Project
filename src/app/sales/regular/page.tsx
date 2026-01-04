@@ -101,6 +101,7 @@ interface FormComponentProps {
     productNameInputRef: React.RefObject<HTMLDivElement>;
     isSubmitting: boolean;
     isPaymentValid: boolean;
+    setSelectedProductId: (id: string | null) => void;
 }
 
 const FormComponent: React.FC<FormComponentProps> = React.memo(({
@@ -116,7 +117,8 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({
     financialCards, productMaster,
     isLoadingCards, isLoadingProducts,
     showSuggestions, setShowSuggestions,
-    productNameInputRef, isSubmitting, isPaymentValid
+    productNameInputRef, isSubmitting, isPaymentValid,
+    setSelectedProductId
 }) => {
     
     const handlePriceChange = (setter: React.Dispatch<React.SetStateAction<string>>) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -176,6 +178,7 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({
       setProductName(product.name);
       setSellingPrice(formatRupiah(String(product.sellingPrice || '')));
       setCostPrice(formatRupiah(String(product.costPrice || '')));
+      setSelectedProductId(product.id);
       setShowSuggestions(false);
       setIsPaymentAmountManuallySet(false); 
     }
@@ -204,7 +207,8 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({
                     placeholder={isLoadingProducts ? "Memuat produk..." : "Ketik nama produk"}
                     value={productName}
                     onChange={(e) => {
-                        setProductName(e.target.value)
+                        setProductName(e.target.value);
+                        setSelectedProductId(null); // Clear selected product ID on manual typing
                         if (!showSuggestions) setShowSuggestions(true);
                     }}
                     onFocus={() => setShowSuggestions(true)}
@@ -338,6 +342,7 @@ export default function RegularSalesPage() {
   const [datetime, setDatetime] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [productName, setProductName] = useState('');
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [sellingPrice, setSellingPrice] = useState('');
   const [costPrice, setCostPrice] = useState('');
   const [fundSource, setFundSource] = useState('');
@@ -373,6 +378,7 @@ export default function RegularSalesPage() {
 
     setCustomerId('');
     setProductName('');
+    setSelectedProductId(null);
     setSellingPrice('');
     setCostPrice('');
     
@@ -499,15 +505,23 @@ export default function RegularSalesPage() {
   }, [sellingPrice, payments]);
 
 
-  const saveToProductMaster = useCallback(async (productData: Omit<ProductMaster, 'id'>) => {
-    if (!productData.name.trim()) return;
-    const productsRef = query(ref(db, 'produk_master'), orderByChild('name'), equalTo(productData.name));
-    const snapshot = await get(productsRef);
-    if (!snapshot.exists()) {
-        const newProductRef = push(ref(db, 'produk_master'));
-        update(newProductRef, productData);
+  const updateMasterProduct = useCallback(async (productId: string, newSellingPrice: number, newCostPrice: number) => {
+    const productInMaster = productMaster.find(p => p.id === productId);
+    if (!productInMaster) return;
+
+    const masterSellingPrice = productInMaster.sellingPrice || 0;
+    const masterCostPrice = productInMaster.costPrice || 0;
+
+    if (newSellingPrice !== masterSellingPrice || newCostPrice !== masterCostPrice) {
+      const productRef = ref(db, `produk_master/${productId}`);
+      await update(productRef, { sellingPrice: newSellingPrice, costPrice: newCostPrice });
+      toast({
+        title: "Data Master Diperbarui",
+        description: `Harga untuk "${productInMaster.name}" telah diupdate.`
+      });
     }
-  }, []);
+  }, [productMaster, toast]);
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -564,8 +578,8 @@ export default function RegularSalesPage() {
     
     update(newTransactionRef, newTransaction)
       .then(() => {
-        if (productName && (price > 0 || cost > 0)) {
-          saveToProductMaster({ name: productName, sellingPrice: price, costPrice: cost });
+        if (selectedProductId) {
+          updateMasterProduct(selectedProductId, price, cost);
         }
         
         payments.forEach(payment => {
@@ -687,7 +701,7 @@ export default function RegularSalesPage() {
     fundSource, setFundSource, payments, setPayments, isPaymentAmountManuallySet,
     setIsPaymentAmountManuallySet, financialCards, productMaster, isLoadingCards,
     isLoadingProducts, showSuggestions, setShowSuggestions, productNameInputRef,
-    isSubmitting, isPaymentValid
+    isSubmitting, isPaymentValid, setSelectedProductId
   };
 
   return (
