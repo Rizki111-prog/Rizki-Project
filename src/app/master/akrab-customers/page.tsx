@@ -221,7 +221,6 @@ export default function AkrabCustomersPage() {
         <Card className="rounded-xl shadow-sm">
           <CardHeader>
             <CardTitle>Daftar Pelanggan</CardTitle>
-            <CardDescription>Berikut adalah semua pelanggan Paket Akrab yang tersimpan.</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
