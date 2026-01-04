@@ -74,6 +74,263 @@ interface Payment {
   debtorName?: string;
 }
 
+interface FormComponentProps {
+    handleSubmit: (e: React.FormEvent) => void;
+    datetime: string;
+    setDatetime: (value: string) => void;
+    customerId: string;
+    setCustomerId: (value: string) => void;
+    productName: string;
+    setProductName: (value: string) => void;
+    sellingPrice: string;
+    setSellingPrice: (value: string) => void;
+    costPrice: string;
+    setCostPrice: (value: string) => void;
+    fundSource: string;
+    setFundSource: (value: string) => void;
+    payments: Payment[];
+    setPayments: (value: Payment[]) => void;
+    isPaymentAmountManuallySet: boolean;
+    setIsPaymentAmountManuallySet: (value: boolean) => void;
+    financialCards: FinancialCard[];
+    productMaster: ProductMaster[];
+    isLoadingCards: boolean;
+    isLoadingProducts: boolean;
+    showSuggestions: boolean;
+    setShowSuggestions: (value: boolean) => void;
+    productNameInputRef: React.RefObject<HTMLDivElement>;
+    isSubmitting: boolean;
+    isPaymentValid: boolean;
+}
+
+const FormComponent: React.FC<FormComponentProps> = React.memo(({
+    handleSubmit,
+    datetime, setDatetime,
+    customerId, setCustomerId,
+    productName, setProductName,
+    sellingPrice, setSellingPrice,
+    costPrice, setCostPrice,
+    fundSource, setFundSource,
+    payments, setPayments,
+    setIsPaymentAmountManuallySet,
+    financialCards, productMaster,
+    isLoadingCards, isLoadingProducts,
+    showSuggestions, setShowSuggestions,
+    productNameInputRef, isSubmitting, isPaymentValid
+}) => {
+    
+    const handlePriceChange = (setter: React.Dispatch<React.SetStateAction<string>>) => (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { value } = e.target;
+        const cleanedValue = value.replace(/[^0-9]/g, '');
+        setter(formatRupiah(cleanedValue));
+
+        if (setter === setSellingPrice) {
+            setIsPaymentAmountManuallySet(false);
+        }
+    };
+  
+    const handlePaymentAmountChange = (index: number, value: string) => {
+        const newPayments = [...payments];
+        const cleanedValue = value.replace(/[^0-9]/g, '');
+        newPayments[index].amount = cleanRupiah(cleanedValue);
+        setPayments(newPayments);
+        setIsPaymentAmountManuallySet(true);
+    };
+  
+    const handlePaymentMethodChange = (index: number, value: string) => {
+        const newPayments = [...payments];
+        const card = financialCards.find(c => c.id === value);
+        if (value === 'Hutang') {
+            newPayments[index].method = 'Hutang';
+            newPayments[index].cardId = undefined;
+            newPayments[index].debtorName = ''; 
+        } else if (card) {
+            newPayments[index].method = card.name;
+            newPayments[index].cardId = card.id;
+            newPayments[index].debtorName = undefined;
+        }
+        setPayments(newPayments);
+    };
+
+    const handleDebtorNameChange = (index: number, value: string) => {
+        const newPayments = [...payments];
+        newPayments[index].debtorName = value;
+        setPayments(newPayments);
+    };
+
+    const addPayment = () => {
+        setIsPaymentAmountManuallySet(true); 
+        const remaining = (cleanRupiah(sellingPrice) || 0) - payments.reduce((acc, p) => acc + p.amount, 0);
+        setPayments([...payments, { method: '', cardId: '', amount: remaining > 0 ? remaining : 0, debtorName: '' }]);
+    };
+
+    const removePayment = (index: number) => {
+        const newPayments = payments.filter((_, i) => i !== index);
+        setPayments(newPayments);
+        if (newPayments.length === 1) {
+            setIsPaymentAmountManuallySet(false);
+        }
+    };
+
+    const handleProductSelect = (product: ProductMaster) => {
+      setProductName(product.name);
+      setSellingPrice(formatRupiah(String(product.sellingPrice || '')));
+      setCostPrice(formatRupiah(String(product.costPrice || '')));
+      setShowSuggestions(false);
+      setIsPaymentAmountManuallySet(false); 
+    }
+  
+    const totalPaid = useMemo(() => payments.reduce((acc, p) => acc + p.amount, 0), [payments]);
+    const remainingAmount = useMemo(() => (cleanRupiah(sellingPrice) || 0) - totalPaid, [sellingPrice, totalPaid]);
+    
+    return (
+        <form onSubmit={handleSubmit}>
+        <CardContent className="p-0">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                <Label htmlFor="datetime">Tanggal &amp; Waktu</Label>
+                <Input id="datetime" type="datetime-local" value={datetime} onChange={(e) => setDatetime(e.target.value)} required 
+                        className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
+                </div>
+                <div className="space-y-2">
+                <Label htmlFor="customerId">Nomor HP / ID Pelanggan</Label>
+                <Input id="customerId" placeholder="ID Pelanggan (Opsional)" value={customerId} onChange={(e) => setCustomerId(e.target.value)}
+                        className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
+                </div>
+                <div className="space-y-2 md:col-span-2 lg:col-span-1 relative" ref={productNameInputRef}>
+                    <Label htmlFor="productName">Nama Produk</Label>
+                    <Input 
+                    id="productName"
+                    placeholder={isLoadingProducts ? "Memuat produk..." : "Ketik nama produk"}
+                    value={productName}
+                    onChange={(e) => {
+                        setProductName(e.target.value)
+                        if (!showSuggestions) setShowSuggestions(true);
+                    }}
+                    onFocus={() => setShowSuggestions(true)}
+                    autoComplete="off"
+                    required
+                    className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"
+                    />
+                    {showSuggestions && productMaster.length > 0 && (
+                        <div className="absolute z-20 w-full mt-1 bg-card border border-border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                            {productMaster
+                            .filter(p => p.name.toLowerCase().includes(productName.toLowerCase()))
+                            .map((product) => (
+                                <div
+                                    key={product.id}
+                                    className="p-2 hover:bg-accent cursor-pointer text-sm"
+                                    onClick={() => handleProductSelect(product)}
+                                >
+                                    {product.name}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+                <div className="space-y-2">
+                <Label htmlFor="sellingPrice">Harga Jual</Label>
+                <Input id="sellingPrice" type="text" placeholder="Harga Jual (Opsional)" value={sellingPrice} onChange={handlePriceChange(setSellingPrice)} 
+                        className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
+                </div>
+                <div className="space-y-2">
+                <Label htmlFor="costPrice">Modal</Label>
+                <Input id="costPrice" type="text" placeholder="Modal (Opsional)" value={costPrice} onChange={handlePriceChange(setCostPrice)} 
+                        className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
+                </div>
+                <div className="space-y-2">
+                <Label htmlFor="fundSource">Sumber Modal</Label>
+                <Select value={fundSource} onValueChange={setFundSource} required>
+                    <SelectTrigger className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2">
+                        <SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih sumber modal"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {financialCards.map(card => (
+                            <SelectItem key={card.id} value={card.id}>
+                                {card.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                </div>
+            </div>
+                <div className="mt-6 border-t pt-4">
+                <h3 className="text-md font-medium mb-2">Metode Pembayaran</h3>
+                    <div className="space-y-4">
+                    {payments.map((payment, index) => (
+                        <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-2 p-3 border rounded-lg bg-muted/20 relative">
+                            <div className="space-y-2 col-span-12 md:col-span-5">
+                                <Label htmlFor={`payment-method-${index}`}>Metode</Label>
+                                <Select value={payment.cardId || (payment.method === 'Hutang' ? 'Hutang' : '')} onValueChange={(value) => handlePaymentMethodChange(index, value)} required>
+                                    <SelectTrigger id={`payment-method-${index}`} className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2 bg-background">
+                                        <SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih metode"} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Hutang">Hutang</SelectItem>
+                                        {financialCards.map(card => (
+                                            <SelectItem key={card.id} value={card.id}>
+                                                {card.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            {payment.method === 'Hutang' && (
+                                <div className="space-y-2 col-span-12 md:col-span-3">
+                                    <Label htmlFor={`debtor-name-${index}`}>Nama Penghutang</Label>
+                                    <Input 
+                                    id={`debtor-name-${index}`}
+                                    placeholder="Masukkan nama"
+                                    value={payment.debtorName || ''}
+                                    onChange={(e) => handleDebtorNameChange(index, e.target.value)}
+                                    required
+                                    className="bg-background"
+                                    />
+                                </div>
+                            )}
+                            <div className={`space-y-2 col-span-12 ${payment.method === 'Hutang' ? 'md:col-span-3' : 'md:col-span-6'}`}>
+                                <Label htmlFor={`payment-amount-${index}`}>Nominal</Label>
+                                <Input 
+                                    id={`payment-amount-${index}`}
+                                    type="text"
+                                    placeholder="0"
+                                    value={formatRupiah(payment.amount)}
+                                    onChange={(e) => handlePaymentAmountChange(index, e.target.value)}
+                                    required
+                                    className="bg-background"
+                                />
+                            </div>
+                            {payments.length > 1 && (
+                                <div className="col-span-12 md:col-span-1 flex items-end justify-end md:justify-center">
+                                    <Button variant="ghost" size="icon" onClick={() => removePayment(index)} className="text-destructive hover:bg-destructive/10">
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                    <div className="flex flex-col md:flex-row justify-between items-center mt-4 text-sm gap-4">
+                        <Button type="button" variant="outline" size="sm" onClick={addPayment} className="w-full md:w-auto"><PlusCircle className="mr-2 h-4 w-4" /> Tambah Pembayaran</Button>
+                        <div className="text-right w-full md:w-auto">
+                        <p>Total Terinput: <span className="font-bold">{formatRupiah(totalPaid)}</span></p>
+                        <p className={remainingAmount !== 0 ? 'text-destructive' : 'text-emerald-600'}>
+                            {remainingAmount > 0 ? `Sisa: ${formatRupiah(remainingAmount)}` : remainingAmount < 0 ? `Kelebihan: ${formatRupiah(Math.abs(remainingAmount))}`: 'Lunas'}
+                        </p>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+        </CardContent>
+        <CardFooter className="border-t px-6 py-4">
+            <Button type="submit" disabled={isSubmitting || isLoadingCards || isLoadingProducts || !isPaymentValid} className="transition-all duration-300 hover:scale-105 w-full md:w-auto">
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {isSubmitting ? 'Menyimpan...' : 'Simpan Transaksi'}
+            </Button>
+        </CardFooter>
+        </form>
+    );
+});
+
 export default function RegularSalesPage() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -234,72 +491,13 @@ export default function RegularSalesPage() {
           }
       }
   }, [isLoadingCards, financialCards, fundSource]);
-
-
-  const handlePriceChange = (setter: React.Dispatch<React.SetStateAction<string>>) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { value } = e.target;
-    const cleanedValue = value.replace(/[^0-9]/g, '');
-    setter(formatRupiah(cleanedValue));
-
-    if (setter === setSellingPrice) {
-        setIsPaymentAmountManuallySet(false);
-    }
-  };
   
-  const handlePaymentAmountChange = (index: number, value: string) => {
-      const newPayments = [...payments];
-      const cleanedValue = value.replace(/[^0-9]/g, '');
-      newPayments[index].amount = cleanRupiah(cleanedValue);
-      setPayments(newPayments);
-      setIsPaymentAmountManuallySet(true);
-  };
-  
-  const handlePaymentMethodChange = (index: number, value: string) => {
-      const newPayments = [...payments];
-      const card = financialCards.find(c => c.id === value);
-      if (value === 'Hutang') {
-          newPayments[index].method = 'Hutang';
-          newPayments[index].cardId = undefined;
-          newPayments[index].debtorName = ''; 
-      } else if (card) {
-          newPayments[index].method = card.name;
-          newPayments[index].cardId = card.id;
-          newPayments[index].debtorName = undefined;
-      }
-      setPayments(newPayments);
-  };
+  const isPaymentValid = useMemo(() => {
+    const price = cleanRupiah(sellingPrice) || 0;
+    const totalPaid = payments.reduce((acc, p) => acc + p.amount, 0);
+    return price === totalPaid;
+  }, [sellingPrice, payments]);
 
-  const handleDebtorNameChange = (index: number, value: string) => {
-    const newPayments = [...payments];
-    newPayments[index].debtorName = value;
-    setPayments(newPayments);
-  };
-
-  const addPayment = () => {
-      setIsPaymentAmountManuallySet(true); 
-      const remaining = (cleanRupiah(sellingPrice) || 0) - payments.reduce((acc, p) => acc + p.amount, 0);
-      setPayments([...payments, { method: '', cardId: '', amount: remaining > 0 ? remaining : 0, debtorName: '' }]);
-  };
-
-  const removePayment = (index: number) => {
-      const newPayments = payments.filter((_, i) => i !== index);
-      setPayments(newPayments);
-      if (newPayments.length === 1) {
-          setIsPaymentAmountManuallySet(false);
-      }
-  };
-  
-  const totalPaid = useMemo(() => payments.reduce((acc, p) => acc + p.amount, 0), [payments]);
-  const remainingAmount = useMemo(() => (cleanRupiah(sellingPrice) || 0) - totalPaid, [sellingPrice, totalPaid]);
-  const isPaymentValid = useMemo(() => remainingAmount === 0, [remainingAmount]);
-
-  const handleProductSelect = (product: ProductMaster) => {
-      setProductName(product.name);
-      setSellingPrice(formatRupiah(String(product.sellingPrice || '')));
-      setCostPrice(formatRupiah(String(product.costPrice || '')));
-      setShowSuggestions(false);
-      setIsPaymentAmountManuallySet(false); 
-  }
 
   const saveToProductMaster = useCallback(async (productData: Omit<ProductMaster, 'id'>) => {
     if (!productData.name.trim()) return;
@@ -483,152 +681,14 @@ export default function RegularSalesPage() {
   const EditFooter = isMobile ? SheetFooter : DialogFooter;
   const EditClose = isMobile ? SheetClose : DialogClose;
 
-  const FormComponent = () => (
-    <form onSubmit={handleSubmit}>
-      <CardContent className="p-0">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="space-y-2">
-            <Label htmlFor="datetime">Tanggal &amp; Waktu</Label>
-            <Input id="datetime" type="datetime-local" value={datetime} onChange={(e) => setDatetime(e.target.value)} required 
-                    className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
-            </div>
-            <div className="space-y-2">
-            <Label htmlFor="customerId">Nomor HP / ID Pelanggan</Label>
-            <Input id="customerId" placeholder="ID Pelanggan (Opsional)" value={customerId} onChange={(e) => setCustomerId(e.target.value)}
-                    className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
-            </div>
-            <div className="space-y-2 md:col-span-2 lg:col-span-1 relative" ref={productNameInputRef}>
-                <Label htmlFor="productName">Nama Produk</Label>
-                <Input 
-                id="productName"
-                placeholder={isLoadingProducts ? "Memuat produk..." : "Ketik nama produk"}
-                value={productName}
-                onChange={(e) => {
-                    setProductName(e.target.value)
-                    if (!showSuggestions) setShowSuggestions(true);
-                }}
-                onFocus={() => setShowSuggestions(true)}
-                autoComplete="off"
-                required
-                className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"
-                />
-                {showSuggestions && productMaster.length > 0 && (
-                    <div className="absolute z-20 w-full mt-1 bg-card border border-border rounded-md shadow-lg max-h-60 overflow-y-auto">
-                        {productMaster
-                        .filter(p => p.name.toLowerCase().includes(productName.toLowerCase()))
-                        .map((product) => (
-                            <div
-                                key={product.id}
-                                className="p-2 hover:bg-accent cursor-pointer text-sm"
-                                onClick={() => handleProductSelect(product)}
-                            >
-                                {product.name}
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-            <div className="space-y-2">
-            <Label htmlFor="sellingPrice">Harga Jual</Label>
-            <Input id="sellingPrice" type="text" placeholder="Harga Jual (Opsional)" value={sellingPrice} onChange={handlePriceChange(setSellingPrice)} 
-                    className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
-            </div>
-            <div className="space-y-2">
-            <Label htmlFor="costPrice">Modal</Label>
-            <Input id="costPrice" type="text" placeholder="Modal (Opsional)" value={costPrice} onChange={handlePriceChange(setCostPrice)} 
-                    className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
-            </div>
-            <div className="space-y-2">
-            <Label htmlFor="fundSource">Sumber Modal</Label>
-            <Select value={fundSource} onValueChange={setFundSource} required>
-                <SelectTrigger className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2">
-                    <SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih sumber modal"} />
-                </SelectTrigger>
-                <SelectContent>
-                    {financialCards.map(card => (
-                        <SelectItem key={card.id} value={card.id}>
-                            {card.name}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-            </div>
-        </div>
-            <div className="mt-6 border-t pt-4">
-            <h3 className="text-md font-medium mb-2">Metode Pembayaran</h3>
-                <div className="space-y-4">
-                {payments.map((payment, index) => (
-                    <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-2 p-3 border rounded-lg bg-muted/20 relative">
-                        <div className="space-y-2 col-span-12 md:col-span-5">
-                            <Label htmlFor={`payment-method-${index}`}>Metode</Label>
-                            <Select value={payment.cardId || (payment.method === 'Hutang' ? 'Hutang' : '')} onValueChange={(value) => handlePaymentMethodChange(index, value)} required>
-                                <SelectTrigger id={`payment-method-${index}`} className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2 bg-background">
-                                    <SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih metode"} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="Hutang">Hutang</SelectItem>
-                                    {financialCards.map(card => (
-                                        <SelectItem key={card.id} value={card.id}>
-                                            {card.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        {payment.method === 'Hutang' && (
-                            <div className="space-y-2 col-span-12 md:col-span-3">
-                                <Label htmlFor={`debtor-name-${index}`}>Nama Penghutang</Label>
-                                <Input 
-                                id={`debtor-name-${index}`}
-                                placeholder="Masukkan nama"
-                                value={payment.debtorName || ''}
-                                onChange={(e) => handleDebtorNameChange(index, e.target.value)}
-                                required
-                                className="bg-background"
-                                />
-                            </div>
-                        )}
-                        <div className={`space-y-2 col-span-12 ${payment.method === 'Hutang' ? 'md:col-span-3' : 'md:col-span-6'}`}>
-                            <Label htmlFor={`payment-amount-${index}`}>Nominal</Label>
-                            <Input 
-                                id={`payment-amount-${index}`}
-                                type="text"
-                                placeholder="0"
-                                value={formatRupiah(payment.amount)}
-                                onChange={(e) => handlePaymentAmountChange(index, e.target.value)}
-                                required
-                                className="bg-background"
-                            />
-                        </div>
-                        {payments.length > 1 && (
-                            <div className="col-span-12 md:col-span-1 flex items-end justify-end md:justify-center">
-                                <Button variant="ghost" size="icon" onClick={() => removePayment(index)} className="text-destructive hover:bg-destructive/10">
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
-                            </div>
-                        )}
-                    </div>
-                ))}
-                <div className="flex flex-col md:flex-row justify-between items-center mt-4 text-sm gap-4">
-                    <Button type="button" variant="outline" size="sm" onClick={addPayment} className="w-full md:w-auto"><PlusCircle className="mr-2 h-4 w-4" /> Tambah Pembayaran</Button>
-                    <div className="text-right w-full md:w-auto">
-                    <p>Total Terinput: <span className="font-bold">{formatRupiah(totalPaid)}</span></p>
-                    <p className={remainingAmount !== 0 ? 'text-destructive' : 'text-emerald-600'}>
-                        {remainingAmount > 0 ? `Sisa: ${formatRupiah(remainingAmount)}` : remainingAmount < 0 ? `Kelebihan: ${formatRupiah(Math.abs(remainingAmount))}`: 'Lunas'}
-                    </p>
-                    </div>
-                </div>
-                </div>
-            </div>
-      </CardContent>
-      <CardFooter className="border-t px-6 py-4">
-        <Button type="submit" disabled={isSubmitting || isLoadingCards || isLoadingProducts || !isPaymentValid} className="transition-all duration-300 hover:scale-105 w-full md:w-auto">
-            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            {isSubmitting ? 'Menyimpan...' : 'Simpan Transaksi'}
-        </Button>
-      </CardFooter>
-    </form>
-  );
+  const formProps = {
+    handleSubmit, datetime, setDatetime, customerId, setCustomerId,
+    productName, setProductName, sellingPrice, setSellingPrice, costPrice, setCostPrice,
+    fundSource, setFundSource, payments, setPayments, isPaymentAmountManuallySet,
+    setIsPaymentAmountManuallySet, financialCards, productMaster, isLoadingCards,
+    isLoadingProducts, showSuggestions, setShowSuggestions, productNameInputRef,
+    isSubmitting, isPaymentValid
+  };
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-background overflow-x-hidden">
@@ -663,7 +723,7 @@ export default function RegularSalesPage() {
                 <SheetDescription>Isi detail untuk penjualan Pulsa, Token, dan Paket Data.</SheetDescription>
               </SheetHeader>
               <div className="px-6 h-[calc(100vh-140px)] overflow-y-auto">
-                <FormComponent />
+                <FormComponent {...formProps} />
               </div>
             </SheetContent>
           </Sheet>
@@ -687,7 +747,7 @@ export default function RegularSalesPage() {
                           <X className="h-4 w-4" />
                       </Button>
                   </CardHeader>
-                  <FormComponent />
+                  <FormComponent {...formProps} />
                 </Card>
               </motion.div>
             )}
