@@ -222,7 +222,7 @@ export default function AkrabCustomersPage() {
           <CardHeader>
             <CardTitle>Daftar Pelanggan</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="overflow-x-auto">
             {isLoading ? (
               <div className="flex items-center justify-center h-64">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -259,8 +259,8 @@ export default function AkrabCustomersPage() {
                                 </DropdownMenuItem>
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                            <Trash2 className="mr-2 h-4 w-4 text-destructive" /> Hapus
+                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
+                                            <Trash2 className="mr-2 h-4 w-4" /> Hapus
                                         </DropdownMenuItem>
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
@@ -279,7 +279,7 @@ export default function AkrabCustomersPage() {
                 </div>
 
                 {/* Desktop View */}
-                <div className="hidden md:block overflow-x-auto">
+                <div className="hidden md:block">
                     <table className="min-w-full divide-y divide-border">
                         <thead className="bg-muted/50">
                             <tr>
