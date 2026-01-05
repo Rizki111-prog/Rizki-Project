@@ -334,11 +334,11 @@ export default function ProductsPage() {
               accept=".xlsx, .xls"
               className="hidden"
           />
-          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="hidden md:flex">
               <FileUp className="mr-2 h-4 w-4" />
               Impor
           </Button>
-          <Button variant="outline" size="sm" onClick={handleExport}>
+          <Button variant="outline" size="sm" onClick={handleExport} className="hidden md:flex">
               <FileDown className="mr-2 h-4 w-4" />
               Ekspor
           </Button>
