@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db } from '@/firebase';
 import { ref, onValue, push, update, remove } from 'firebase/database';
 import { AppHeader } from '@/components/layout/app-header';
@@ -11,8 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, Loader2, Edit, Trash2, MoreHorizontal } from 'lucide-react';
+import { PlusCircle, Loader2, Edit, Trash2, MoreHorizontal, FileUp, FileDown } from 'lucide-react';
 import { formatRupiah, cleanRupiah } from '@/lib/utils';
+import * as XLSX from 'xlsx';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -108,6 +109,7 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const productsRef = ref(db, 'produk_master');
@@ -187,6 +189,71 @@ export default function ProductsPage() {
       });
   };
 
+  const handleExport = () => {
+    try {
+      const worksheet = XLSX.utils.json_to_sheet(products.map(({ id, ...rest }) => rest));
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Produk");
+      XLSX.writeFile(workbook, "Daftar_Produk.xlsx");
+      toast({ title: 'Sukses', description: 'Data produk berhasil diekspor.' });
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Gagal', description: 'Gagal mengekspor data produk.' });
+    }
+  };
+
+  const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json: any[] = XLSX.utils.sheet_to_json(worksheet);
+
+        const updates: { [key: string]: any } = {};
+        json.forEach(item => {
+          const name = item.name || item.Name;
+          const costPrice = item.costPrice || item.CostPrice || 0;
+          const sellingPrice = item.sellingPrice || item.SellingPrice || 0;
+          
+          if (name) {
+            const newProductRef = push(ref(db, 'produk_master'));
+            updates[`/produk_master/${newProductRef.key}`] = {
+              name,
+              costPrice: Number(costPrice),
+              sellingPrice: Number(sellingPrice)
+            };
+          }
+        });
+
+        if (Object.keys(updates).length > 0) {
+          update(ref(db), updates)
+            .then(() => {
+              toast({ title: 'Sukses', description: `${json.length} produk berhasil diimpor.` });
+            })
+            .catch(error => {
+              toast({ variant: 'destructive', title: 'Gagal Impor', description: error.message });
+            });
+        } else {
+            toast({ variant: 'destructive', title: 'Gagal', description: 'Tidak ada data valid untuk diimpor. Pastikan file Excel memiliki kolom "name".' });
+        }
+      } catch (error) {
+        toast({ variant: 'destructive', title: 'Gagal', description: 'Gagal memproses file Excel.' });
+      } finally {
+        // Reset file input
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+
   const numSelected = selectedProducts.length;
   const numProducts = products.length;
   const isIndeterminate = numSelected > 0 && numSelected < numProducts;
@@ -194,25 +261,42 @@ export default function ProductsPage() {
   return (
     <div className="flex flex-col w-full min-h-[100dvh] bg-background">
       <AppHeader title="Data Barang">
-          {numSelected > 0 ? (
-          <AlertDialog>
-              <AlertDialogTrigger asChild>
-              <Button variant="destructive">
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Hapus ({numSelected})
-              </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                  <AlertDialogHeader><AlertDialogTitle>Anda yakin?</AlertDialogTitle><AlertDialogDescription>Tindakan ini tidak dapat diurungkan. {numSelected} produk akan dihapus secara permanen.</AlertDialogDescription></AlertDialogHeader>
-                  <AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction onClick={handleBulkDelete}>Ya, Hapus</AlertDialogAction></AlertDialogFooter>
-              </AlertDialogContent>
-          </AlertDialog>
-          ) : (
-          <Button onClick={() => handleOpenModal()} className="transition-all duration-300 hover:scale-105">
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Tambah Produk
-          </Button>
-          )}
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImport}
+                accept=".xlsx, .xls"
+                className="hidden"
+            />
+            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                <FileUp className="mr-2 h-4 w-4" />
+                Impor
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleExport}>
+                <FileDown className="mr-2 h-4 w-4" />
+                Ekspor
+            </Button>
+            {numSelected > 0 ? (
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm">
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Hapus ({numSelected})
+                    </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader><AlertDialogTitle>Anda yakin?</AlertDialogTitle><AlertDialogDescription>Tindakan ini tidak dapat diurungkan. {numSelected} produk akan dihapus secara permanen.</AlertDialogDescription></AlertDialogHeader>
+                        <AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction onClick={handleBulkDelete}>Ya, Hapus</AlertDialogAction></AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            ) : (
+                <Button onClick={() => handleOpenModal()} size="sm" className="transition-all duration-300 hover:scale-105">
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Tambah
+                </Button>
+            )}
+          </div>
       </AppHeader>
       <main className="flex flex-1 flex-col gap-4 p-4 sm:gap-6 sm:p-6">
         <Card className="rounded-xl shadow-sm">
