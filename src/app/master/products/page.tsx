@@ -200,6 +200,16 @@ export default function ProductsPage() {
       }));
 
       const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      
+      // Auto-fit column widths
+      const colWidths = Object.keys(dataToExport[0] || {}).map(key => ({
+        wch: Math.max(
+          key.length,
+          ...dataToExport.map(row => String(row[key as keyof typeof row]).length)
+        ) + 2 // Add extra padding
+      }));
+      worksheet['!cols'] = colWidths;
+
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Produk");
       XLSX.writeFile(workbook, "Daftar_Produk.xlsx");
@@ -221,10 +231,11 @@ export default function ProductsPage() {
             const sheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[sheetName];
             
-            const headers = XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0] as string[];
+            const headers = (XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0] as string[]).map(h => h.trim());
             const requiredHeaders = ['ID', 'Nama Produk', 'Harga', 'Modal'];
             if (!requiredHeaders.every(h => headers.includes(h))) {
                 toast({ variant: 'destructive', title: 'Format Salah', description: `Header file Excel harus mengandung: ${requiredHeaders.join(', ')}.` });
+                if (fileInputRef.current) fileInputRef.current.value = '';
                 return;
             }
 
@@ -249,19 +260,16 @@ export default function ProductsPage() {
                 };
 
                 if (id) {
-                    // Check if ID exists in DB
                     const productSnapshot = await get(ref(db, `produk_master/${id}`));
                     if (productSnapshot.exists()) {
                         updates[`/produk_master/${id}`] = productData;
                         updatedCount++;
                     } else {
-                        // ID provided but not found, create new one
                         const newProductRef = push(ref(db, 'produk_master'));
                         updates[`/produk_master/${newProductRef.key}`] = productData;
                         createdCount++;
                     }
                 } else {
-                    // No ID, create new product
                     const newProductRef = push(ref(db, 'produk_master'));
                     updates[`/produk_master/${newProductRef.key}`] = productData;
                     createdCount++;
@@ -462,5 +470,3 @@ export default function ProductsPage() {
     </div>
   );
 }
-
-    
