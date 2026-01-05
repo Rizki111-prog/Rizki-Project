@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -32,7 +33,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { SidebarTrigger } from '@/components/ui/sidebar';
 
 interface Product {
   id: string;
@@ -326,42 +326,42 @@ export default function ProductsPage() {
   return (
     <div className="flex flex-col w-full min-h-[100dvh] bg-background">
       <AppHeader title="Data Barang">
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleImport}
-                accept=".xlsx, .xls"
-                className="hidden"
-            />
-            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-                <FileUp className="mr-2 h-4 w-4" />
-                Impor
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImport}
+              accept=".xlsx, .xls"
+              className="hidden"
+          />
+          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+              <FileUp className="mr-2 h-4 w-4" />
+              Impor
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExport}>
+              <FileDown className="mr-2 h-4 w-4" />
+              Ekspor
+          </Button>
+          {numSelected > 0 ? (
+              <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm">
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Hapus ({numSelected})
+                  </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                      <AlertDialogHeader><AlertDialogTitle>Anda yakin?</AlertDialogTitle><AlertDialogDescription>Tindakan ini tidak dapat diurungkan. {numSelected} produk akan dihapus secara permanen.</AlertDialogDescription></AlertDialogHeader>
+                      <AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction onClick={handleBulkDelete}>Ya, Hapus</AlertDialogAction></AlertDialogFooter>
+                  </AlertDialogContent>
+              </AlertDialog>
+          ) : (
+            <Button onClick={() => handleOpenModal()} size="icon" className="md:size-sm transition-all duration-300 hover:scale-105">
+                <PlusCircle className="h-4 w-4 md:mr-2" />
+                <span className="hidden md:inline">Tambah</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={handleExport}>
-                <FileDown className="mr-2 h-4 w-4" />
-                Ekspor
-            </Button>
-            {numSelected > 0 ? (
-                <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                    <Button variant="destructive" size="sm">
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Hapus ({numSelected})
-                    </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                        <AlertDialogHeader><AlertDialogTitle>Anda yakin?</AlertDialogTitle><AlertDialogDescription>Tindakan ini tidak dapat diurungkan. {numSelected} produk akan dihapus secara permanen.</AlertDialogDescription></AlertDialogHeader>
-                        <AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction onClick={handleBulkDelete}>Ya, Hapus</AlertDialogAction></AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            ) : (
-                <Button onClick={() => handleOpenModal()} size="sm" className="transition-all duration-300 hover:scale-105">
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Tambah
-                </Button>
-            )}
-          </div>
+          )}
+        </div>
       </AppHeader>
       <main className="flex flex-1 flex-col gap-4 p-4 sm:gap-6 sm:p-6">
         <Card className="rounded-xl shadow-sm">
@@ -495,5 +495,3 @@ export default function ProductsPage() {
     </div>
   );
 }
-
-    
