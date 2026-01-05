@@ -140,7 +140,7 @@ const FormComponent: React.FC<FormComponentProps> = ({
         <CardContent className="p-0">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="space-y-2">
-            <Label htmlFor="datetime">Tanggal & Waktu</Label>
+            <Label htmlFor="datetime">Tanggal &amp; Waktu</Label>
             <Input id="datetime" type="datetime-local" value={datetime} onChange={handleDatetimeChange} required />
             </div>
             <div className="space-y-2 relative md:col-span-2 lg:col-span-1" ref={customerNameInputRef}>
@@ -770,12 +770,16 @@ export default function FamilyPackSalesPage() {
                 {showForm ? <X className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
                 {showForm ? 'Tutup' : 'Tambah Transaksi'}
             </Button>
-            <Button onClick={() => setShowForm(true)} className="md:hidden">
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Tambah
-            </Button>
       </AppHeader>
       <main className="flex flex-1 flex-col">
+        <div className="p-4 md:hidden">
+            {!showForm && (
+                <Button onClick={() => setShowForm(true)} className="w-full">
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Tambah Transaksi
+                </Button>
+            )}
+        </div>
         {isMobile ? (
           <Sheet open={showForm} onOpenChange={setShowForm}>
             <SheetContent side="right" className="w-full p-0">
