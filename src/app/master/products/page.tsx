@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '@/firebase';
-import { ref, onValue, push, update, remove } from 'firebase/database';
+import { ref, onValue, push, update, remove, get } from 'firebase/database';
 import { AppHeader } from '@/components/layout/app-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -31,6 +31,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { SidebarTrigger } from '@/components/ui/sidebar';
 
 interface Product {
   id: string;
@@ -191,7 +192,14 @@ export default function ProductsPage() {
 
   const handleExport = () => {
     try {
-      const worksheet = XLSX.utils.json_to_sheet(products.map(({ id, ...rest }) => rest));
+      const dataToExport = products.map(p => ({
+        'ID': p.id,
+        'Nama Produk': p.name,
+        'Harga': p.sellingPrice,
+        'Modal': p.costPrice
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Produk");
       XLSX.writeFile(workbook, "Daftar_Produk.xlsx");
@@ -201,54 +209,78 @@ export default function ProductsPage() {
     }
   };
 
-  const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const json: any[] = XLSX.utils.sheet_to_json(worksheet);
+    reader.onload = async (e) => {
+        try {
+            const data = new Uint8Array(e.target?.result as ArrayBuffer);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            
+            const headers = XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0] as string[];
+            const requiredHeaders = ['ID', 'Nama Produk', 'Harga', 'Modal'];
+            if (!requiredHeaders.every(h => headers.includes(h))) {
+                toast({ variant: 'destructive', title: 'Format Salah', description: `Header file Excel harus mengandung: ${requiredHeaders.join(', ')}.` });
+                return;
+            }
 
-        const updates: { [key: string]: any } = {};
-        json.forEach(item => {
-          const name = item.name || item.Name;
-          const costPrice = item.costPrice || item.CostPrice || 0;
-          const sellingPrice = item.sellingPrice || item.SellingPrice || 0;
-          
-          if (name) {
-            const newProductRef = push(ref(db, 'produk_master'));
-            updates[`/produk_master/${newProductRef.key}`] = {
-              name,
-              costPrice: Number(costPrice),
-              sellingPrice: Number(sellingPrice)
-            };
-          }
-        });
+            const json: any[] = XLSX.utils.sheet_to_json(worksheet);
 
-        if (Object.keys(updates).length > 0) {
-          update(ref(db), updates)
-            .then(() => {
-              toast({ title: 'Sukses', description: `${json.length} produk berhasil diimpor.` });
-            })
-            .catch(error => {
-              toast({ variant: 'destructive', title: 'Gagal Impor', description: error.message });
-            });
-        } else {
-            toast({ variant: 'destructive', title: 'Gagal', description: 'Tidak ada data valid untuk diimpor. Pastikan file Excel memiliki kolom "name".' });
+            const updates: { [key: string]: any } = {};
+            let updatedCount = 0;
+            let createdCount = 0;
+
+            for (const item of json) {
+                const id = item.ID;
+                const name = item['Nama Produk'];
+                const sellingPrice = Number(item.Harga) || 0;
+                const costPrice = Number(item.Modal) || 0;
+
+                if (!name) continue; // Skip if product name is missing
+
+                const productData = {
+                    name,
+                    sellingPrice,
+                    costPrice,
+                };
+
+                if (id) {
+                    // Check if ID exists in DB
+                    const productSnapshot = await get(ref(db, `produk_master/${id}`));
+                    if (productSnapshot.exists()) {
+                        updates[`/produk_master/${id}`] = productData;
+                        updatedCount++;
+                    } else {
+                        // ID provided but not found, create new one
+                        const newProductRef = push(ref(db, 'produk_master'));
+                        updates[`/produk_master/${newProductRef.key}`] = productData;
+                        createdCount++;
+                    }
+                } else {
+                    // No ID, create new product
+                    const newProductRef = push(ref(db, 'produk_master'));
+                    updates[`/produk_master/${newProductRef.key}`] = productData;
+                    createdCount++;
+                }
+            }
+
+            if (Object.keys(updates).length > 0) {
+                await update(ref(db), updates);
+                toast({ title: 'Sukses', description: `${createdCount} produk dibuat dan ${updatedCount} produk diperbarui.` });
+            } else {
+                toast({ variant: 'default', title: 'Tidak Ada Perubahan', description: 'Tidak ada data valid untuk diimpor.' });
+            }
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Gagal Impor', description: `Gagal memproses file: ${error.message}` });
+        } finally {
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
         }
-      } catch (error) {
-        toast({ variant: 'destructive', title: 'Gagal', description: 'Gagal memproses file Excel.' });
-      } finally {
-        // Reset file input
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-        }
-      }
     };
     reader.readAsArrayBuffer(file);
   };
@@ -341,8 +373,8 @@ export default function ProductsPage() {
                                 </DropdownMenuItem>
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                            <Trash2 className="mr-2 h-4 w-4 text-destructive" /> Hapus
+                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
+                                            <Trash2 className="mr-2 h-4 w-4" /> Hapus
                                         </DropdownMenuItem>
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
@@ -430,3 +462,5 @@ export default function ProductsPage() {
     </div>
   );
 }
+
+    
