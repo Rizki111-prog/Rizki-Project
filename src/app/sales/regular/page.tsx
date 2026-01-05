@@ -742,7 +742,7 @@ export default function RegularSalesPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
-                className="px-4 sm:px-6 mb-4"
+                className="p-4 sm:px-6"
               >
                 <Card className="rounded-xl shadow-sm w-full">
                   <CardHeader className='flex flex-row items-center justify-between'>
@@ -761,7 +761,7 @@ export default function RegularSalesPage() {
           </AnimatePresence>
         )}
 
-        <div className="px-4 sm:px-6">
+        <div className="p-4 sm:px-6">
             <Card className="rounded-xl shadow-sm w-full">
             <CardHeader>
                 <CardTitle>Riwayat Transaksi Reguler</CardTitle>
