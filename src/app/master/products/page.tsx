@@ -1,8 +1,9 @@
+
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '@/firebase';
-import { ref, onValue, push, update, remove, get } from 'firebase/database';
+import { ref, onValue, push, update, remove, get, set } from 'firebase/database';
 import { AppHeader } from '@/components/layout/app-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -79,6 +80,10 @@ const ProductForm = ({ product, onSave, onCancel, isSubmitting }: { product: Par
       </DialogHeader>
       <div className="grid gap-4 py-4">
         <div className="space-y-2">
+          <Label htmlFor="id">ID Produk</Label>
+          <Input id="id" value={product?.id || ''} readOnly disabled />
+        </div>
+        <div className="space-y-2">
           <Label htmlFor="name">Nama Produk</Label>
           <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Contoh: Telkomsel 5rb" required />
         </div>
@@ -112,6 +117,11 @@ export default function ProductsPage() {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const generateProductID = () => {
+    const randomDigits = Math.floor(100000 + Math.random() * 900000);
+    return `PPL${randomDigits}`;
+  };
+  
   useEffect(() => {
     const productsRef = ref(db, 'produk_master');
     const unsubscribe = onValue(productsRef, (snapshot) => {
@@ -125,7 +135,12 @@ export default function ProductsPage() {
   }, []);
   
   const handleOpenModal = (product: Partial<Product> | null = null) => {
-    setEditingProduct(product || {}); // Set to an empty object for 'Add' case
+    if (product) {
+      setEditingProduct(product);
+    } else {
+      // Generate a new ID for a new product
+      setEditingProduct({ id: generateProductID() });
+    }
     setIsModalOpen(true);
   };
   
@@ -136,9 +151,20 @@ export default function ProductsPage() {
 
   const handleSave = (productData: Omit<Product, 'id'>) => {
     setIsSubmitting(true);
-    const promise = editingProduct?.id 
-        ? update(ref(db, `produk_master/${editingProduct.id}`), productData)
-        : push(ref(db, 'produk_master'), productData);
+    
+    if (!editingProduct?.id) {
+        toast({ variant: 'destructive', title: 'Gagal', description: 'ID Produk tidak valid.' });
+        setIsSubmitting(false);
+        return;
+    }
+
+    const productRef = ref(db, `produk_master/${editingProduct.id}`);
+
+    // For new products, we use set(). For existing, we use update().
+    // Since we generate ID client-side, we check if it exists in the current state.
+    const isNewProduct = !products.some(p => p.id === editingProduct.id);
+    
+    const promise = isNewProduct ? set(productRef, productData) : update(productRef, productData);
 
     promise.then(() => {
         toast({ title: 'Sukses', description: `Produk "${productData.name}" berhasil disimpan.` });
@@ -201,13 +227,12 @@ export default function ProductsPage() {
 
       const worksheet = XLSX.utils.json_to_sheet(dataToExport);
       
-      // Auto-fit column widths
-      const colWidths = Object.keys(dataToExport[0] || {}).map(key => ({
-        wch: Math.max(
-          key.length,
-          ...dataToExport.map(row => String(row[key as keyof typeof row]).length)
-        ) + 2 // Add extra padding
-      }));
+      const colWidths = [
+        { wch: 12 }, // ID
+        { wch: 30 }, // Nama Produk
+        { wch: 15 }, // Harga
+        { wch: 15 }, // Modal
+      ];
       worksheet['!cols'] = colWidths;
 
       const workbook = XLSX.utils.book_new();
@@ -244,36 +269,36 @@ export default function ProductsPage() {
             const updates: { [key: string]: any } = {};
             let updatedCount = 0;
             let createdCount = 0;
+            const existingIds = products.map(p => p.id);
+            const importIds = new Set<string>();
 
             for (const item of json) {
-                const id = item.ID;
+                let id = item.ID;
                 const name = item['Nama Produk'];
                 const sellingPrice = Number(item.Harga) || 0;
                 const costPrice = Number(item.Modal) || 0;
 
-                if (!name) continue; // Skip if product name is missing
+                if (!name) continue;
 
-                const productData = {
+                if (!id) {
+                    // Generate new ID for new item
+                    do {
+                        id = generateProductID();
+                    } while (existingIds.includes(id) || importIds.has(id)); // Avoid collision within the same import batch
+                    createdCount++;
+                } else if (existingIds.includes(id)) {
+                    updatedCount++;
+                } else {
+                    createdCount++; // Treat as new if ID doesn't exist
+                }
+                
+                importIds.add(id);
+
+                updates[`/produk_master/${id}`] = {
                     name,
                     sellingPrice,
                     costPrice,
                 };
-
-                if (id) {
-                    const productSnapshot = await get(ref(db, `produk_master/${id}`));
-                    if (productSnapshot.exists()) {
-                        updates[`/produk_master/${id}`] = productData;
-                        updatedCount++;
-                    } else {
-                        const newProductRef = push(ref(db, 'produk_master'));
-                        updates[`/produk_master/${newProductRef.key}`] = productData;
-                        createdCount++;
-                    }
-                } else {
-                    const newProductRef = push(ref(db, 'produk_master'));
-                    updates[`/produk_master/${newProductRef.key}`] = productData;
-                    createdCount++;
-                }
             }
 
             if (Object.keys(updates).length > 0) {
@@ -470,3 +495,5 @@ export default function ProductsPage() {
     </div>
   );
 }
+
+    
