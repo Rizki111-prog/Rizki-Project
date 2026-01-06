@@ -24,6 +24,7 @@ interface Transaction {
   payments: Payment[];
   profit: number;
   isDeleted?: boolean;
+  createdAt: number;
   [key: string]: any; 
 }
 
@@ -60,7 +61,7 @@ export default function HistoryPage() {
                         profit: sellingPrice - costPrice
                     });
                 }
-                loadedTransactions.sort((a, b) => parseISO(b.datetime).getTime() - parseISO(a.datetime).getTime());
+                loadedTransactions.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
                 setData(loadedTransactions);
                 setIsLoading(false);
             }, (error) => {

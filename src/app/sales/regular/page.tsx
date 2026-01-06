@@ -21,15 +21,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from 'date-fns';
@@ -102,6 +93,7 @@ interface FormComponentProps {
     isSubmitting: boolean;
     isPaymentValid: boolean;
     setSelectedProductId: (id: string | null) => void;
+    editingTransactionId: string | null;
 }
 
 const FormComponent: React.FC<FormComponentProps> = ({
@@ -118,7 +110,8 @@ const FormComponent: React.FC<FormComponentProps> = ({
     isLoadingCards, isLoadingProducts,
     showSuggestions, setShowSuggestions,
     productNameInputRef, isSubmitting, isPaymentValid,
-    setSelectedProductId
+    setSelectedProductId,
+    editingTransactionId
 }) => {
     
     const handlePriceChange = (setter: React.Dispatch<React.SetStateAction<string>>) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -328,7 +321,7 @@ const FormComponent: React.FC<FormComponentProps> = ({
         <CardFooter className="border-t px-6 py-4">
             <Button type="submit" disabled={isSubmitting || isLoadingCards || isLoadingProducts || !isPaymentValid} className="transition-all duration-300 hover:scale-105 w-full md:w-auto">
                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {isSubmitting ? 'Menyimpan...' : 'Simpan Transaksi'}
+                {isSubmitting ? 'Menyimpan...' : (editingTransactionId ? 'Simpan Perubahan' : 'Simpan Transaksi')}
             </Button>
         </CardFooter>
         </form>
@@ -359,10 +352,8 @@ export default function RegularSalesPage() {
   const [showForm, setShowForm] = useState(false);
 
   // Editing State
-  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
 
   // Detail Modal State
   const [detailTransaction, setDetailTransaction] = useState<Transaction | null>(null);
@@ -393,12 +384,15 @@ export default function RegularSalesPage() {
       setFundSource(financialCards[0].id);
     }
     
+    setEditingTransactionId(null);
     setShowForm(false);
   }, [financialCards]);
 
   useEffect(() => {
-      resetForm();
-  }, [resetForm]);
+    if (!editingTransactionId) {
+        resetForm();
+    }
+  }, [editingTransactionId, resetForm]);
 
   useEffect(() => {
     const transactionsRef = ref(db, 'transaksi_reguler');
@@ -411,7 +405,7 @@ export default function RegularSalesPage() {
         const profit = (trxData.sellingPrice || 0) - (trxData.costPrice || 0);
         loadedTransactions.push({ id: key, ...trxData, profit });
       }
-      loadedTransactions.sort((a, b) => b.createdAt - a.createdAt);
+      loadedTransactions.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       setTransactions(loadedTransactions);
     });
 
@@ -425,7 +419,9 @@ export default function RegularSalesPage() {
         const loadedCards: FinancialCard[] = [];
         if (data) {
             for (const key in data) {
-                loadedCards.push({ id: key, ...data[key] });
+                if(!data[key].isDeleted) {
+                   loadedCards.push({ id: key, ...data[key] });
+                }
             }
         }
         setFinancialCards(loadedCards);
@@ -468,7 +464,7 @@ export default function RegularSalesPage() {
   }, []);
 
   useEffect(() => {
-    if (isLoadingCards) return;
+    if (isLoadingCards || editingTransactionId) return;
 
     const price = cleanRupiah(sellingPrice) || 0;
     
@@ -485,11 +481,11 @@ export default function RegularSalesPage() {
         }
         setPayments(newPayments);
     }
-  }, [sellingPrice, financialCards, isPaymentAmountManuallySet, payments.length, isLoadingCards]);
+  }, [sellingPrice, financialCards, isPaymentAmountManuallySet, payments.length, isLoadingCards, editingTransactionId]);
   
   // Set default fund source once cards are loaded
   useEffect(() => {
-      if (!isLoadingCards && !fundSource) {
+      if (!isLoadingCards && !fundSource && !editingTransactionId) {
           const agenPulsaCard = financialCards.find(card => card.name.toLowerCase() === 'agen pulsa');
           if (agenPulsaCard) {
               setFundSource(agenPulsaCard.id);
@@ -497,7 +493,7 @@ export default function RegularSalesPage() {
               setFundSource(financialCards[0].id);
           }
       }
-  }, [isLoadingCards, financialCards, fundSource]);
+  }, [isLoadingCards, financialCards, fundSource, editingTransactionId]);
   
   const isPaymentValid = useMemo(() => {
     const price = cleanRupiah(sellingPrice) || 0;
@@ -555,11 +551,7 @@ export default function RegularSalesPage() {
         return;
     }
     
-    const transactionsRef = ref(db, 'transaksi_reguler');
-    const newTransactionRef = push(transactionsRef);
-    const transactionId = newTransactionRef.key;
-    
-    const newTransaction = {
+    const transactionData = {
       datetime,
       customerId: customerId || '',
       productName,
@@ -573,34 +565,41 @@ export default function RegularSalesPage() {
         if (debtorName) paymentData.debtorName = debtorName;
         return paymentData;
       }),
-      createdAt: serverTimestamp(),
       isDeleted: false
     };
     
-    update(newTransactionRef, newTransaction)
-      .then(() => {
+    let promise;
+    if (editingTransactionId) {
+        promise = update(ref(db, `transaksi_reguler/${editingTransactionId}`), transactionData);
+    } else {
+        const newTransactionRef = push(ref(db, 'transaksi_reguler'));
+        promise = update(newTransactionRef, { ...transactionData, createdAt: serverTimestamp() });
+        const transactionId = newTransactionRef.key;
+        if (transactionId) {
+            payments.forEach(payment => {
+                if(payment.method === 'Hutang' && payment.amount > 0) {
+                    push(ref(db, 'hutang'), {
+                        nama: payment.debtorName,
+                        nominal: payment.amount,
+                        tanggal: datetime,
+                        status: 'Belum Lunas',
+                        transactionId: transactionId,
+                        sourcePath: 'transaksi_reguler',
+                        isDeleted: false
+                    });
+                }
+            });
+        }
+    }
+    
+    promise.then(() => {
         if (selectedProductId) {
           updateMasterProduct(selectedProductId, price, cost);
         }
         
-        payments.forEach(payment => {
-            if(payment.method === 'Hutang' && transactionId && payment.amount > 0) {
-                const debtRef = ref(db, 'hutang');
-                push(debtRef, {
-                    nama: payment.debtorName,
-                    nominal: payment.amount,
-                    tanggal: datetime,
-                    status: 'Belum Lunas',
-                    transactionId: transactionId,
-                    sourcePath: 'transaksi_reguler',
-                    isDeleted: false
-                });
-            }
-        });
-
         toast({
           title: "Sukses",
-          description: "Transaksi berhasil disimpan.",
+          description: `Transaksi berhasil ${editingTransactionId ? 'diperbarui' : 'disimpan'}.`,
         });
         resetForm();
       })
@@ -643,21 +642,28 @@ export default function RegularSalesPage() {
   };
 
   const handleEditClick = (transaction: Transaction) => {
-    setEditingTransaction(transaction);
-    setIsEditDialogOpen(true);
+    setEditingTransactionId(transaction.id);
+    setDatetime(transaction.datetime);
+    setCustomerId(transaction.customerId);
+    setProductName(transaction.productName);
+    setSellingPrice(formatRupiah(transaction.sellingPrice));
+    setCostPrice(formatRupiah(transaction.costPrice));
+    setFundSource(transaction.fundSourceId || '');
+    setPayments(transaction.payments);
+    setIsPaymentAmountManuallySet(true);
+    setShowForm(true);
+
+    const productMatch = productMaster.find(p => p.name === transaction.productName);
+    if (productMatch) {
+      setSelectedProductId(productMatch.id);
+    } else {
+      setSelectedProductId(null);
+    }
   };
   
   const handleDetailClick = (transaction: Transaction) => {
     setDetailTransaction(transaction);
     setIsDetailModalOpen(true);
-  };
-  
-  const handleUpdate = () => {
-    toast({
-        title: "Info",
-        description: "Fungsi edit untuk transaksi multi-payment sedang dalam pengembangan."
-    });
-    setIsEditDialogOpen(false);
   };
 
   const getPaymentMethodsString = (payments: Payment[] | undefined) => {
@@ -687,30 +693,21 @@ export default function RegularSalesPage() {
     return details;
   };
   
-  const EditDialogOrSheet = isMobile ? Sheet : Dialog;
-  const EditTrigger = isMobile ? (props: any) => <Button {...props} variant="outline" size="icon" className="h-9 w-9"><Edit className="h-4 w-4" /></Button> : (props: any) => <Button {...props} variant="outline" size="icon" className="h-8 w-8"><Edit className="h-4 w-4" /></Button>;
-  const EditContent = isMobile ? SheetContent : DialogContent;
-  const EditHeader = isMobile ? SheetHeader : DialogHeader;
-  const EditTitle = isMobile ? SheetTitle : DialogTitle;
-  const EditDescription = isMobile ? SheetDescription : DialogDescription;
-  const EditFooter = isMobile ? SheetFooter : DialogFooter;
-  const EditClose = isMobile ? SheetClose : DialogClose;
-
   const formProps = {
     handleSubmit, datetime, setDatetime, customerId, setCustomerId,
     productName, setProductName, sellingPrice, setSellingPrice, costPrice, setCostPrice,
     fundSource, setFundSource, payments, setPayments, isPaymentAmountManuallySet,
     setIsPaymentAmountManuallySet, financialCards, productMaster, isLoadingCards,
     isLoadingProducts, showSuggestions, setShowSuggestions, productNameInputRef,
-    isSubmitting, isPaymentValid, setSelectedProductId
+    isSubmitting, isPaymentValid, setSelectedProductId, editingTransactionId
   };
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-background">
       <AppHeader title="Pulsa, Token, & Paket Data">
-        <Button onClick={() => setShowForm(!showForm)} variant={showForm ? "outline" : "default"} className="hidden md:flex">
+        <Button onClick={() => { editingTransactionId ? resetForm() : setShowForm(!showForm) }} variant={showForm ? "outline" : "default"} className="hidden md:flex">
             {showForm ? <X className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-            {showForm ? 'Tutup' : 'Tambah Transaksi'}
+            {showForm ? (editingTransactionId ? 'Batalkan Edit' : 'Tutup') : 'Tambah Transaksi'}
         </Button>
       </AppHeader>
       <main className="flex flex-1 flex-col">
@@ -723,11 +720,10 @@ export default function RegularSalesPage() {
             )}
         </div>
         {isMobile ? (
-          <Sheet open={showForm} onOpenChange={setShowForm}>
+          <Sheet open={showForm} onOpenChange={(isOpen) => { if (!isOpen) resetForm(); else setShowForm(true); }}>
             <SheetContent side="right" className="w-full p-0">
               <SheetHeader className="p-6">
-                <SheetTitle>Transaksi Baru</SheetTitle>
-                <SheetDescription>Isi detail untuk penjualan Pulsa, Token, dan Paket Data.</SheetDescription>
+                <SheetTitle>{editingTransactionId ? 'Edit Transaksi' : 'Transaksi Baru'}</SheetTitle>
               </SheetHeader>
               <div className="px-6 h-[calc(100vh-140px)] overflow-y-auto">
                 <FormComponent {...formProps} />
@@ -747,10 +743,10 @@ export default function RegularSalesPage() {
                 <Card className="rounded-xl shadow-sm w-full">
                   <CardHeader className='flex flex-row items-center justify-between'>
                       <div>
-                          <CardTitle>Transaksi Baru</CardTitle>
+                          <CardTitle>{editingTransactionId ? 'Edit Transaksi' : 'Transaksi Baru'}</CardTitle>
                           <CardDescription>Isi detail untuk penjualan Pulsa, Token, dan Paket Data.</CardDescription>
                       </div>
-                      <Button variant="ghost" size="icon" onClick={() => setShowForm(false)}>
+                      <Button variant="ghost" size="icon" onClick={() => { editingTransactionId ? resetForm() : setShowForm(false) }}>
                           <X className="h-4 w-4" />
                       </Button>
                   </CardHeader>
@@ -786,9 +782,7 @@ export default function RegularSalesPage() {
                     </CardContent>
                     <CardFooter className="flex justify-end space-x-2">
                         <Button variant="outline" size="icon" onClick={() => handleDetailClick(trx)} className="h-9 w-9"><Eye className="h-4 w-4" /></Button>
-                        <EditDialogOrSheet open={editingTransaction?.id === trx.id} onOpenChange={(isOpen) => !isOpen && setEditingTransaction(null)}>
-                            <EditTrigger onClick={() => handleEditClick(trx)} />
-                        </EditDialogOrSheet>
+                        <Button variant="outline" size="icon" onClick={() => handleEditClick(trx)} className="h-9 w-9"><Edit className="h-4 w-4" /></Button>
                         <AlertDialog>
                         <AlertDialogTrigger asChild><Button variant="destructive" size="icon" className="h-9 w-9"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
                         <AlertDialogContent>
@@ -839,9 +833,7 @@ export default function RegularSalesPage() {
                         <td className="px-4 py-4 text-sm text-muted-foreground">{getPaymentMethodsString(trx.payments)}</td>
                         <td className="px-4 py-4 text-center space-x-1 whitespace-nowrap">
                             <Button variant="outline" size="icon" onClick={() => handleDetailClick(trx)} className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
-                            <EditDialogOrSheet open={editingTransaction?.id === trx.id} onOpenChange={(isOpen) => !isOpen && setEditingTransaction(null)}>
-                                <EditTrigger onClick={() => handleEditClick(trx)} />
-                            </EditDialogOrSheet>
+                            <Button variant="outline" size="icon" onClick={() => handleEditClick(trx)} className="h-8 w-8"><Edit className="h-4 w-4" /></Button>
                             <AlertDialog>
                             <AlertDialogTrigger asChild><Button variant="destructive" size="icon" className="h-8 w-8"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
                             <AlertDialogContent>
@@ -864,25 +856,7 @@ export default function RegularSalesPage() {
             </CardContent>
             </Card>
         </div>
-        {editingTransaction && (
-          <EditContent className={isMobile ? 'w-full' : ''}>
-              <EditHeader>
-                <EditTitle>Edit Transaksi</EditTitle>
-                <EditDescription>Fungsi edit multi-payment sedang dalam pengembangan. Klik simpan untuk menutup.</EditDescription>
-              </EditHeader>
-              <div className={`py-4 ${isMobile ? 'px-4 space-y-4' : 'grid gap-4'}`}>
-                 <p className="text-sm text-muted-foreground">Detail transaksi akan ditampilkan di sini.</p>
-              </div>
-              <EditFooter>
-                <EditClose asChild><Button type="button" variant="secondary">Batal</Button></EditClose>
-                <Button onClick={handleUpdate} disabled={isUpdating}>
-                  {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Simpan Perubahan
-                </Button>
-              </EditFooter>
-            </EditContent>
-        )}
-
+        
         <DetailModal
             isOpen={isDetailModalOpen}
             onClose={() => setIsDetailModalOpen(false)}

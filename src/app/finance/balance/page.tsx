@@ -129,14 +129,19 @@ export default function BalancePage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
-    const initialTopUpState: TopUpState = {
-        destinationAccountId: '',
-        sourceAccountId: '',
-        amount: '',
-        adminFee: '',
-        date: new Date().toISOString().split('T')[0],
-        description: ''
-    };
+    const initialTopUpState: TopUpState = useMemo(() => {
+        const now = new Date();
+        const localIsoString = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString();
+        return {
+            destinationAccountId: '',
+            sourceAccountId: '',
+            amount: '',
+            adminFee: '',
+            date: localIsoString.slice(0, 16),
+            description: ''
+        };
+    }, []);
+
     const [topUpState, setTopUpState] = useState<TopUpState>(initialTopUpState);
     const [isSubmittingTopUp, setIsSubmittingTopUp] = useState(false);
     const [editingTopUp, setEditingTopUp] = useState<TopUpTransaction | null>(null);
@@ -179,8 +184,9 @@ export default function BalancePage() {
             const data = snapshot.val() || {};
             const loadedTopUps = Object.entries(data)
                 .map(([key, value]) => ({ id: key, ...(value as Omit<TopUpTransaction, 'id'>) }))
-                .filter(t => !t.isDeleted);
-            setTopUpTransactions(loadedTopUps.sort((a, b) => (b.createdAt as number) - (a.createdAt as number)));
+                .filter(t => !t.isDeleted)
+                .sort((a, b) => (b.createdAt as number) - (a.createdAt as number));
+            setTopUpTransactions(loadedTopUps);
         });
 
         const unsubscribeRegular = fetchData('transaksi_reguler', 'reg-');
@@ -295,14 +301,28 @@ export default function BalancePage() {
 
         const amountNum = cleanRupiah(amount);
         const adminFeeNum = cleanRupiah(adminFee);
+        
+        const isSourceExternal = sourceAccountId === 'external_source';
+        const isSourceCapital = sourceAccountId === 'capital_source';
 
+        if (!destinationAccountId || (!sourceAccountId && !isSourceExternal && !isSourceCapital) || amountNum <= 0) {
+            toast({ variant: "destructive", title: "Gagal", description: "Akun tujuan, sumber dana, dan nominal wajib diisi." });
+            return;
+        }
+        
         const destinationCard = cards.find(c => c.id === destinationAccountId);
         const sourceCard = cards.find(c => c.id === sourceAccountId);
 
-        if (!destinationAccountId || !sourceAccountId || amountNum <= 0 || !destinationCard || !sourceCard) {
-            toast({ variant: "destructive", title: "Gagal", description: "Harap lengkapi semua field yang wajib diisi." });
+        if (!destinationCard) {
+            toast({ variant: "destructive", title: "Gagal", description: "Akun tujuan tidak valid." });
             return;
         }
+        
+        if (!isSourceExternal && !isSourceCapital && !sourceCard) {
+            toast({ variant: "destructive", title: "Gagal", description: "Sumber dana tidak valid." });
+            return;
+        }
+
         if(destinationAccountId === sourceAccountId) {
             toast({ variant: "destructive", title: "Gagal", description: "Akun tujuan dan sumber dana tidak boleh sama." });
             return;
@@ -310,15 +330,20 @@ export default function BalancePage() {
 
         setIsSubmittingTopUp(true);
         
+        let sourceName = '';
+        if (isSourceExternal) sourceName = 'Sumber Dana Eksternal';
+        else if (isSourceCapital) sourceName = 'Sumber Modal';
+        else if (sourceCard) sourceName = sourceCard.name;
+        
         const topUpData: Omit<TopUpTransaction, 'id' | 'createdAt'> & {createdAt?: any} = {
             destinationAccountId,
             destinationAccountName: destinationCard.name,
             sourceAccountId,
-            sourceAccountName: sourceCard.name,
+            sourceAccountName: sourceName,
             amount: amountNum,
             adminFee: adminFeeNum,
             date,
-            description: description || `Top Up dari ${sourceCard.name} ke ${destinationCard.name}`,
+            description: description || `Top Up dari ${sourceName} ke ${destinationCard.name}`,
             isDeleted: false
         };
 
@@ -360,7 +385,7 @@ export default function BalancePage() {
         if (!selectedCard) return [];
         
         const activeTransactions = allTransactions.filter(trx => trx.isDeleted !== true);
-        const relatedTransactions: Transaction[] = [];
+        let relatedTransactions: Transaction[] = [];
 
         activeTransactions.forEach(trx => {
             const trxDate = trx.datetime || trx.date;
@@ -395,14 +420,18 @@ export default function BalancePage() {
         });
 
         // Add top-up transactions
-        topUpTransactions.forEach(trx => {
+        const relatedTopUps = topUpTransactions.flatMap(trx => {
+            const transactions: Transaction[] = [];
             if (trx.destinationAccountId === selectedCard.id) {
-                relatedTransactions.push({ id: trx.id, datetime: trx.date, type: 'income', amount: trx.amount, description: `Top Up dari ${trx.sourceAccountName}`, sellingPrice: 0 });
+                transactions.push({ id: trx.id, datetime: trx.date, type: 'income', amount: trx.amount, description: `Top Up dari ${trx.sourceAccountName}`, sellingPrice: 0 });
             }
             if (trx.sourceAccountId === selectedCard.id) {
-                relatedTransactions.push({ id: trx.id, datetime: trx.date, type: 'expense', amount: trx.amount + trx.adminFee, description: `Biaya Top Up ke ${trx.destinationAccountName}`, sellingPrice: 0 });
+                transactions.push({ id: trx.id, datetime: trx.date, type: 'expense', amount: trx.amount + trx.adminFee, description: `Biaya Top Up ke ${trx.destinationAccountName}`, sellingPrice: 0 });
             }
+            return transactions;
         });
+
+        relatedTransactions = [...relatedTransactions, ...relatedTopUps];
 
         return relatedTransactions.sort((a, b) => parseISO(b.datetime).getTime() - parseISO(a.datetime).getTime());
     }, [selectedCard, allTransactions, topUpTransactions]);
@@ -522,7 +551,7 @@ export default function BalancePage() {
                                                             <AlertDialog>
                                                                 <AlertDialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Hapus</DropdownMenuItem></AlertDialogTrigger>
                                                                 <AlertDialogContent>
-                                                                    <AlertDialogHeader><AlertDialogTitle>Hapus Riwayat Top Up?</AlertDialogTitle><AlertDialogDescription>Tindakan ini akan memindahkan catatan ke folder sampah dan mengembalikan saldo. Anda yakin?</AlertDialogDescription></AlertDialogHeader>
+                                                                    <AlertDialogHeader><AlertDialogTitle>Hapus Riwayat Top Up?</AlertDialogTitle><AlertDialogDescription>Tindakan ini akan memindahkan catatan ke folder sampah. Saldo tidak akan disesuaikan secara otomatis. Anda yakin?</AlertDialogDescription></AlertDialogHeader>
                                                                     <AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteTopUp(trx.id)}>Ya, Hapus</AlertDialogAction></AlertDialogFooter>
                                                                 </AlertDialogContent>
                                                             </AlertDialog>
@@ -535,7 +564,7 @@ export default function BalancePage() {
                                                             <p className="font-bold text-lg">{formatRupiah(trx.amount)}</p>
                                                             <p className="text-xs text-muted-foreground">Biaya Admin: {formatRupiah(trx.adminFee)}</p>
                                                         </div>
-                                                        <p className="text-xs text-muted-foreground text-right">{format(parseISO(trx.date), "d MMM yyyy", { locale: id })}</p>
+                                                        <p className="text-xs text-muted-foreground text-right">{format(parseISO(trx.date), "d MMM yyyy, HH:mm", { locale: id })}</p>
                                                     </div>
                                                 </div>
                                             </CardContent>
@@ -558,7 +587,7 @@ export default function BalancePage() {
                                         <tbody className="divide-y divide-border bg-card">
                                             {topUpTransactions.map((trx) => (
                                                 <tr key={trx.id} className="hover:bg-muted/50 transition-colors">
-                                                    <td className="px-4 py-4 text-sm text-muted-foreground whitespace-nowrap">{format(parseISO(trx.date), "d MMM yyyy", { locale: id })}</td>
+                                                    <td className="px-4 py-4 text-sm text-muted-foreground whitespace-nowrap">{format(parseISO(trx.date), "d MMM yyyy, HH:mm", { locale: id })}</td>
                                                     <td className="px-4 py-4 text-sm font-medium text-foreground">{trx.sourceAccountName}</td>
                                                     <td className="px-4 py-4 text-sm font-medium text-foreground">{trx.destinationAccountName}</td>
                                                     <td className="px-4 py-4 text-sm text-right text-foreground whitespace-nowrap">{formatRupiah(trx.amount)}</td>
@@ -577,7 +606,7 @@ export default function BalancePage() {
                                                                 <AlertDialogHeader>
                                                                     <AlertDialogTitle>Hapus Riwayat Top Up?</AlertDialogTitle>
                                                                     <AlertDialogDescription>
-                                                                        Tindakan ini akan memindahkan catatan ke folder sampah dan mengembalikan saldo. Anda yakin?
+                                                                       Tindakan ini akan memindahkan catatan ke folder sampah. Saldo tidak akan disesuaikan secara otomatis. Anda yakin?
                                                                     </AlertDialogDescription>
                                                                 </AlertDialogHeader>
                                                                 <AlertDialogFooter>
@@ -664,12 +693,16 @@ export default function BalancePage() {
                                 <Label htmlFor="topup-source">Sumber Dana (Yang Membayar)</Label>
                                 <Select value={topUpState.sourceAccountId} onValueChange={(value) => handleTopUpStateChange('sourceAccountId', value)} required>
                                     <SelectTrigger id="topup-source"><SelectValue placeholder="Pilih akun..." /></SelectTrigger>
-                                    <SelectContent>{cards.map(card => (<SelectItem key={card.id} value={card.id}>{card.name}</SelectItem>))}</SelectContent>
+                                    <SelectContent>
+                                        <SelectItem value="external_source">Sumber Dana Eksternal</SelectItem>
+                                        <SelectItem value="capital_source">Sumber Modal</SelectItem>
+                                        {cards.map(card => (<SelectItem key={card.id} value={card.id}>{card.name}</SelectItem>))}
+                                    </SelectContent>
                                 </Select>
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="topup-date">Tanggal Transaksi</Label>
-                                <Input id="topup-date" type="date" value={topUpState.date} onChange={(e) => handleTopUpStateChange('date', e.target.value)} required />
+                                <Label htmlFor="topup-date">Tanggal & Waktu Transaksi</Label>
+                                <Input id="topup-date" type="datetime-local" value={topUpState.date} onChange={(e) => handleTopUpStateChange('date', e.target.value)} required />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="topup-description">Keterangan</Label>

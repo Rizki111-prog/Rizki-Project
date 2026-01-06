@@ -67,7 +67,7 @@ export default function ExpensesPage() {
   const resetForm = useCallback(() => {
     const now = new Date();
     const localIsoString = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString();
-    setDate(localIsoString.split('T')[0]);
+    setDate(localIsoString.slice(0, 16));
 
     setName('');
     setNominal('');
@@ -91,7 +91,7 @@ export default function ExpensesPage() {
           loadedExpenses.push({ id: key, ...data[key] });
         }
       }
-      loadedExpenses.sort((a, b) => b.createdAt - a.createdAt);
+      loadedExpenses.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       setExpenses(loadedExpenses);
       setIsLoadingExpenses(false);
     });
@@ -236,8 +236,8 @@ export default function ExpensesPage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="expense-date">Tanggal</Label>
-                      <Input id="expense-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+                      <Label htmlFor="expense-date">Tanggal & Waktu</Label>
+                      <Input id="expense-date" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} required />
                     </div>
                     <div className="space-y-2 md:col-span-2">
                       <Label htmlFor="expense-description">Keterangan</Label>
@@ -274,7 +274,7 @@ export default function ExpensesPage() {
                                     <CardContent className="p-4 flex items-center justify-between gap-4">
                                         <div className="flex-1">
                                             <p className="font-semibold">{expense.name}</p>
-                                            <p className="text-sm text-muted-foreground">{format(parseISO(expense.date), "d MMM yyyy", { locale: id })}</p>
+                                            <p className="text-sm text-muted-foreground">{format(parseISO(expense.date), "d MMM yyyy, HH:mm", { locale: id })}</p>
                                         </div>
                                         <div className="text-right">
                                             <p className="font-bold text-red-600 dark:text-red-500">{formatRupiah(expense.nominal)}</p>

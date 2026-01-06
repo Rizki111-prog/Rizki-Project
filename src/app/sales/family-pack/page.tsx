@@ -304,6 +304,9 @@ export default function FamilyPackSalesPage() {
   const [isLoadingCards, setIsLoadingCards] = useState(true);
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  
+  // Edit State
+  const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -337,12 +340,15 @@ export default function FamilyPackSalesPage() {
     setIsFundSourceAmountManuallySet(false);
     isExpiryDateManuallySet.current = false;
     
+    setEditingTransactionId(null);
     setShowForm(false);
   }, []);
 
   useEffect(() => {
-    resetForm();
-  }, [resetForm]);
+    if (!editingTransactionId) {
+        resetForm();
+    }
+  }, [editingTransactionId, resetForm]);
   
   useEffect(() => {
     if (datetime && !isExpiryDateManuallySet.current) {
@@ -368,7 +374,7 @@ export default function FamilyPackSalesPage() {
           profit: sellingPrice - costPrice
         });
       }
-      loadedTransactions.sort((a, b) => b.createdAt - a.createdAt);
+      loadedTransactions.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       setTransactions(loadedTransactions);
     });
 
@@ -427,7 +433,7 @@ export default function FamilyPackSalesPage() {
   }, []);
 
   useEffect(() => {
-    if (isLoadingCards) return;
+    if (isLoadingCards || editingTransactionId) return;
 
     const price = cleanRupiah(sellingPrice) || 0;
     
@@ -444,10 +450,10 @@ export default function FamilyPackSalesPage() {
         }
         setPayments(newPayments);
     }
-  }, [sellingPrice, financialCards, isPaymentAmountManuallySet, payments.length, isLoadingCards]);
+  }, [sellingPrice, financialCards, isPaymentAmountManuallySet, payments.length, isLoadingCards, editingTransactionId]);
   
   useEffect(() => {
-    if (isLoadingCards) return;
+    if (isLoadingCards || editingTransactionId) return;
 
     const cost = cleanRupiah(costPrice) || 0;
 
@@ -464,7 +470,7 @@ export default function FamilyPackSalesPage() {
         }
         setFundSources(newFundSources);
     }
-  }, [costPrice, financialCards, isFundSourceAmountManuallySet, fundSources.length, isLoadingCards]);
+  }, [costPrice, financialCards, isFundSourceAmountManuallySet, fundSources.length, isLoadingCards, editingTransactionId]);
 
   const handlePriceChange = (setter: React.Dispatch<React.SetStateAction<string>>, isCost: boolean) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const { value } = e.target;
@@ -525,9 +531,8 @@ export default function FamilyPackSalesPage() {
   
   const handleDatetimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setDatetime(e.target.value);
-    if (e.target.value) {
+    if (e.target.value && !isExpiryDateManuallySet.current) {
         const transactionDate = new Date(e.target.value);
-        isExpiryDateManuallySet.current = false; // Allow auto-update
         setTanggalKadaluarsa(getThirtyDaysFromDate(transactionDate));
     }
   }
@@ -612,11 +617,7 @@ export default function FamilyPackSalesPage() {
 
     setIsSubmitting(true);
     
-    const transactionsRef = ref(db, 'transaksi_akrab');
-    const newTransactionRef = push(transactionsRef);
-    const transactionId = newTransactionRef.key;
-    
-    const newTransaction = {
+    const transactionData = {
       datetime,
       customerId: customerId || '',
       customerName,
@@ -632,29 +633,36 @@ export default function FamilyPackSalesPage() {
       linkAkunPengelola: linkAkunPengelola || '',
       eWalletPengelola: eWalletPengelola || '',
       tanggalKadaluarsa,
-      createdAt: serverTimestamp(),
       isDeleted: false,
     };
 
-    update(newTransactionRef, newTransaction)
-      .then(() => {
+    let promise;
+    if (editingTransactionId) {
+        promise = update(ref(db, `transaksi_akrab/${editingTransactionId}`), transactionData);
+    } else {
+        const newTransactionRef = push(ref(db, 'transaksi_akrab'));
+        promise = update(newTransactionRef, { ...transactionData, createdAt: serverTimestamp() });
+        const transactionId = newTransactionRef.key;
+        if (transactionId) {
+             payments.forEach(payment => {
+                if(payment.method === 'Hutang' && payment.amount > 0) {
+                    push(ref(db, 'hutang'), {
+                        nama: customerName,
+                        nominal: payment.amount,
+                        tanggal: datetime,
+                        status: 'Belum Lunas',
+                        transactionId: transactionId,
+                        sourcePath: 'transaksi_akrab',
+                        isDeleted: false
+                    });
+                }
+            });
+        }
+    }
+
+    promise.then(() => {
         saveToCustomerMaster(customerName);
-
-        payments.forEach(payment => {
-            if(payment.method === 'Hutang' && transactionId && payment.amount > 0) {
-                push(ref(db, 'hutang'), {
-                    nama: customerName,
-                    nominal: payment.amount,
-                    tanggal: datetime,
-                    status: 'Belum Lunas',
-                    transactionId: transactionId,
-                    sourcePath: 'transaksi_akrab',
-                    isDeleted: false
-                });
-            }
-        });
-
-        toast({ title: "Sukses", description: "Transaksi Paket Akrab berhasil disimpan." });
+        toast({ title: "Sukses", description: `Transaksi berhasil ${editingTransactionId ? 'diperbarui' : 'disimpan'}.` });
         resetForm();
       })
       .catch((error) => {
@@ -664,6 +672,26 @@ export default function FamilyPackSalesPage() {
         setIsSubmitting(false);
       });
   };
+
+  const handleEdit = (trx: Transaction) => {
+    setEditingTransactionId(trx.id);
+    setDatetime(trx.datetime);
+    setCustomerId(trx.customerId);
+    setCustomerName(trx.customerName);
+    setSellingPrice(formatRupiah(trx.sellingPrice));
+    setCostPrice(formatRupiah(trx.costPrice));
+    setLinkAkunPengelola(trx.linkAkunPengelola || '');
+    setEWalletPengelola(trx.eWalletPengelola || '');
+    setTanggalKadaluarsa(trx.tanggalKadaluarsa);
+    setPayments(trx.payments);
+    setFundSources(trx.fundSources);
+    
+    setIsPaymentAmountManuallySet(true);
+    setIsFundSourceAmountManuallySet(true);
+    isExpiryDateManuallySet.current = true;
+
+    setShowForm(true);
+  }
 
   const handleDelete = (id: string) => {
     const transactionToDelete = transactions.find(t => t.id === id);
@@ -766,9 +794,9 @@ export default function FamilyPackSalesPage() {
   return (
     <div className="flex flex-col w-full min-h-screen bg-background">
        <AppHeader title="Paket Akrab">
-            <Button onClick={() => setShowForm(!showForm)} variant={showForm ? "outline" : "default"} className="hidden md:flex">
+            <Button onClick={() => { editingTransactionId ? resetForm() : setShowForm(!showForm) }} variant={showForm ? "outline" : "default"} className="hidden md:flex">
                 {showForm ? <X className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-                {showForm ? 'Tutup' : 'Tambah Transaksi'}
+                {showForm ? (editingTransactionId ? 'Batalkan Edit' : 'Tutup') : 'Tambah Transaksi'}
             </Button>
       </AppHeader>
       <main className="flex flex-1 flex-col">
@@ -784,7 +812,7 @@ export default function FamilyPackSalesPage() {
           <Sheet open={showForm} onOpenChange={setShowForm}>
             <SheetContent side="right" className="w-full p-0">
               <SheetHeader className="p-6">
-                <SheetTitle>Transaksi Baru Paket Akrab</SheetTitle>
+                <SheetTitle>{editingTransactionId ? 'Edit Transaksi' : 'Transaksi Baru'}</SheetTitle>
               </SheetHeader>
               <div className="px-6 h-[calc(100vh-140px)] overflow-y-auto">
                  <FormComponent {...formProps} />
@@ -804,9 +832,9 @@ export default function FamilyPackSalesPage() {
                 <Card className="rounded-xl shadow-sm w-full">
                   <CardHeader className="flex flex-row items-center justify-between">
                       <div>
-                          <CardTitle>Transaksi Baru Paket Akrab</CardTitle>
+                          <CardTitle>{editingTransactionId ? 'Edit Transaksi' : 'Transaksi Baru'}</CardTitle>
                       </div>
-                      <Button variant="ghost" size="icon" onClick={() => setShowForm(false)}>
+                      <Button variant="ghost" size="icon" onClick={() => { editingTransactionId ? resetForm() : setShowForm(false) }}>
                           <X className="h-4 w-4" />
                       </Button>
                   </CardHeader>
@@ -871,6 +899,7 @@ export default function FamilyPackSalesPage() {
                     </CardContent>
                     <CardFooter className="flex justify-end space-x-2">
                         <Button variant="outline" size="icon" onClick={() => handleDetailClick(trx)} className="h-9 w-9"><Eye className="h-4 w-4" /></Button>
+                        <Button variant="outline" size="icon" onClick={() => handleEdit(trx)} className="h-9 w-9"><Edit className="h-4 w-4" /></Button>
                         <AlertDialog>
                         <AlertDialogTrigger asChild><Button variant="destructive" size="icon" className="h-9 w-9"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
                         <AlertDialogContent>
@@ -907,6 +936,7 @@ export default function FamilyPackSalesPage() {
                         <td className="px-4 py-4 text-sm text-center whitespace-nowrap"><Badge variant={getDaysRemaining(trx.tanggalKadaluarsa).color as any}>{getDaysRemaining(trx.tanggalKadaluarsa).text}</Badge></td>
                         <td className="px-4 py-4 text-center space-x-1 whitespace-nowrap">
                             <Button variant="outline" size="icon" onClick={() => handleDetailClick(trx)} className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
+                            <Button variant="outline" size="icon" onClick={() => handleEdit(trx)} className="h-8 w-8"><Edit className="h-4 w-4" /></Button>
                             <AlertDialog>
                             <AlertDialogTrigger asChild><Button variant="destructive" size="icon" className="h-8 w-8"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
                             <AlertDialogContent>
