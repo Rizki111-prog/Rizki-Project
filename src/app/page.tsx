@@ -337,7 +337,6 @@ export default function HomePage() {
                     <TableHeader>
                     <TableRow>
                         <TableHead>Nama Transaksi</TableHead>
-                        <TableHead>Status</TableHead>
                         <TableHead>Tanggal</TableHead>
                         <TableHead className="text-right">Jumlah</TableHead>
                     </TableRow>
@@ -347,9 +346,7 @@ export default function HomePage() {
                         <TableRow key={index}>
                             <TableCell>
                                 <div className="font-medium">{trx.name}</div>
-                            </TableCell>
-                            <TableCell>
-                                <Badge variant={trx.type === "Pengeluaran" ? "destructive" : "secondary"}>
+                                <Badge variant={trx.type === "Pengeluaran" ? "destructive" : "secondary"} className="mt-1">
                                     {trx.type}
                                 </Badge>
                             </TableCell>
