@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -725,8 +726,9 @@ export default function FamilyPackSalesPage() {
   
   const filteredTransactions = useMemo(() => {
     return transactions.filter(trx => {
-        const isSearchMatch = searchTerm 
-            ? trx.customerName.toLowerCase().includes(searchTerm.toLowerCase())
+        const isSearchMatch = searchTerm
+            ? trx.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              (trx.customerId && trx.customerId.toLowerCase().includes(searchTerm.toLowerCase()))
             : true;
         
         let isDateMatch = true;
@@ -853,7 +855,7 @@ export default function FamilyPackSalesPage() {
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                         type="search"
-                        placeholder="Cari berdasarkan nama pelanggan..."
+                        placeholder="Cari berdasarkan nama atau ID pelanggan..."
                         className="w-full pl-9 pr-12 h-11"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
