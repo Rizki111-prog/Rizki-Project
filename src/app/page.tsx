@@ -11,6 +11,8 @@ import {
   DollarSign,
   LineChart,
   PlusCircle,
+  Users,
+  Signal,
 } from 'lucide-react';
 import {
   Area,
@@ -49,7 +51,7 @@ import {
 import { AppHeader } from '@/components/layout/app-header';
 import Link from 'next/link';
 import { formatRupiah } from '@/lib/utils';
-import { format, subDays, startOfMonth, isWithinInterval, parseISO } from 'date-fns';
+import { format, subDays, startOfMonth, isWithinInterval, parseISO, isAfter, startOfDay } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -68,6 +70,7 @@ interface Transaction {
     name?: string;
     nominal?: number;
     fundSources?: { amount: number }[];
+    tanggalKadaluarsa?: string;
 }
 
 interface Debt {
@@ -162,12 +165,18 @@ export default function HomePage() {
       );
       const totalExpenses = expensesThisMonth.reduce((acc, exp) => acc + exp.nominal, 0);
 
+      const allAkrabTransactions = allTransactions.filter(trx => trx.type === 'Paket Akrab');
+      const totalAkrabTransactionsCount = allAkrabTransactions.length;
+      const activeAkrabTransactionsCount = allAkrabTransactions.filter(trx => trx.tanggalKadaluarsa && isAfter(parseISO(trx.tanggalKadaluarsa), startOfDay(now))).length;
+
       return {
           totalSales,
           totalProfit,
           totalActiveDebt,
           activeDebtCount: activeDebts.length,
-          totalExpenses
+          totalExpenses,
+          totalAkrabTransactions: totalAkrabTransactionsCount,
+          activeAkrabTransactions: activeAkrabTransactionsCount,
       };
   }, [allTransactions, debts, expenses]);
 
@@ -365,6 +374,30 @@ export default function HomePage() {
                 )}
                 </CardContent>
             </Card>
+
+            <div className="grid grid-cols-2 gap-4 mt-4 md:mt-8">
+              <Card className="rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Transaksi Akrab</CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  {isLoading ? <Skeleton className="h-8 w-1/4" /> : <div className="text-2xl font-bold">{summaryData.totalAkrabTransactions}</div>}
+                  {isLoading ? <Skeleton className="h-4 w-3/4 mt-1" /> : <p className="text-xs text-muted-foreground">Total transaksi paket akrab tercatat</p>}
+                </CardContent>
+              </Card>
+              <Card className="rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Paket Akrab Aktif</CardTitle>
+                  <Signal className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  {isLoading ? <Skeleton className="h-8 w-1/4" /> : <div className="text-2xl font-bold">{summaryData.activeAkrabTransactions}</div>}
+                  {isLoading ? <Skeleton className="h-4 w-3/4 mt-1" /> : <p className="text-xs text-muted-foreground">Paket dalam masa aktif</p>}
+                </CardContent>
+              </Card>
+            </div>
+            
         </div>
       </main>
     </div>
