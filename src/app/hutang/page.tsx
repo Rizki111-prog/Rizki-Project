@@ -10,11 +10,12 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CheckCircle, Info } from 'lucide-react';
+import { Loader2, CheckCircle, Info, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format, parseISO } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { formatRupiah } from '@/lib/utils';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 interface Debt {
@@ -44,6 +45,7 @@ export default function HutangPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isLoadingData, setIsLoadingData] = useState(true);
+    const [selectedDebts, setSelectedDebts] = useState<string[]>([]);
 
     useEffect(() => {
         const debtsRef = ref(db, 'hutang');
@@ -86,6 +88,20 @@ export default function HutangPage() {
             .filter(debt => debt.status === 'Belum Lunas')
             .sort((a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime());
     }, [allDebts]);
+
+    const selectedTotal = useMemo(() => {
+        return activeDebts
+            .filter(debt => selectedDebts.includes(debt.id))
+            .reduce((total, debt) => total + debt.nominal, 0);
+    }, [selectedDebts, activeDebts]);
+
+    const handleSelectDebt = (debtId: string) => {
+        setSelectedDebts(prev =>
+            prev.includes(debtId)
+                ? prev.filter(id => id !== debtId)
+                : [...prev, debtId]
+        );
+    };
 
     const handleMarkAsPaidClick = (debt: Debt) => {
         setSelectedDebt(debt);
@@ -172,7 +188,14 @@ export default function HutangPage() {
 
     return (
         <div className="flex flex-col w-full min-h-screen bg-background">
-            <AppHeader title="Manajemen Hutang" />
+            <AppHeader title={selectedDebts.length > 0 ? `${selectedDebts.length} item terpilih (${formatRupiah(selectedTotal)})` : "Manajemen Hutang"}>
+                {selectedDebts.length > 0 && (
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedDebts([])}>
+                        <X className="mr-2 h-4 w-4" />
+                        Batalkan Pilihan
+                    </Button>
+                )}
+            </AppHeader>
             <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
                  {isLoadingData ? (
                     <div className="flex items-center justify-center h-64">
@@ -180,35 +203,47 @@ export default function HutangPage() {
                     </div>
                 ) : activeDebts.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {activeDebts.map((debt) => (
-                            <Card key={debt.id} className={`rounded-xl shadow-sm ${debt.status === 'Lunas' ? 'bg-muted/50' : ''}`}>
+                        {activeDebts.map((debt) => {
+                            const isSelected = selectedDebts.includes(debt.id);
+                            return (
+                            <Card
+                                key={debt.id}
+                                className={`rounded-xl shadow-sm transition-all duration-200 cursor-pointer ${
+                                    isSelected ? 'border-primary ring-2 ring-primary shadow-lg' : 'border-border hover:shadow-md'
+                                }`}
+                                onClick={() => handleSelectDebt(debt.id)}
+                            >
                                 <CardHeader>
-                                    <div className="flex justify-between items-start">
-                                        <CardTitle className={`text-lg ${debt.status === 'Lunas' ? 'text-muted-foreground' : ''}`}>{debt.nama}</CardTitle>
-                                        <Badge variant={debt.status === 'Lunas' ? 'secondary' : 'destructive'}>
+                                    <div className="flex justify-between items-start gap-4">
+                                        <div className='flex items-start gap-3 flex-1 min-w-0'>
+                                            <Checkbox
+                                                className='mt-1 flex-shrink-0'
+                                                checked={isSelected}
+                                                aria-label={`Pilih ${debt.nama}`}
+                                                onClick={(e) => e.stopPropagation()}
+                                                onCheckedChange={() => handleSelectDebt(debt.id)}
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                                <CardTitle className="text-lg">{debt.nama}</CardTitle>
+                                                <CardDescription>{format(parseISO(debt.tanggal), "d MMMM yyyy, HH:mm", { locale: id })}</CardDescription>
+                                            </div>
+                                        </div>
+                                        <Badge variant={'destructive'}>
                                             {debt.status}
                                         </Badge>
                                     </div>
-                                    <CardDescription>{format(parseISO(debt.tanggal), "d MMMM yyyy, HH:mm", { locale: id })}</CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    <p className={`text-2xl font-bold tracking-tight ${debt.status === 'Lunas' ? 'text-muted-foreground' : ''}`}>{formatRupiah(debt.nominal)}</p>
-                                    {debt.status === 'Lunas' && debt.tanggal_pelunasan && (
-                                        <p className="text-xs text-muted-foreground mt-2">
-                                            Lunas pada: {format(parseISO(debt.tanggal_pelunasan), "d MMM yyyy", { locale: id })}
-                                        </p>
-                                    )}
+                                    <p className="text-2xl font-bold tracking-tight">{formatRupiah(debt.nominal)}</p>
                                 </CardContent>
                                 <CardFooter>
-                                    {debt.status === 'Belum Lunas' && (
-                                        <Button onClick={() => handleMarkAsPaidClick(debt)} className="w-full transition-all duration-300 hover:scale-105">
-                                            <CheckCircle className="mr-2 h-4 w-4" />
-                                            Tandai Lunas
-                                        </Button>
-                                    )}
+                                    <Button onClick={(e) => { e.stopPropagation(); handleMarkAsPaidClick(debt); }} className="w-full transition-all duration-300 hover:scale-105">
+                                        <CheckCircle className="mr-2 h-4 w-4" />
+                                        Tandai Lunas
+                                    </Button>
                                 </CardFooter>
                             </Card>
-                        ))}
+                        )})}
                     </div>
                 ) : (
                     <div className="flex items-center justify-center h-64 border-2 border-dashed rounded-2xl">
