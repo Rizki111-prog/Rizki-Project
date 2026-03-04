@@ -20,6 +20,7 @@ import { formatRupiah } from '@/lib/utils';
 interface Debt {
   id: string;
   nama: string;
+  productName?: string;
   nominal: number;
   tanggal: string;
   status: 'Belum Lunas' | 'Lunas';
@@ -191,6 +192,9 @@ function SelectedDebtsPageComponent() {
                         <Card key={debt.id} className="rounded-xl shadow-sm">
                             <CardHeader>
                                 <CardTitle className="text-lg">{debt.nama}</CardTitle>
+                                {debt.productName && (
+                                    <p className="text-sm text-muted-foreground truncate">{debt.productName}</p>
+                                )}
                                 <CardDescription>{format(parseISO(debt.tanggal), "d MMMM yyyy, HH:mm", { locale: id })}</CardDescription>
                             </CardHeader>
                             <CardContent>

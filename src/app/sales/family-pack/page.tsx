@@ -649,6 +649,7 @@ export default function FamilyPackSalesPage() {
                 if(payment.method === 'Hutang' && payment.amount > 0) {
                     push(ref(db, 'hutang'), {
                         nama: customerName,
+                        productName: `Paket Akrab: ${customerName}`,
                         nominal: payment.amount,
                         tanggal: datetime,
                         status: 'Belum Lunas',

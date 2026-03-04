@@ -22,6 +22,7 @@ import { useRouter } from 'next/navigation';
 interface Debt {
   id: string;
   nama: string;
+  productName?: string;
   nominal: number;
   tanggal: string;
   status: 'Belum Lunas' | 'Lunas';
@@ -239,6 +240,7 @@ export default function HutangPage() {
                                             />
                                             <div className="flex-1 min-w-0">
                                                 <CardTitle className="text-lg">{debt.nama}</CardTitle>
+                                                {debt.productName && <p className="text-sm text-muted-foreground truncate">{debt.productName}</p>}
                                                 <CardDescription>{format(parseISO(debt.tanggal), "d MMMM yyyy, HH:mm", { locale: id })}</CardDescription>
                                             </div>
                                         </div>

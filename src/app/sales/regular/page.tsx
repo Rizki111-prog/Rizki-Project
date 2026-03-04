@@ -580,6 +580,7 @@ export default function RegularSalesPage() {
                 if(payment.method === 'Hutang' && payment.amount > 0) {
                     push(ref(db, 'hutang'), {
                         nama: payment.debtorName,
+                        productName: productName,
                         nominal: payment.amount,
                         tanggal: datetime,
                         status: 'Belum Lunas',
@@ -738,7 +739,7 @@ export default function RegularSalesPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
-                className="p-4 sm:px-6 pt-0"
+                className="p-4 sm:px-6"
               >
                 <Card className="rounded-xl shadow-sm w-full">
                   <CardHeader className='flex flex-row items-center justify-between'>
@@ -757,7 +758,7 @@ export default function RegularSalesPage() {
           </AnimatePresence>
         )}
 
-        <div className="p-4 sm:px-6 pt-0">
+        <div className="p-4 sm:px-6">
             <Card className="rounded-xl shadow-sm w-full">
             <CardHeader>
                 <CardTitle>Riwayat Transaksi Reguler</CardTitle>
