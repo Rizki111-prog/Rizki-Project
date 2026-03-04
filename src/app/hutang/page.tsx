@@ -16,6 +16,7 @@ import { format, parseISO } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { formatRupiah } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
+import { useRouter } from 'next/navigation';
 
 
 interface Debt {
@@ -38,6 +39,7 @@ interface FinancialCard {
 
 export default function HutangPage() {
     const { toast } = useToast();
+    const router = useRouter();
     const [allDebts, setAllDebts] = useState<Debt[]>([]);
     const [financialCards, setFinancialCards] = useState<FinancialCard[]>([]);
     const [selectedDebt, setSelectedDebt] = useState<Debt | null>(null);
@@ -46,7 +48,6 @@ export default function HutangPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isLoadingData, setIsLoadingData] = useState(true);
     const [selectedDebts, setSelectedDebts] = useState<string[]>([]);
-    const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
 
     useEffect(() => {
         const debtsRef = ref(db, 'hutang');
@@ -102,6 +103,13 @@ export default function HutangPage() {
                 ? prev.filter(id => id !== debtId)
                 : [...prev, debtId]
         );
+    };
+    
+    const handleViewSelected = () => {
+        if (selectedDebts.length > 0) {
+            const ids = selectedDebts.join(',');
+            router.push(`/hutang/terpilih?ids=${ids}`);
+        }
     };
 
     const handleMarkAsPaidClick = (debt: Debt) => {
@@ -185,69 +193,6 @@ export default function HutangPage() {
             setPaymentMethod('');
         }
     };
-    
-    const handleBulkPay = async () => {
-        if (selectedDebts.length === 0 || !paymentMethod) {
-            toast({
-                variant: "destructive",
-                title: "Gagal",
-                description: "Pilih hutang dan metode pembayaran.",
-            });
-            return;
-        }
-        setIsSubmitting(true);
-
-        try {
-            const updates: { [key: string]: any } = {};
-            const settlementDate = new Date().toISOString();
-            const paymentCard = financialCards.find(card => card.id === paymentMethod);
-            if (!paymentCard) throw new Error("Metode pembayaran tidak valid.");
-
-            for (const debtId of selectedDebts) {
-                const debt = activeDebts.find(d => d.id === debtId);
-                if (!debt) continue;
-
-                // Mark debt as 'Lunas'
-                updates[`/hutang/${debt.id}/status`] = 'Lunas';
-                updates[`/hutang/${debt.id}/tanggal_pelunasan`] = settlementDate;
-
-                // Update original transaction if possible
-                if (debt.transactionId && debt.sourcePath) {
-                    const trxRef = ref(db, `${debt.sourcePath}/${debt.transactionId}`);
-                    const trxSnapshot = await get(trxRef);
-                    if (trxSnapshot.exists()) {
-                        const trxData = trxSnapshot.val();
-                        const paymentIndex = trxData.payments?.findIndex(
-                            (p: any) => p.method === 'Hutang' && p.debtorName === debt.nama
-                        );
-                        if (paymentIndex !== -1) {
-                            updates[`${debt.sourcePath}/${debt.transactionId}/payments/${paymentIndex}/method`] = paymentCard.name;
-                            updates[`${debt.sourcePath}/${debt.transactionId}/payments/${paymentIndex}/cardId`] = paymentCard.id;
-                            updates[`${debt.sourcePath}/${debt.transactionId}/payments/${paymentIndex}/debtorName`] = null;
-                        }
-                    }
-                }
-            }
-
-            await update(ref(db), updates);
-            toast({
-                title: "Sukses",
-                description: `${selectedDebts.length} hutang berhasil dilunasi.`,
-            });
-
-        } catch (error: any) {
-            toast({
-                variant: "destructive",
-                title: "Gagal",
-                description: `Terjadi kesalahan saat pelunasan massal: ${error.message}`,
-            });
-        } finally {
-            setIsSubmitting(false);
-            setIsBulkModalOpen(false);
-            setSelectedDebts([]);
-            setPaymentMethod('');
-        }
-    };
 
 
     return (
@@ -255,8 +200,8 @@ export default function HutangPage() {
             <AppHeader title={selectedDebts.length > 0 ? `${selectedDebts.length} item terpilih (${formatRupiah(selectedTotal)})` : "Manajemen Hutang"}>
                 {selectedDebts.length > 0 && (
                     <div className="flex items-center gap-2">
-                        <Button variant="default" size="sm" onClick={() => setIsBulkModalOpen(true)}>
-                            Lunasi Terpilih
+                        <Button variant="default" size="sm" onClick={handleViewSelected}>
+                            Lihat Daftar
                         </Button>
                         <Button variant="ghost" size="sm" onClick={() => setSelectedDebts([])}>
                             <X className="mr-2 h-4 w-4" />
@@ -356,44 +301,6 @@ export default function HutangPage() {
                             <Button type="button" variant="secondary">Batal</Button>
                         </DialogClose>
                         <Button onClick={handleConfirmPayment} disabled={isSubmitting || !paymentMethod}>
-                            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            Konfirmasi Lunas
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {/* Bulk Payment Modal */}
-            <Dialog open={isBulkModalOpen} onOpenChange={setIsBulkModalOpen}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Pelunasan Hutang Massal</DialogTitle>
-                        <DialogDescription>
-                           Anda akan melunasi <strong>{selectedDebts.length} hutang</strong> dengan total <strong>{formatRupiah(selectedTotal)}</strong>. Pilih akun penerima pembayaran.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4 space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="bulk-payment-method">Pindahkan ke Akun</Label>
-                            <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                                <SelectTrigger id="bulk-payment-method">
-                                    <SelectValue placeholder="Pilih akun penerima" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {financialCards.map(card => (
-                                        <SelectItem key={card.id} value={card.id}>
-                                            {card.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-                    <DialogFooter>
-                        <DialogClose asChild>
-                            <Button type="button" variant="secondary" onClick={() => setPaymentMethod('')}>Batal</Button>
-                        </DialogClose>
-                        <Button onClick={handleBulkPay} disabled={isSubmitting || !paymentMethod}>
                             {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                             Konfirmasi Lunas
                         </Button>
