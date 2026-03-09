@@ -96,7 +96,7 @@ interface FormComponentProps {
     editingTransactionId: string | null;
 }
 
-const FormComponent: React.FC<FormComponentProps> = ({
+const FormComponent: React.FC<FormComponentProps> = React.memo(({
     handleSubmit,
     datetime, setDatetime,
     customerId, setCustomerId,
@@ -326,7 +326,8 @@ const FormComponent: React.FC<FormComponentProps> = ({
         </CardFooter>
         </form>
     );
-};
+});
+FormComponent.displayName = 'FormComponent';
 
 
 export default function RegularSalesPage() {

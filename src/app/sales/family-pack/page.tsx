@@ -125,7 +125,7 @@ interface FormComponentProps {
     isFundSourceValid: boolean;
 }
 
-const FormComponent: React.FC<FormComponentProps> = ({
+const FormComponent: React.FC<FormComponentProps> = React.memo(({
     handleSubmit, datetime, handleDatetimeChange, customerName, setCustomerName,
     akrabCustomers, isLoadingCustomers, showSuggestions, setShowSuggestions,
     handleCustomerSelect, customerNameInputRef, customerId, setCustomerId, sellingPrice,
@@ -276,7 +276,8 @@ const FormComponent: React.FC<FormComponentProps> = ({
         </Button>
         </CardFooter>
     </form>
-);
+));
+FormComponent.displayName = 'FormComponent';
 
 export default function FamilyPackSalesPage() {
   const { toast } = useToast();
@@ -552,7 +553,7 @@ export default function FamilyPackSalesPage() {
 
   const addFundSource = () => {
       setIsFundSourceAmountManuallySet(true);
-      const remaining = (cleanRupiah(costPrice) || 0) - fundSources.reduce((acc, fs) => acc + fs.amount, 0);
+      const remaining = (cleanRupiah(costPrice) || 0) - fundSources.reduce((acc, fs) => fs.amount, 0);
       setFundSources([...fundSources, { cardId: '', cardName: '', amount: remaining > 0 ? remaining : 0 }]);
   };
 
