@@ -203,6 +203,34 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({
     setCostPrice(formatRupiah(e.target.value.replace(/[^0-9]/g, '')));
   }, []);
 
+  // Auto-fill nominal pembayaran pertama saat selesai mengetik harga jual (onBlur)
+  const handleSellingPriceBlur = useCallback(() => {
+    const price = cleanRupiah(sellingPrice) || 0;
+    if (price > 0) {
+      setPayments(prev => {
+        const total = prev.reduce((acc, p) => acc + p.amount, 0);
+        if (total === 0) {
+          return prev.map((p, i) => i === 0 ? { ...p, amount: price } : p);
+        }
+        return prev;
+      });
+    }
+  }, [sellingPrice]);
+
+  // Auto-fill nominal sumber modal pertama saat selesai mengetik modal (onBlur)
+  const handleCostPriceBlur = useCallback(() => {
+    const cost = cleanRupiah(costPrice) || 0;
+    if (cost > 0) {
+      setFundSources(prev => {
+        const total = prev.reduce((acc, fs) => acc + fs.amount, 0);
+        if (total === 0) {
+          return prev.map((fs, i) => i === 0 ? { ...fs, amount: cost } : fs);
+        }
+        return prev;
+      });
+    }
+  }, [costPrice]);
+
   // ── Handler pelanggan ──
   const handleCustomerSelect = useCallback((customer: Customer) => {
     setCustomerName(customer.name);
@@ -391,11 +419,11 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({
           </div>
           <div className="space-y-2">
             <Label htmlFor="sellingPrice">Harga Jual</Label>
-            <Input id="sellingPrice" type="text" placeholder="Harga Jual (Opsional)" value={sellingPrice} onChange={handleSellingPriceChange} />
+            <Input id="sellingPrice" type="text" placeholder="Harga Jual (Opsional)" value={sellingPrice} onChange={handleSellingPriceChange} onBlur={handleSellingPriceBlur} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="costPrice">Modal</Label>
-            <Input id="costPrice" type="text" placeholder="Modal (Opsional)" value={costPrice} onChange={handleCostPriceChange} />
+            <Input id="costPrice" type="text" placeholder="Modal (Opsional)" value={costPrice} onChange={handleCostPriceChange} onBlur={handleCostPriceBlur} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="linkAkunPengelola">Link Akun Pengelola</Label>

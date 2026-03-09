@@ -11,15 +11,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Trash2, Edit, Loader2, Eye, PlusCircle, X } from 'lucide-react';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -32,18 +32,18 @@ import { formatRupiah, cleanRupiah } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Transaction {
-  id: string;
-  datetime: string;
-  customerId: string;
-  productName: string;
-  sellingPrice: number;
-  costPrice: number;
-  fundSource: string;
-  fundSourceId?: string;
-  payments: Payment[];
-  profit: number;
-  createdAt: number;
-  isDeleted?: boolean;
+    id: string;
+    datetime: string;
+    customerId: string;
+    productName: string;
+    sellingPrice: number;
+    costPrice: number;
+    fundSource: string;
+    fundSourceId?: string;
+    payments: Payment[];
+    profit: number;
+    createdAt: number;
+    isDeleted?: boolean;
 }
 
 interface FinancialCard {
@@ -59,10 +59,10 @@ interface ProductMaster {
 }
 
 interface Payment {
-  method: string;
-  cardId?: string;
-  amount: number;
-  debtorName?: string;
+    method: string;
+    cardId?: string;
+    amount: number;
+    debtorName?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -133,7 +133,7 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({
             const agenPulsaCard = financialCards.find(c => c.name.toLowerCase() === 'agen pulsa');
             setFundSource(agenPulsaCard ? agenPulsaCard.id : (financialCards[0]?.id || ''));
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [editingTransaction]);
 
     // ── Set default fundSource pertama kali kartu dimuat ──
@@ -173,6 +173,20 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({
     const handleSellingPriceChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         setSellingPrice(formatRupiah(e.target.value.replace(/[^0-9]/g, '')));
     }, []);
+
+    // Auto-fill nominal pembayaran pertama saat pengguna selesai mengetik harga jual (onBlur)
+    const handleSellingPriceBlur = useCallback(() => {
+        const price = cleanRupiah(sellingPrice) || 0;
+        if (price > 0) {
+            setPayments(prev => {
+                const total = prev.reduce((acc, p) => acc + p.amount, 0);
+                if (total === 0) {
+                    return prev.map((p, i) => i === 0 ? { ...p, amount: price } : p);
+                }
+                return prev;
+            });
+        }
+    }, [sellingPrice]);
 
     const handleCostPriceChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         setCostPrice(formatRupiah(e.target.value.replace(/[^0-9]/g, '')));
@@ -310,146 +324,146 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({
 
     return (
         <form onSubmit={handleSubmit}>
-        <CardContent className="p-0">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="space-y-2">
-                <Label htmlFor="datetime">Tanggal &amp; Waktu</Label>
-                <Input id="datetime" type="datetime-local" value={datetime} onChange={(e) => setDatetime(e.target.value)} required
-                        className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
-                </div>
-                <div className="space-y-2">
-                <Label htmlFor="customerId">Nomor HP / ID Pelanggan</Label>
-                <Input id="customerId" placeholder="ID Pelanggan (Opsional)" value={customerId} onChange={(e) => setCustomerId(e.target.value)}
-                        className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
-                </div>
-                <div className="space-y-2 md:col-span-2 lg:col-span-1 relative" ref={productNameInputRef}>
-                    <Label htmlFor="productName">Nama Produk</Label>
-                    <Input
-                    id="productName"
-                    placeholder={isLoadingProducts ? "Memuat produk..." : "Ketik nama produk"}
-                    value={productName}
-                    onChange={(e) => {
-                        setProductName(e.target.value);
-                        if (!showSuggestions) setShowSuggestions(true);
-                    }}
-                    onFocus={() => setShowSuggestions(true)}
-                    autoComplete="off"
-                    required
-                    className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"
-                    />
-                    {showSuggestions && filteredProducts.length > 0 && (
-                        <div className="absolute z-20 w-full mt-1 bg-card border border-border rounded-md shadow-lg max-h-60 overflow-y-auto">
-                            {filteredProducts.map((product) => (
-                                <div
-                                    key={product.id}
-                                    className="p-2 hover:bg-accent cursor-pointer text-sm"
-                                    onClick={() => handleProductSelect(product)}
-                                >
-                                    {product.name}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-                <div className="space-y-2">
-                <Label htmlFor="sellingPrice">Harga Jual</Label>
-                <Input id="sellingPrice" type="text" placeholder="Harga Jual (Opsional)" value={sellingPrice} onChange={handleSellingPriceChange}
-                        className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
-                </div>
-                <div className="space-y-2">
-                <Label htmlFor="costPrice">Modal</Label>
-                <Input id="costPrice" type="text" placeholder="Modal (Opsional)" value={costPrice} onChange={handleCostPriceChange}
-                        className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
-                </div>
-                <div className="space-y-2">
-                <Label htmlFor="fundSource">Sumber Modal</Label>
-                <Select value={fundSource} onValueChange={setFundSource} required>
-                    <SelectTrigger className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2">
-                        <SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih sumber modal"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {financialCards.map(card => (
-                            <SelectItem key={card.id} value={card.id}>
-                                {card.name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-                </div>
-            </div>
-                <div className="mt-6 border-t pt-4">
-                <h3 className="text-md font-medium mb-2">Metode Pembayaran</h3>
-                    <div className="space-y-4">
-                    {payments.map((payment, index) => (
-                        <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-2 p-3 border rounded-lg bg-muted/20 relative">
-                            <div className="space-y-2 col-span-12 md:col-span-5">
-                                <Label htmlFor={`payment-method-${index}`}>Metode</Label>
-                                <Select value={payment.cardId || (payment.method === 'Hutang' ? 'Hutang' : '')} onValueChange={(value) => handlePaymentMethodChange(index, value)} required>
-                                    <SelectTrigger id={`payment-method-${index}`} className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2 bg-background">
-                                        <SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih metode"} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="Hutang">Hutang</SelectItem>
-                                        {financialCards.map(card => (
-                                            <SelectItem key={card.id} value={card.id}>
-                                                {card.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+            <CardContent className="p-0">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="datetime">Tanggal &amp; Waktu</Label>
+                        <Input id="datetime" type="datetime-local" value={datetime} onChange={(e) => setDatetime(e.target.value)} required
+                            className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2" />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="customerId">Nomor HP / ID Pelanggan</Label>
+                        <Input id="customerId" placeholder="ID Pelanggan (Opsional)" value={customerId} onChange={(e) => setCustomerId(e.target.value)}
+                            className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2" />
+                    </div>
+                    <div className="space-y-2 md:col-span-2 lg:col-span-1 relative" ref={productNameInputRef}>
+                        <Label htmlFor="productName">Nama Produk</Label>
+                        <Input
+                            id="productName"
+                            placeholder={isLoadingProducts ? "Memuat produk..." : "Ketik nama produk"}
+                            value={productName}
+                            onChange={(e) => {
+                                setProductName(e.target.value);
+                                if (!showSuggestions) setShowSuggestions(true);
+                            }}
+                            onFocus={() => setShowSuggestions(true)}
+                            autoComplete="off"
+                            required
+                            className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"
+                        />
+                        {showSuggestions && filteredProducts.length > 0 && (
+                            <div className="absolute z-20 w-full mt-1 bg-card border border-border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                {filteredProducts.map((product) => (
+                                    <div
+                                        key={product.id}
+                                        className="p-2 hover:bg-accent cursor-pointer text-sm"
+                                        onClick={() => handleProductSelect(product)}
+                                    >
+                                        {product.name}
+                                    </div>
+                                ))}
                             </div>
-                            {payment.method === 'Hutang' && (
-                                <div className="space-y-2 col-span-12 md:col-span-3">
-                                    <Label htmlFor={`debtor-name-${index}`}>Nama Penghutang</Label>
+                        )}
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="sellingPrice">Harga Jual</Label>
+                        <Input id="sellingPrice" type="text" placeholder="Harga Jual (Opsional)" value={sellingPrice} onChange={handleSellingPriceChange} onBlur={handleSellingPriceBlur}
+                            className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2" />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="costPrice">Modal</Label>
+                        <Input id="costPrice" type="text" placeholder="Modal (Opsional)" value={costPrice} onChange={handleCostPriceChange}
+                            className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2" />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="fundSource">Sumber Modal</Label>
+                        <Select value={fundSource} onValueChange={setFundSource} required>
+                            <SelectTrigger className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2">
+                                <SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih sumber modal"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {financialCards.map(card => (
+                                    <SelectItem key={card.id} value={card.id}>
+                                        {card.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+                <div className="mt-6 border-t pt-4">
+                    <h3 className="text-md font-medium mb-2">Metode Pembayaran</h3>
+                    <div className="space-y-4">
+                        {payments.map((payment, index) => (
+                            <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-2 p-3 border rounded-lg bg-muted/20 relative">
+                                <div className="space-y-2 col-span-12 md:col-span-5">
+                                    <Label htmlFor={`payment-method-${index}`}>Metode</Label>
+                                    <Select value={payment.cardId || (payment.method === 'Hutang' ? 'Hutang' : '')} onValueChange={(value) => handlePaymentMethodChange(index, value)} required>
+                                        <SelectTrigger id={`payment-method-${index}`} className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2 bg-background">
+                                            <SelectValue placeholder={isLoadingCards ? "Memuat..." : "Pilih metode"} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Hutang">Hutang</SelectItem>
+                                            {financialCards.map(card => (
+                                                <SelectItem key={card.id} value={card.id}>
+                                                    {card.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                {payment.method === 'Hutang' && (
+                                    <div className="space-y-2 col-span-12 md:col-span-3">
+                                        <Label htmlFor={`debtor-name-${index}`}>Nama Penghutang</Label>
+                                        <Input
+                                            id={`debtor-name-${index}`}
+                                            placeholder="Masukkan nama"
+                                            value={payment.debtorName || ''}
+                                            onChange={(e) => handleDebtorNameChange(index, e.target.value)}
+                                            required
+                                            className="bg-background"
+                                        />
+                                    </div>
+                                )}
+                                <div className={`space-y-2 col-span-12 ${payment.method === 'Hutang' ? 'md:col-span-3' : 'md:col-span-6'}`}>
+                                    <Label htmlFor={`payment-amount-${index}`}>Nominal</Label>
                                     <Input
-                                    id={`debtor-name-${index}`}
-                                    placeholder="Masukkan nama"
-                                    value={payment.debtorName || ''}
-                                    onChange={(e) => handleDebtorNameChange(index, e.target.value)}
-                                    required
-                                    className="bg-background"
+                                        id={`payment-amount-${index}`}
+                                        type="text"
+                                        placeholder="0"
+                                        value={formatRupiah(payment.amount)}
+                                        onChange={(e) => handlePaymentAmountChange(index, e.target.value)}
+                                        required
+                                        className="bg-background"
                                     />
                                 </div>
-                            )}
-                            <div className={`space-y-2 col-span-12 ${payment.method === 'Hutang' ? 'md:col-span-3' : 'md:col-span-6'}`}>
-                                <Label htmlFor={`payment-amount-${index}`}>Nominal</Label>
-                                <Input
-                                    id={`payment-amount-${index}`}
-                                    type="text"
-                                    placeholder="0"
-                                    value={formatRupiah(payment.amount)}
-                                    onChange={(e) => handlePaymentAmountChange(index, e.target.value)}
-                                    required
-                                    className="bg-background"
-                                />
+                                {payments.length > 1 && (
+                                    <div className="col-span-12 md:col-span-1 flex items-end justify-end md:justify-center">
+                                        <Button variant="ghost" size="icon" onClick={() => removePayment(index)} className="text-destructive hover:bg-destructive/10">
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
-                            {payments.length > 1 && (
-                                <div className="col-span-12 md:col-span-1 flex items-end justify-end md:justify-center">
-                                    <Button variant="ghost" size="icon" onClick={() => removePayment(index)} className="text-destructive hover:bg-destructive/10">
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            )}
+                        ))}
+                        <div className="flex flex-col md:flex-row justify-between items-center mt-4 text-sm gap-4">
+                            <Button type="button" variant="outline" size="sm" onClick={addPayment} className="w-full md:w-auto"><PlusCircle className="mr-2 h-4 w-4" /> Tambah Pembayaran</Button>
+                            <div className="text-right w-full md:w-auto">
+                                <p>Total Terinput: <span className="font-bold">{formatRupiah(totalPaid)}</span></p>
+                                <p className={remainingAmount !== 0 ? 'text-destructive' : 'text-emerald-600'}>
+                                    {remainingAmount > 0 ? `Sisa: ${formatRupiah(remainingAmount)}` : remainingAmount < 0 ? `Kelebihan: ${formatRupiah(Math.abs(remainingAmount))}` : 'Lunas'}
+                                </p>
+                            </div>
                         </div>
-                    ))}
-                    <div className="flex flex-col md:flex-row justify-between items-center mt-4 text-sm gap-4">
-                        <Button type="button" variant="outline" size="sm" onClick={addPayment} className="w-full md:w-auto"><PlusCircle className="mr-2 h-4 w-4" /> Tambah Pembayaran</Button>
-                        <div className="text-right w-full md:w-auto">
-                        <p>Total Terinput: <span className="font-bold">{formatRupiah(totalPaid)}</span></p>
-                        <p className={remainingAmount !== 0 ? 'text-destructive' : 'text-emerald-600'}>
-                            {remainingAmount > 0 ? `Sisa: ${formatRupiah(remainingAmount)}` : remainingAmount < 0 ? `Kelebihan: ${formatRupiah(Math.abs(remainingAmount))}`: 'Lunas'}
-                        </p>
-                        </div>
-                    </div>
                     </div>
                 </div>
-        </CardContent>
-        <CardFooter className="border-t px-6 py-4">
-            <Button type="submit" disabled={isSubmitting || isLoadingCards || isLoadingProducts || !isPaymentValid} className="transition-all duration-300 hover:scale-105 w-full md:w-auto">
-                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {isSubmitting ? 'Menyimpan...' : (editingTransaction ? 'Simpan Perubahan' : 'Simpan Transaksi')}
-            </Button>
-        </CardFooter>
+            </CardContent>
+            <CardFooter className="border-t px-6 py-4">
+                <Button type="submit" disabled={isSubmitting || isLoadingCards || isLoadingProducts || !isPaymentValid} className="transition-all duration-300 hover:scale-105 w-full md:w-auto">
+                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    {isSubmitting ? 'Menyimpan...' : (editingTransaction ? 'Simpan Perubahan' : 'Simpan Transaksi')}
+                </Button>
+            </CardFooter>
         </form>
     );
 });
@@ -461,319 +475,319 @@ FormComponent.displayName = 'FormComponent';
 // Re-render di sini TIDAK akan memengaruhi FormComponent
 // ─────────────────────────────────────────────────────────────────────────────
 export default function RegularSalesPage() {
-  const { toast } = useToast();
-  const isMobile = useIsMobile();
+    const { toast } = useToast();
+    const isMobile = useIsMobile();
 
-  // Data & UI State
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [financialCards, setFinancialCards] = useState<FinancialCard[]>([]);
-  const [productMaster, setProductMaster] = useState<ProductMaster[]>([]);
-  const [isLoadingCards, setIsLoadingCards] = useState(true);
-  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
-  const [showForm, setShowForm] = useState(false);
+    // Data & UI State
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [financialCards, setFinancialCards] = useState<FinancialCard[]>([]);
+    const [productMaster, setProductMaster] = useState<ProductMaster[]>([]);
+    const [isLoadingCards, setIsLoadingCards] = useState(true);
+    const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+    const [showForm, setShowForm] = useState(false);
 
-  // Editing State
-  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+    // Editing State
+    const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
-  // Detail Modal State
-  const [detailTransaction, setDetailTransaction] = useState<Transaction | null>(null);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+    // Detail Modal State
+    const [detailTransaction, setDetailTransaction] = useState<Transaction | null>(null);
+    const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
-  // ── Firebase listeners ──
-  useEffect(() => {
-    const transactionsRef = ref(db, 'transaksi_reguler');
-    const unsubscribe = onValue(transactionsRef, (snapshot) => {
-      const data = snapshot.val();
-      const loadedTransactions: Transaction[] = [];
-      for (const key in data) {
-        const trxData = data[key];
-        if (trxData.isDeleted) continue;
-        loadedTransactions.push({ id: key, ...trxData, profit: (trxData.sellingPrice || 0) - (trxData.costPrice || 0) });
-      }
-      loadedTransactions.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-      setTransactions(loadedTransactions);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    const cardsRef = ref(db, 'keuangan/cards');
-    const unsubscribeCards = onValue(cardsRef, (snapshot) => {
-        const data = snapshot.val();
-        const loadedCards: FinancialCard[] = [];
-        if (data) {
+    // ── Firebase listeners ──
+    useEffect(() => {
+        const transactionsRef = ref(db, 'transaksi_reguler');
+        const unsubscribe = onValue(transactionsRef, (snapshot) => {
+            const data = snapshot.val();
+            const loadedTransactions: Transaction[] = [];
             for (const key in data) {
-                if (!data[key].isDeleted) loadedCards.push({ id: key, ...data[key] });
+                const trxData = data[key];
+                if (trxData.isDeleted) continue;
+                loadedTransactions.push({ id: key, ...trxData, profit: (trxData.sellingPrice || 0) - (trxData.costPrice || 0) });
             }
-        }
-        setFinancialCards(loadedCards);
-        setIsLoadingCards(false);
-    }, (error) => {
-        console.error("Firebase read failed: " + error.message);
-        setIsLoadingCards(false);
-    });
-
-    const productsRef = ref(db, 'produk_master');
-    const unsubscribeProducts = onValue(productsRef, (snapshot) => {
-        const data = snapshot.val();
-        const loadedProducts: ProductMaster[] = [];
-        if (data) {
-            for (const key in data) {
-                loadedProducts.push({ id: key, ...data[key] });
-            }
-        }
-        setProductMaster(loadedProducts);
-        setIsLoadingProducts(false);
-    });
-
-    return () => {
-        unsubscribeCards();
-        unsubscribeProducts();
-    };
-  }, []);
-
-  // ── Handler untuk menutup/reset form ──
-  const handleFormSuccess = useCallback(() => {
-    setEditingTransaction(null);
-    setShowForm(false);
-  }, []);
-
-  const handleFormCancel = useCallback(() => {
-    setEditingTransaction(null);
-    setShowForm(false);
-  }, []);
-
-  // ── Handler tabel ──
-  const handleDelete = (id: string) => {
-    const transactionToDelete = transactions.find(t => t.id === id);
-    if (!transactionToDelete) return;
-
-    const updates: { [key: string]: any } = {};
-    const deletedAt = serverTimestamp();
-    updates[`/transaksi_reguler/${id}/isDeleted`] = true;
-    updates[`/transaksi_reguler/${id}/deletedAt`] = deletedAt;
-
-    get(query(ref(db, 'hutang'), orderByChild('transactionId'), equalTo(id))).then(snapshot => {
-      if (snapshot.exists()) {
-        snapshot.forEach(child => {
-          updates[`/hutang/${child.key}/isDeleted`] = true;
-          updates[`/hutang/${child.key}/deletedAt`] = deletedAt;
+            loadedTransactions.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            setTransactions(loadedTransactions);
         });
-      }
-      update(ref(db), updates).then(() => {
-        toast({ title: "Sukses", description: "Transaksi dipindahkan ke folder sampah." });
-      }).catch((error) => {
-        toast({ variant: "destructive", title: "Gagal", description: `Terjadi kesalahan: ${error.message}` });
-      });
-    });
-  };
+        return () => unsubscribe();
+    }, []);
 
-  const handleEditClick = (transaction: Transaction) => {
-    setEditingTransaction(transaction);
-    setShowForm(true);
-  };
+    useEffect(() => {
+        const cardsRef = ref(db, 'keuangan/cards');
+        const unsubscribeCards = onValue(cardsRef, (snapshot) => {
+            const data = snapshot.val();
+            const loadedCards: FinancialCard[] = [];
+            if (data) {
+                for (const key in data) {
+                    if (!data[key].isDeleted) loadedCards.push({ id: key, ...data[key] });
+                }
+            }
+            setFinancialCards(loadedCards);
+            setIsLoadingCards(false);
+        }, (error) => {
+            console.error("Firebase read failed: " + error.message);
+            setIsLoadingCards(false);
+        });
 
-  const handleDetailClick = (transaction: Transaction) => {
-    setDetailTransaction(transaction);
-    setIsDetailModalOpen(true);
-  };
+        const productsRef = ref(db, 'produk_master');
+        const unsubscribeProducts = onValue(productsRef, (snapshot) => {
+            const data = snapshot.val();
+            const loadedProducts: ProductMaster[] = [];
+            if (data) {
+                for (const key in data) {
+                    loadedProducts.push({ id: key, ...data[key] });
+                }
+            }
+            setProductMaster(loadedProducts);
+            setIsLoadingProducts(false);
+        });
 
-  const getPaymentMethodsString = (payments: Payment[] | undefined) => {
-    if (!payments || payments.length === 0) return 'Tidak Diketahui';
-    if (payments.length === 1) return payments[0].method;
-    return `${payments.length} metode`;
-  };
+        return () => {
+            unsubscribeCards();
+            unsubscribeProducts();
+        };
+    }, []);
 
-  const getDetailData = (trx: Transaction | null) => {
-    if (!trx) return [];
-    const details: any[] = [
-        { label: 'Waktu Transaksi', value: format(parseISO(trx.datetime), "d MMMM yyyy, HH:mm:ss", { locale: id }) },
-        { label: 'ID Pelanggan', value: trx.customerId || '-' },
-        { label: 'Nama Produk', value: trx.productName },
-        { label: 'Harga Jual', value: formatRupiah(trx.sellingPrice) },
-        { label: 'Harga Modal', value: formatRupiah(trx.costPrice) },
-        { label: 'Laba', value: formatRupiah(trx.profit), badge: trx.profit > 0 ? 'default' : 'destructive' },
-        { label: 'Sumber Modal', value: trx.fundSource },
-    ];
-    trx.payments?.forEach((p, i) => {
-        details.push({ label: `Pembayaran ${i+1}${p.method === 'Hutang' ? ` (${p.debtorName})` : ''}`, value: `${p.method} - ${formatRupiah(p.amount)}` });
-    });
-    return details;
-  };
+    // ── Handler untuk menutup/reset form ──
+    const handleFormSuccess = useCallback(() => {
+        setEditingTransaction(null);
+        setShowForm(false);
+    }, []);
 
-  // Props stabil untuk FormComponent — tidak berubah kecuali data benar-benar berubah
-  const formProps = useMemo(() => ({
-    financialCards,
-    productMaster,
-    isLoadingCards,
-    isLoadingProducts,
-    editingTransaction,
-    onSuccess: handleFormSuccess,
-    onCancel: handleFormCancel,
-  }), [financialCards, productMaster, isLoadingCards, isLoadingProducts, editingTransaction, handleFormSuccess, handleFormCancel]);
+    const handleFormCancel = useCallback(() => {
+        setEditingTransaction(null);
+        setShowForm(false);
+    }, []);
 
-  return (
-    <div className="flex flex-col w-full min-h-screen bg-background">
-      <AppHeader title="Pulsa, Token, & Paket Data">
-        <Button onClick={() => { editingTransaction ? handleFormCancel() : setShowForm(!showForm) }} variant={showForm ? "outline" : "default"} className="hidden md:flex">
-            {showForm ? <X className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-            {showForm ? (editingTransaction ? 'Batalkan Edit' : 'Tutup') : 'Tambah Transaksi'}
-        </Button>
-      </AppHeader>
-      <main className="flex flex-1 flex-col">
-        <div className="p-4 md:hidden">
-            {!showForm && (
-                <Button onClick={() => setShowForm(true)} className="w-full">
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Tambah Transaksi
+    // ── Handler tabel ──
+    const handleDelete = (id: string) => {
+        const transactionToDelete = transactions.find(t => t.id === id);
+        if (!transactionToDelete) return;
+
+        const updates: { [key: string]: any } = {};
+        const deletedAt = serverTimestamp();
+        updates[`/transaksi_reguler/${id}/isDeleted`] = true;
+        updates[`/transaksi_reguler/${id}/deletedAt`] = deletedAt;
+
+        get(query(ref(db, 'hutang'), orderByChild('transactionId'), equalTo(id))).then(snapshot => {
+            if (snapshot.exists()) {
+                snapshot.forEach(child => {
+                    updates[`/hutang/${child.key}/isDeleted`] = true;
+                    updates[`/hutang/${child.key}/deletedAt`] = deletedAt;
+                });
+            }
+            update(ref(db), updates).then(() => {
+                toast({ title: "Sukses", description: "Transaksi dipindahkan ke folder sampah." });
+            }).catch((error) => {
+                toast({ variant: "destructive", title: "Gagal", description: `Terjadi kesalahan: ${error.message}` });
+            });
+        });
+    };
+
+    const handleEditClick = (transaction: Transaction) => {
+        setEditingTransaction(transaction);
+        setShowForm(true);
+    };
+
+    const handleDetailClick = (transaction: Transaction) => {
+        setDetailTransaction(transaction);
+        setIsDetailModalOpen(true);
+    };
+
+    const getPaymentMethodsString = (payments: Payment[] | undefined) => {
+        if (!payments || payments.length === 0) return 'Tidak Diketahui';
+        if (payments.length === 1) return payments[0].method;
+        return `${payments.length} metode`;
+    };
+
+    const getDetailData = (trx: Transaction | null) => {
+        if (!trx) return [];
+        const details: any[] = [
+            { label: 'Waktu Transaksi', value: format(parseISO(trx.datetime), "d MMMM yyyy, HH:mm:ss", { locale: id }) },
+            { label: 'ID Pelanggan', value: trx.customerId || '-' },
+            { label: 'Nama Produk', value: trx.productName },
+            { label: 'Harga Jual', value: formatRupiah(trx.sellingPrice) },
+            { label: 'Harga Modal', value: formatRupiah(trx.costPrice) },
+            { label: 'Laba', value: formatRupiah(trx.profit), badge: trx.profit > 0 ? 'default' : 'destructive' },
+            { label: 'Sumber Modal', value: trx.fundSource },
+        ];
+        trx.payments?.forEach((p, i) => {
+            details.push({ label: `Pembayaran ${i + 1}${p.method === 'Hutang' ? ` (${p.debtorName})` : ''}`, value: `${p.method} - ${formatRupiah(p.amount)}` });
+        });
+        return details;
+    };
+
+    // Props stabil untuk FormComponent — tidak berubah kecuali data benar-benar berubah
+    const formProps = useMemo(() => ({
+        financialCards,
+        productMaster,
+        isLoadingCards,
+        isLoadingProducts,
+        editingTransaction,
+        onSuccess: handleFormSuccess,
+        onCancel: handleFormCancel,
+    }), [financialCards, productMaster, isLoadingCards, isLoadingProducts, editingTransaction, handleFormSuccess, handleFormCancel]);
+
+    return (
+        <div className="flex flex-col w-full min-h-screen bg-background">
+            <AppHeader title="Pulsa, Token, & Paket Data">
+                <Button onClick={() => { editingTransaction ? handleFormCancel() : setShowForm(!showForm) }} variant={showForm ? "outline" : "default"} className="hidden md:flex">
+                    {showForm ? <X className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                    {showForm ? (editingTransaction ? 'Batalkan Edit' : 'Tutup') : 'Tambah Transaksi'}
                 </Button>
-            )}
-        </div>
-        {isMobile ? (
-          <Sheet open={showForm} onOpenChange={(isOpen) => { if (!isOpen) handleFormCancel(); else setShowForm(true); }}>
-            <SheetContent side="right" className="w-full p-0">
-              <SheetHeader className="p-6">
-                <SheetTitle>{editingTransaction ? 'Edit Transaksi' : 'Transaksi Baru'}</SheetTitle>
-              </SheetHeader>
-              <div className="px-6 h-[calc(100vh-140px)] overflow-y-auto">
-                <FormComponent {...formProps} />
-              </div>
-            </SheetContent>
-          </Sheet>
-        ) : (
-          <AnimatePresence>
-            {showForm && (
-              <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-                className="p-4 sm:px-6"
-              >
-                <Card className="rounded-xl shadow-sm w-full">
-                  <CardHeader className='flex flex-row items-center justify-between'>
-                      <div>
-                          <CardTitle>{editingTransaction ? 'Edit Transaksi' : 'Transaksi Baru'}</CardTitle>
-                          <CardDescription>Isi detail untuk penjualan Pulsa, Token, dan Paket Data.</CardDescription>
-                      </div>
-                      <Button variant="ghost" size="icon" onClick={handleFormCancel}>
-                          <X className="h-4 w-4" />
-                      </Button>
-                  </CardHeader>
-                  <FormComponent {...formProps} />
-                </Card>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        )}
-
-        <div className="px-4 pt-0 sm:px-6">
-            <Card className="rounded-xl shadow-sm w-full">
-            <CardHeader>
-                <CardTitle>Riwayat Transaksi Reguler</CardTitle>
-                <CardDescription>Daftar semua transaksi yang tercatat.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="md:hidden space-y-4">
-                {transactions.map((trx) => (
-                    <Card key={trx.id} className="rounded-lg border w-full">
-                    <CardHeader className="pb-3">
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <CardTitle className="text-base">{trx.productName}</CardTitle>
-                                <CardDescription>{trx.customerId || 'Tanpa ID'}</CardDescription>
+            </AppHeader>
+            <main className="flex flex-1 flex-col">
+                <div className="p-4 md:hidden">
+                    {!showForm && (
+                        <Button onClick={() => setShowForm(true)} className="w-full">
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            Tambah Transaksi
+                        </Button>
+                    )}
+                </div>
+                {isMobile ? (
+                    <Sheet open={showForm} onOpenChange={(isOpen) => { if (!isOpen) handleFormCancel(); else setShowForm(true); }}>
+                        <SheetContent side="right" className="w-full p-0">
+                            <SheetHeader className="p-6">
+                                <SheetTitle>{editingTransaction ? 'Edit Transaksi' : 'Transaksi Baru'}</SheetTitle>
+                            </SheetHeader>
+                            <div className="px-6 h-[calc(100vh-140px)] overflow-y-auto">
+                                <FormComponent {...formProps} />
                             </div>
-                            <Badge variant={trx.profit > 0 ? 'default' : 'destructive'} className="text-xs">{formatRupiah(trx.profit)}</Badge>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-sm pb-3">
-                        <div className="flex justify-between"><span>Waktu:</span> <span className="font-medium text-right">{format(parseISO(trx.datetime), "d MMM y, HH:mm", { locale: id })}</span></div>
-                        <div className="flex justify-between"><span>Harga Jual:</span> <span className="font-medium">{formatRupiah(trx.sellingPrice)}</span></div>
-                    </CardContent>
-                    <CardFooter className="flex justify-end space-x-2">
-                        <Button variant="outline" size="icon" onClick={() => handleDetailClick(trx)} className="h-9 w-9"><Eye className="h-4 w-4" /></Button>
-                        <Button variant="outline" size="icon" onClick={() => handleEditClick(trx)} className="h-9 w-9"><Edit className="h-4 w-4" /></Button>
-                        <AlertDialog>
-                        <AlertDialogTrigger asChild><Button variant="destructive" size="icon" className="h-9 w-9"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                            <AlertDialogTitle>Pindahkan ke Sampah?</AlertDialogTitle>
-                            <AlertDialogDescription>Tindakan ini akan memindahkan transaksi ke folder sampah. Anda dapat memulihkannya nanti.</AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                            <AlertDialogCancel>Batal</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDelete(trx.id)}>Pindahkan</AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                        </AlertDialog>
-                    </CardFooter>
+                        </SheetContent>
+                    </Sheet>
+                ) : (
+                    <AnimatePresence>
+                        {showForm && (
+                            <motion.div
+                                initial={{ opacity: 0, y: -20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -20 }}
+                                transition={{ duration: 0.3 }}
+                                className="p-4 sm:px-6"
+                            >
+                                <Card className="rounded-xl shadow-sm w-full">
+                                    <CardHeader className='flex flex-row items-center justify-between'>
+                                        <div>
+                                            <CardTitle>{editingTransaction ? 'Edit Transaksi' : 'Transaksi Baru'}</CardTitle>
+                                            <CardDescription>Isi detail untuk penjualan Pulsa, Token, dan Paket Data.</CardDescription>
+                                        </div>
+                                        <Button variant="ghost" size="icon" onClick={handleFormCancel}>
+                                            <X className="h-4 w-4" />
+                                        </Button>
+                                    </CardHeader>
+                                    <FormComponent {...formProps} />
+                                </Card>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                )}
+
+                <div className="px-4 pt-0 sm:px-6">
+                    <Card className="rounded-xl shadow-sm w-full">
+                        <CardHeader>
+                            <CardTitle>Riwayat Transaksi Reguler</CardTitle>
+                            <CardDescription>Daftar semua transaksi yang tercatat.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="md:hidden space-y-4">
+                                {transactions.map((trx) => (
+                                    <Card key={trx.id} className="rounded-lg border w-full">
+                                        <CardHeader className="pb-3">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <CardTitle className="text-base">{trx.productName}</CardTitle>
+                                                    <CardDescription>{trx.customerId || 'Tanpa ID'}</CardDescription>
+                                                </div>
+                                                <Badge variant={trx.profit > 0 ? 'default' : 'destructive'} className="text-xs">{formatRupiah(trx.profit)}</Badge>
+                                            </div>
+                                        </CardHeader>
+                                        <CardContent className="space-y-2 text-sm pb-3">
+                                            <div className="flex justify-between"><span>Waktu:</span> <span className="font-medium text-right">{format(parseISO(trx.datetime), "d MMM y, HH:mm", { locale: id })}</span></div>
+                                            <div className="flex justify-between"><span>Harga Jual:</span> <span className="font-medium">{formatRupiah(trx.sellingPrice)}</span></div>
+                                        </CardContent>
+                                        <CardFooter className="flex justify-end space-x-2">
+                                            <Button variant="outline" size="icon" onClick={() => handleDetailClick(trx)} className="h-9 w-9"><Eye className="h-4 w-4" /></Button>
+                                            <Button variant="outline" size="icon" onClick={() => handleEditClick(trx)} className="h-9 w-9"><Edit className="h-4 w-4" /></Button>
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild><Button variant="destructive" size="icon" className="h-9 w-9"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Pindahkan ke Sampah?</AlertDialogTitle>
+                                                        <AlertDialogDescription>Tindakan ini akan memindahkan transaksi ke folder sampah. Anda dapat memulihkannya nanti.</AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Batal</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDelete(trx.id)}>Pindahkan</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </CardFooter>
+                                    </Card>
+                                ))}
+                            </div>
+
+                            <div className="hidden md:block overflow-x-auto">
+                                <table className="min-w-full divide-y divide-border">
+                                    <thead className="bg-muted/50">
+                                        <tr>
+                                            <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">Waktu</th>
+                                            <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">ID Pelanggan</th>
+                                            <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">Produk</th>
+                                            <th className="px-4 py-3.5 text-right text-sm font-semibold text-foreground">Harga</th>
+                                            <th className="px-4 py-3.5 text-right text-sm font-semibold text-foreground">Modal</th>
+                                            <th className="px-4 py-3.5 text-right text-sm font-semibold text-foreground">Laba</th>
+                                            <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">Sumber</th>
+                                            <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">Pembayaran</th>
+                                            <th className="px-4 py-3.5 text-center text-sm font-semibold text-foreground">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-border bg-card">
+                                        {transactions.map((trx) => (
+                                            <tr key={trx.id} className="hover:bg-muted/50 transition-colors">
+                                                <td className="px-4 py-4 text-sm text-muted-foreground whitespace-nowrap">{format(parseISO(trx.datetime), "d MMM y, HH:mm", { locale: id })}</td>
+                                                <td className="px-4 py-4 text-sm text-foreground">{trx.customerId || '-'}</td>
+                                                <td className="px-4 py-4 text-sm font-medium text-foreground">{trx.productName}</td>
+                                                <td className="px-4 py-4 text-sm text-right text-foreground whitespace-nowrap">{formatRupiah(trx.sellingPrice)}</td>
+                                                <td className="px-4 py-4 text-sm text-right text-muted-foreground whitespace-nowrap">{formatRupiah(trx.costPrice)}</td>
+                                                <td className="px-4 py-4 text-sm text-right whitespace-nowrap">
+                                                    <Badge variant={trx.profit > 0 ? 'default' : 'destructive'} className="font-semibold">
+                                                        {formatRupiah(trx.profit)}
+                                                    </Badge>
+                                                </td>
+                                                <td className="px-4 py-4 text-sm text-muted-foreground">{trx.fundSource || '-'}</td>
+                                                <td className="px-4 py-4 text-sm text-muted-foreground">{getPaymentMethodsString(trx.payments)}</td>
+                                                <td className="px-4 py-4 text-center space-x-1 whitespace-nowrap">
+                                                    <Button variant="outline" size="icon" onClick={() => handleDetailClick(trx)} className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
+                                                    <Button variant="outline" size="icon" onClick={() => handleEditClick(trx)} className="h-8 w-8"><Edit className="h-4 w-4" /></Button>
+                                                    <AlertDialog>
+                                                        <AlertDialogTrigger asChild><Button variant="destructive" size="icon" className="h-8 w-8"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
+                                                        <AlertDialogContent>
+                                                            <AlertDialogHeader>
+                                                                <AlertDialogTitle>Pindahkan ke Sampah?</AlertDialogTitle>
+                                                                <AlertDialogDescription>Tindakan ini akan memindahkan transaksi ke folder sampah. Anda dapat memulihkannya nanti.</AlertDialogDescription>
+                                                            </AlertDialogHeader>
+                                                            <AlertDialogFooter>
+                                                                <AlertDialogCancel>Batal</AlertDialogCancel>
+                                                                <AlertDialogAction onClick={() => handleDelete(trx.id)}>Pindahkan</AlertDialogAction>
+                                                            </AlertDialogFooter>
+                                                        </AlertDialogContent>
+                                                    </AlertDialog>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </CardContent>
                     </Card>
-                ))}
                 </div>
 
-                <div className="hidden md:block overflow-x-auto">
-                <table className="min-w-full divide-y divide-border">
-                    <thead className="bg-muted/50">
-                    <tr>
-                        <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">Waktu</th>
-                        <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">ID Pelanggan</th>
-                        <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">Produk</th>
-                        <th className="px-4 py-3.5 text-right text-sm font-semibold text-foreground">Harga</th>
-                        <th className="px-4 py-3.5 text-right text-sm font-semibold text-foreground">Modal</th>
-                        <th className="px-4 py-3.5 text-right text-sm font-semibold text-foreground">Laba</th>
-                        <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">Sumber</th>
-                        <th className="px-4 py-3.5 text-left text-sm font-semibold text-foreground">Pembayaran</th>
-                        <th className="px-4 py-3.5 text-center text-sm font-semibold text-foreground">Aksi</th>
-                    </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border bg-card">
-                    {transactions.map((trx) => (
-                        <tr key={trx.id} className="hover:bg-muted/50 transition-colors">
-                        <td className="px-4 py-4 text-sm text-muted-foreground whitespace-nowrap">{format(parseISO(trx.datetime), "d MMM y, HH:mm", { locale: id })}</td>
-                        <td className="px-4 py-4 text-sm text-foreground">{trx.customerId || '-'}</td>
-                        <td className="px-4 py-4 text-sm font-medium text-foreground">{trx.productName}</td>
-                        <td className="px-4 py-4 text-sm text-right text-foreground whitespace-nowrap">{formatRupiah(trx.sellingPrice)}</td>
-                        <td className="px-4 py-4 text-sm text-right text-muted-foreground whitespace-nowrap">{formatRupiah(trx.costPrice)}</td>
-                        <td className="px-4 py-4 text-sm text-right whitespace-nowrap">
-                            <Badge variant={trx.profit > 0 ? 'default' : 'destructive'} className="font-semibold">
-                            {formatRupiah(trx.profit)}
-                            </Badge>
-                        </td>
-                        <td className="px-4 py-4 text-sm text-muted-foreground">{trx.fundSource || '-'}</td>
-                        <td className="px-4 py-4 text-sm text-muted-foreground">{getPaymentMethodsString(trx.payments)}</td>
-                        <td className="px-4 py-4 text-center space-x-1 whitespace-nowrap">
-                            <Button variant="outline" size="icon" onClick={() => handleDetailClick(trx)} className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
-                            <Button variant="outline" size="icon" onClick={() => handleEditClick(trx)} className="h-8 w-8"><Edit className="h-4 w-4" /></Button>
-                            <AlertDialog>
-                            <AlertDialogTrigger asChild><Button variant="destructive" size="icon" className="h-8 w-8"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                <AlertDialogTitle>Pindahkan ke Sampah?</AlertDialogTitle>
-                                <AlertDialogDescription>Tindakan ini akan memindahkan transaksi ke folder sampah. Anda dapat memulihkannya nanti.</AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                <AlertDialogCancel>Batal</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDelete(trx.id)}>Pindahkan</AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                            </AlertDialog>
-                        </td>
-                        </tr>
-                    ))}
-                    </tbody>
-                </table>
-                </div>
-            </CardContent>
-            </Card>
+                <DetailModal
+                    isOpen={isDetailModalOpen}
+                    onClose={() => setIsDetailModalOpen(false)}
+                    title="Detail Transaksi"
+                    data={getDetailData(detailTransaction)}
+                />
+            </main>
         </div>
-
-        <DetailModal
-            isOpen={isDetailModalOpen}
-            onClose={() => setIsDetailModalOpen(false)}
-            title="Detail Transaksi"
-            data={getDetailData(detailTransaction)}
-        />
-      </main>
-    </div>
-  );
+    );
 }
