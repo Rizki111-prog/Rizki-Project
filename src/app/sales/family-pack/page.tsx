@@ -94,7 +94,7 @@ interface FormComponentProps {
     customerId: string;
     setCustomerId: (value: string) => void;
     sellingPrice: string;
-    handlePriceChange: (setter: React.Dispatch<React.SetStateAction<string>>, isCost: boolean) => (e: React.ChangeEvent<HTMLInputElement>) => void;
+    handlePriceChange: (setter: React.Dispatch<React.SetStateAction<string>>) => (e: React.ChangeEvent<HTMLInputElement>) => void;
     setSellingPrice: React.Dispatch<React.SetStateAction<string>>;
     costPrice: string;
     setCostPrice: React.Dispatch<React.SetStateAction<string>>;
@@ -171,11 +171,11 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({
             </div>
             <div className="space-y-2">
             <Label htmlFor="sellingPrice">Harga Jual</Label>
-            <Input id="sellingPrice" type="text" placeholder="Harga Jual (Opsional)" value={sellingPrice} onChange={handlePriceChange(setSellingPrice, false)} />
+            <Input id="sellingPrice" type="text" placeholder="Harga Jual (Opsional)" value={sellingPrice} onChange={handlePriceChange(setSellingPrice)} />
             </div>
             <div className="space-y-2">
             <Label htmlFor="costPrice">Modal</Label>
-            <Input id="costPrice" type="text" placeholder="Modal (Opsional)" value={costPrice} onChange={handlePriceChange(setCostPrice, true)} />
+            <Input id="costPrice" type="text" placeholder="Modal (Opsional)" value={costPrice} onChange={handlePriceChange(setCostPrice)} />
             </div>
             <div className="space-y-2">
             <Label htmlFor="linkAkunPengelola">Link Akun Pengelola</Label>
@@ -294,9 +294,7 @@ export default function FamilyPackSalesPage() {
   const [tanggalKadaluarsa, setTanggalKadaluarsa] = useState(getThirtyDaysFromDate(new Date()));
 
   const [payments, setPayments] = useState<Payment[]>([{ method: '', cardId: '', amount: 0, debtorName: '' }]);
-  const [isPaymentAmountManuallySet, setIsPaymentAmountManuallySet] = useState(false);
   const [fundSources, setFundSources] = useState<FundSource[]>([{ cardId: '', cardName: '', amount: 0 }]);
-  const [isFundSourceAmountManuallySet, setIsFundSourceAmountManuallySet] = useState(false);
   const isExpiryDateManuallySet = useRef(false);
   
   // Data & UI State
@@ -338,8 +336,6 @@ export default function FamilyPackSalesPage() {
     setPayments([{ method: '', cardId: '', amount: 0, debtorName: '' }]);
     setFundSources([{ cardId: '', cardName: '', amount: 0 }]);
     
-    setIsPaymentAmountManuallySet(false);
-    setIsFundSourceAmountManuallySet(false);
     isExpiryDateManuallySet.current = false;
     
     setEditingTransactionId(null);
@@ -434,135 +430,6 @@ export default function FamilyPackSalesPage() {
     };
   }, []);
 
-  useEffect(() => {
-    if (isLoadingCards || editingTransactionId) return;
-
-    const price = cleanRupiah(sellingPrice) || 0;
-    
-    if (payments.length === 1 && !isPaymentAmountManuallySet) {
-        const newPayments = [...payments];
-        const cashCard = financialCards.find(c => c.name.toLowerCase() === 'tunai');
-        const defaultCard = cashCard || (financialCards.length > 0 ? financialCards[0] : null);
-
-        newPayments[0].amount = price >= 0 ? price : 0;
-        
-        if (defaultCard) {
-            newPayments[0].method = defaultCard.name;
-            newPayments[0].cardId = defaultCard.id;
-        }
-        setPayments(newPayments);
-    }
-  }, [sellingPrice, financialCards, isPaymentAmountManuallySet, payments.length, isLoadingCards, editingTransactionId]);
-  
-  useEffect(() => {
-    if (isLoadingCards || editingTransactionId) return;
-
-    const cost = cleanRupiah(costPrice) || 0;
-
-    if (fundSources.length === 1 && !isFundSourceAmountManuallySet) {
-        const newFundSources = [...fundSources];
-        const agenPulsaCard = financialCards.find(c => c.name.toLowerCase() === 'agen pulsa');
-        const defaultCard = agenPulsaCard || (financialCards.length > 0 ? financialCards[0] : null);
-        
-        newFundSources[0].amount = cost >= 0 ? cost : 0;
-
-        if (defaultCard) {
-            newFundSources[0].cardId = defaultCard.id;
-            newFundSources[0].cardName = defaultCard.name;
-        }
-        setFundSources(newFundSources);
-    }
-  }, [costPrice, financialCards, isFundSourceAmountManuallySet, fundSources.length, isLoadingCards, editingTransactionId]);
-
-  const handlePriceChange = (setter: React.Dispatch<React.SetStateAction<string>>, isCost: boolean) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { value } = e.target;
-    const cleanedValue = value.replace(/[^0-9]/g, '');
-    setter(formatRupiah(cleanedValue));
-    if (isCost) {
-        setIsFundSourceAmountManuallySet(false);
-    } else {
-        setIsPaymentAmountManuallySet(false);
-    }
-  };
-  
-  const handlePaymentAmountChange = (index: number, value: string) => {
-      const newPayments = [...payments];
-      const cleanedValue = value.replace(/[^0-9]/g, '');
-      newPayments[index].amount = cleanRupiah(cleanedValue);
-      setPayments(newPayments);
-      setIsPaymentAmountManuallySet(true);
-  };
-  
-  const handlePaymentMethodChange = (index: number, value: string) => {
-      const newPayments = [...payments];
-      const card = financialCards.find(c => c.id === value);
-      if (value === 'Hutang') {
-          newPayments[index].method = 'Hutang';
-          newPayments[index].cardId = undefined;
-          newPayments[index].debtorName = customerName; 
-      } else if (card) {
-          newPayments[index].method = card.name;
-          newPayments[index].cardId = card.id;
-          newPayments[index].debtorName = undefined;
-      }
-      setPayments(newPayments);
-  };
-
-  const handleFundSourceAmountChange = (index: number, value: string) => {
-    const newFundSources = [...fundSources];
-    const cleanedValue = value.replace(/[^0-9]/g, '');
-    newFundSources[index].amount = cleanRupiah(cleanedValue);
-    setFundSources(newFundSources);
-    setIsFundSourceAmountManuallySet(true);
-  };
-
-  const handleFundSourceCardChange = (index: number, value: string) => {
-      const newFundSources = [...fundSources];
-      const card = financialCards.find(c => c.id === value);
-      if (card) {
-          newFundSources[index].cardId = card.id;
-          newFundSources[index].cardName = card.name;
-      }
-      setFundSources(newFundSources);
-  };
-  
-  const handleExpiryDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setTanggalKadaluarsa(e.target.value);
-    isExpiryDateManuallySet.current = true;
-  }
-  
-  const handleDatetimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setDatetime(e.target.value);
-    if (e.target.value && !isExpiryDateManuallySet.current) {
-        const transactionDate = new Date(e.target.value);
-        setTanggalKadaluarsa(getThirtyDaysFromDate(transactionDate));
-    }
-  }
-
-  const addPayment = () => {
-      setIsPaymentAmountManuallySet(true); 
-      const remaining = (cleanRupiah(sellingPrice) || 0) - payments.reduce((acc, p) => acc + p.amount, 0);
-      setPayments([...payments, { method: '', cardId: '', amount: remaining > 0 ? remaining : 0, debtorName: '' }]);
-  };
-
-  const removePayment = (index: number) => {
-      const newPayments = payments.filter((_, i) => i !== index);
-      setPayments(newPayments);
-      if (newPayments.length === 1) setIsPaymentAmountManuallySet(false);
-  };
-
-  const addFundSource = () => {
-      setIsFundSourceAmountManuallySet(true);
-      const remaining = (cleanRupiah(costPrice) || 0) - fundSources.reduce((acc, fs) => fs.amount, 0);
-      setFundSources([...fundSources, { cardId: '', cardName: '', amount: remaining > 0 ? remaining : 0 }]);
-  };
-
-  const removeFundSource = (index: number) => {
-      const newFundSources = fundSources.filter((_, i) => i !== index);
-      setFundSources(newFundSources);
-      if (newFundSources.length === 1) setIsFundSourceAmountManuallySet(false);
-  };
-  
   const totalPaid = useMemo(() => payments.reduce((acc, p) => acc + p.amount, 0), [payments]);
   const remainingAmount = useMemo(() => (cleanRupiah(sellingPrice) || 0) - totalPaid, [sellingPrice, totalPaid]);
   const isPaymentValid = useMemo(() => remainingAmount === 0, [remainingAmount]);
@@ -571,11 +438,11 @@ export default function FamilyPackSalesPage() {
   const remainingFundSourceAmount = useMemo(() => (cleanRupiah(costPrice) || 0) - totalFundSourceAmount, [costPrice, totalFundSourceAmount]);
   const isFundSourceValid = useMemo(() => remainingFundSourceAmount === 0, [remainingFundSourceAmount]);
   
-  const handleCustomerSelect = (customer: Customer) => {
+  const handleCustomerSelect = useCallback((customer: Customer) => {
       setCustomerName(customer.name);
       setCustomerId(customer.nomor_hp || '');
       setShowSuggestions(false);
-  }
+  }, []);
 
   const saveToCustomerMaster = useCallback(async (name: string) => {
     if (!name.trim()) return;
@@ -587,7 +454,7 @@ export default function FamilyPackSalesPage() {
     }
   }, [customerId]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     
     const price = cleanRupiah(sellingPrice) || 0;
@@ -624,7 +491,6 @@ export default function FamilyPackSalesPage() {
       customerId: customerId || '',
       customerName,
       sellingPrice: price,
-      // costPrice is dynamically calculated from fundSources sum
       payments: payments.map(({amount, method, cardId, debtorName}) => {
         const paymentData: any = { amount, method };
         if (cardId) paymentData.cardId = cardId;
@@ -674,7 +540,11 @@ export default function FamilyPackSalesPage() {
       .finally(() => {
         setIsSubmitting(false);
       });
-  };
+  }, [
+    datetime, customerId, customerName, sellingPrice, payments, fundSources,
+    linkAkunPengelola, eWalletPengelola, tanggalKadaluarsa, editingTransactionId,
+    isPaymentValid, isFundSourceValid, saveToCustomerMaster, toast, resetForm
+  ]);
 
   const handleEdit = (trx: Transaction) => {
     setEditingTransactionId(trx.id);
@@ -689,8 +559,6 @@ export default function FamilyPackSalesPage() {
     setPayments(trx.payments);
     setFundSources(trx.fundSources);
     
-    setIsPaymentAmountManuallySet(true);
-    setIsFundSourceAmountManuallySet(true);
     isExpiryDateManuallySet.current = true;
 
     setShowForm(true);
@@ -784,6 +652,82 @@ export default function FamilyPackSalesPage() {
     return details;
   };
 
+  const handleDatetimeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setDatetime(e.target.value);
+    if (e.target.value && !isExpiryDateManuallySet.current) {
+        const transactionDate = new Date(e.target.value);
+        setTanggalKadaluarsa(getThirtyDaysFromDate(transactionDate));
+    }
+  }, []);
+
+  const handleExpiryDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setTanggalKadaluarsa(e.target.value);
+    isExpiryDateManuallySet.current = true;
+  }, []);
+
+  const handlePriceChange = useCallback((setter: React.Dispatch<React.SetStateAction<string>>) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { value } = e.target;
+    const cleanedValue = value.replace(/[^0-9]/g, '');
+    setter(formatRupiah(cleanedValue));
+  }, []);
+
+  const handleFundSourceCardChange = useCallback((index: number, value: string) => {
+    const newFundSources = [...fundSources];
+    const card = financialCards.find(c => c.id === value);
+    if (card) {
+        newFundSources[index].cardId = card.id;
+        newFundSources[index].cardName = card.name;
+    }
+    setFundSources(newFundSources);
+  }, [fundSources, financialCards]);
+  
+  const handleFundSourceAmountChange = useCallback((index: number, value: string) => {
+    const newFundSources = [...fundSources];
+    const cleanedValue = value.replace(/[^0-9]/g, '');
+    newFundSources[index].amount = cleanRupiah(cleanedValue);
+    setFundSources(newFundSources);
+  }, [fundSources]);
+
+  const removeFundSource = useCallback((index: number) => {
+    setFundSources(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const addFundSource = useCallback(() => {
+    const remaining = (cleanRupiah(costPrice) || 0) - fundSources.reduce((acc, fs) => acc + fs.amount, 0);
+    setFundSources(prev => [...prev, { cardId: '', cardName: '', amount: remaining > 0 ? remaining : 0 }]);
+  }, [costPrice, fundSources]);
+
+  const handlePaymentMethodChange = useCallback((index: number, value: string) => {
+    const newPayments = [...payments];
+    const card = financialCards.find(c => c.id === value);
+    if (value === 'Hutang') {
+        newPayments[index].method = 'Hutang';
+        newPayments[index].cardId = undefined;
+        newPayments[index].debtorName = customerName; 
+    } else if (card) {
+        newPayments[index].method = card.name;
+        newPayments[index].cardId = card.id;
+        newPayments[index].debtorName = undefined;
+    }
+    setPayments(newPayments);
+  }, [payments, financialCards, customerName]);
+
+  const handlePaymentAmountChange = useCallback((index: number, value: string) => {
+    const newPayments = [...payments];
+    const cleanedValue = value.replace(/[^0-9]/g, '');
+    newPayments[index].amount = cleanRupiah(cleanedValue);
+    setPayments(newPayments);
+  }, [payments]);
+
+  const removePayment = useCallback((index: number) => {
+    setPayments(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const addPayment = useCallback(() => {
+    const remaining = (cleanRupiah(sellingPrice) || 0) - payments.reduce((acc, p) => acc + p.amount, 0);
+    setPayments(prev => [...prev, { method: '', cardId: '', amount: remaining > 0 ? remaining : 0, debtorName: '' }]);
+  }, [payments, sellingPrice]);
+
   const formProps = {
     handleSubmit, datetime, handleDatetimeChange, customerName, setCustomerName, akrabCustomers,
     isLoadingCustomers, showSuggestions, setShowSuggestions, handleCustomerSelect, customerNameInputRef,
@@ -849,7 +793,7 @@ export default function FamilyPackSalesPage() {
           </AnimatePresence>
         )}
 
-        <div className='px-4 sm:px-6 md:mt-6'>
+        <div className='px-4 sm:px-6 md:mt-0'>
             <Card className="rounded-xl shadow-sm w-full">
             <CardHeader>
                 <CardTitle>Riwayat Transaksi Paket Akrab</CardTitle>
