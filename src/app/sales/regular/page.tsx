@@ -249,8 +249,16 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({
         setCostPrice(formatRupiah(String(product.costPrice || '')));
         setSelectedProductId(product.id);
         setShowSuggestions(false);
-        setPayments([{ method: '', cardId: '', amount: cleanRupiah(newSellingPrice), debtorName: '' }]);
-    }, []);
+
+        // Cari kartu Tunai untuk dipertahankan sebagai default saat nominal terisi otomatis
+        const tunaiCard = financialCards.find(c => c.name.toLowerCase() === 'tunai');
+        setPayments([{
+            method: tunaiCard?.name || '',
+            cardId: tunaiCard?.id || '',
+            amount: cleanRupiah(newSellingPrice),
+            debtorName: ''
+        }]);
+    }, [financialCards]);
 
     // ── Update harga produk master jika berubah ──
     const updateMasterProduct = useCallback(async (productId: string, newSellingPrice: number, newCostPrice: number) => {
