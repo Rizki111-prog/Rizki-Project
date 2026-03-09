@@ -26,7 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { DetailModal } from '@/components/modals/detail-modal';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter, SheetClose } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useIsMobile } from '@/hooks/use-mobile';
 import { formatRupiah, cleanRupiah } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -65,68 +65,256 @@ interface Payment {
   debtorName?: string;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// FormComponent — sepenuhnya mengelola state-nya sendiri.
+// Re-render pada komponen induk TIDAK akan memengaruhi form ini.
+// ─────────────────────────────────────────────────────────────────────────────
 interface FormComponentProps {
-    handleSubmit: (e: React.FormEvent) => void;
-    datetime: string;
-    setDatetime: (value: string) => void;
-    customerId: string;
-    setCustomerId: (value: string) => void;
-    productName: string;
-    setProductName: (value: string) => void;
-    sellingPrice: string;
-    handlePriceChange: (setter: React.Dispatch<React.SetStateAction<string>>) => (e: React.ChangeEvent<HTMLInputElement>) => void,
-    setSellingPrice: React.Dispatch<React.SetStateAction<string>>,
-    costPrice: string;
-    setCostPrice: (value: string) => void;
-    fundSource: string;
-    setFundSource: (value: string) => void;
-    payments: Payment[];
-    handlePaymentAmountChange: (index: number, value: string) => void,
-    handlePaymentMethodChange: (index: number, value: string) => void,
-    handleDebtorNameChange: (index: number, value: string) => void,
-    addPayment: () => void,
-    removePayment: (index: number) => void,
-    totalPaid: number,
-    remainingAmount: number,
     financialCards: FinancialCard[];
     productMaster: ProductMaster[];
     isLoadingCards: boolean;
     isLoadingProducts: boolean;
-    showSuggestions: boolean;
-    setShowSuggestions: (value: boolean) => void;
-    handleProductSelect: (product: ProductMaster) => void,
-    productNameInputRef: React.RefObject<HTMLDivElement>;
-    isSubmitting: boolean;
-    isPaymentValid: boolean;
-    editingTransactionId: string | null;
+    editingTransaction: Transaction | null;
+    onSuccess: () => void;
+    onCancel: () => void;
 }
 
+const getDefaultDatetime = () => {
+    const now = new Date();
+    return new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+};
+
 const FormComponent: React.FC<FormComponentProps> = React.memo(({
-    handleSubmit,
-    datetime, setDatetime,
-    customerId, setCustomerId,
-    productName, setProductName,
-    sellingPrice, setSellingPrice,
-    handlePriceChange,
-    costPrice, setCostPrice,
-    fundSource, setFundSource,
-    payments,
-    handlePaymentAmountChange, handlePaymentMethodChange, handleDebtorNameChange,
-    addPayment, removePayment, totalPaid, remainingAmount,
-    financialCards, productMaster,
-    isLoadingCards, isLoadingProducts,
-    showSuggestions, setShowSuggestions, handleProductSelect,
-    productNameInputRef, isSubmitting, isPaymentValid,
-    editingTransactionId
+    financialCards,
+    productMaster,
+    isLoadingCards,
+    isLoadingProducts,
+    editingTransaction,
+    onSuccess,
+    onCancel,
 }) => {
-    
+    const { toast } = useToast();
+
+    // ── State form — terisolasi di dalam komponen ini ──
+    const [datetime, setDatetime] = useState(getDefaultDatetime);
+    const [customerId, setCustomerId] = useState('');
+    const [productName, setProductName] = useState('');
+    const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+    const [sellingPrice, setSellingPrice] = useState('');
+    const [costPrice, setCostPrice] = useState('');
+    const [fundSource, setFundSource] = useState('');
+    const [payments, setPayments] = useState<Payment[]>([{ method: '', cardId: '', amount: 0, debtorName: '' }]);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+
+    const productNameInputRef = useRef<HTMLDivElement>(null);
+
+    // ── Saat editingTransaction berubah, isi ulang atau reset form ──
+    useEffect(() => {
+        if (editingTransaction) {
+            setDatetime(editingTransaction.datetime);
+            setCustomerId(editingTransaction.customerId);
+            setProductName(editingTransaction.productName);
+            setSellingPrice(formatRupiah(editingTransaction.sellingPrice));
+            setCostPrice(formatRupiah(editingTransaction.costPrice));
+            setFundSource(editingTransaction.fundSourceId || '');
+            setPayments(editingTransaction.payments);
+            const match = productMaster.find(p => p.name === editingTransaction.productName);
+            setSelectedProductId(match ? match.id : null);
+        } else {
+            setDatetime(getDefaultDatetime());
+            setCustomerId('');
+            setProductName('');
+            setSelectedProductId(null);
+            setSellingPrice('');
+            setCostPrice('');
+            setPayments([{ method: '', cardId: '', amount: 0, debtorName: '' }]);
+            // Set default fundSource dari kartu 'agen pulsa'
+            const agenPulsaCard = financialCards.find(c => c.name.toLowerCase() === 'agen pulsa');
+            setFundSource(agenPulsaCard ? agenPulsaCard.id : (financialCards[0]?.id || ''));
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [editingTransaction]);
+
+    // ── Set default fundSource pertama kali kartu dimuat ──
+    useEffect(() => {
+        if (!isLoadingCards && !fundSource && !editingTransaction) {
+            const agenPulsaCard = financialCards.find(c => c.name.toLowerCase() === 'agen pulsa');
+            setFundSource(agenPulsaCard ? agenPulsaCard.id : (financialCards[0]?.id || ''));
+        }
+    }, [isLoadingCards, financialCards, fundSource, editingTransaction]);
+
+    // ── Tutup dropdown produk saat klik di luar ──
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (productNameInputRef.current && !productNameInputRef.current.contains(e.target as Node)) {
+                setShowSuggestions(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // ── Kalkulasi yang dimemoize ──
+    const totalPaid = useMemo(() => payments.reduce((acc, p) => acc + p.amount, 0), [payments]);
+    const remainingAmount = useMemo(() => (cleanRupiah(sellingPrice) || 0) - totalPaid, [sellingPrice, totalPaid]);
+    const isPaymentValid = useMemo(() => {
+        const price = cleanRupiah(sellingPrice) || 0;
+        return price === totalPaid;
+    }, [sellingPrice, totalPaid]);
+
+    // ── Produk yang sudah difilter — hanya dihitung ulang saat productName atau productMaster berubah ──
+    const filteredProducts = useMemo(
+        () => productMaster.filter(p => p.name.toLowerCase().includes(productName.toLowerCase())),
+        [productMaster, productName]
+    );
+
+    // ── Handler harga — referensi stabil, tidak perlu dependency ──
+    const handleSellingPriceChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        setSellingPrice(formatRupiah(e.target.value.replace(/[^0-9]/g, '')));
+    }, []);
+
+    const handleCostPriceChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        setCostPrice(formatRupiah(e.target.value.replace(/[^0-9]/g, '')));
+    }, []);
+
+    // ── Handler payments — gunakan functional update agar tidak perlu [payments] sebagai dep ──
+    const handlePaymentAmountChange = useCallback((index: number, value: string) => {
+        const cleanedValue = value.replace(/[^0-9]/g, '');
+        setPayments(prev => prev.map((p, i) =>
+            i === index ? { ...p, amount: cleanRupiah(cleanedValue) } : p
+        ));
+    }, []);
+
+    const handlePaymentMethodChange = useCallback((index: number, value: string) => {
+        setPayments(prev => prev.map((p, i) => {
+            if (i !== index) return p;
+            if (value === 'Hutang') return { ...p, method: 'Hutang', cardId: undefined, debtorName: '' };
+            const card = financialCards.find(c => c.id === value);
+            if (card) return { ...p, method: card.name, cardId: card.id, debtorName: undefined };
+            return p;
+        }));
+    }, [financialCards]);
+
+    const handleDebtorNameChange = useCallback((index: number, value: string) => {
+        setPayments(prev => prev.map((p, i) =>
+            i === index ? { ...p, debtorName: value } : p
+        ));
+    }, []);
+
+    const addPayment = useCallback(() => {
+        setPayments(prev => {
+            const remaining = (cleanRupiah(sellingPrice) || 0) - prev.reduce((acc, p) => acc + p.amount, 0);
+            return [...prev, { method: '', cardId: '', amount: remaining > 0 ? remaining : 0, debtorName: '' }];
+        });
+    }, [sellingPrice]);
+
+    const removePayment = useCallback((index: number) => {
+        setPayments(prev => prev.filter((_, i) => i !== index));
+    }, []);
+
+    const handleProductSelect = useCallback((product: ProductMaster) => {
+        setProductName(product.name);
+        const newSellingPrice = formatRupiah(String(product.sellingPrice || ''));
+        setSellingPrice(newSellingPrice);
+        setCostPrice(formatRupiah(String(product.costPrice || '')));
+        setSelectedProductId(product.id);
+        setShowSuggestions(false);
+        setPayments([{ method: '', cardId: '', amount: cleanRupiah(newSellingPrice), debtorName: '' }]);
+    }, []);
+
+    // ── Update harga produk master jika berubah ──
+    const updateMasterProduct = useCallback(async (productId: string, newSellingPrice: number, newCostPrice: number) => {
+        const productInMaster = productMaster.find(p => p.id === productId);
+        if (!productInMaster) return;
+        if (newSellingPrice !== productInMaster.sellingPrice || newCostPrice !== productInMaster.costPrice) {
+            await update(ref(db, `produk_master/${productId}`), { sellingPrice: newSellingPrice, costPrice: newCostPrice });
+            toast({ title: "Data Master Diperbarui", description: `Harga untuk "${productInMaster.name}" telah diupdate.` });
+        }
+    }, [productMaster, toast]);
+
+    // ── Submit ──
+    const handleSubmit = useCallback((e: React.FormEvent) => {
+        e.preventDefault();
+        const price = cleanRupiah(sellingPrice) || 0;
+        const cost = cleanRupiah(costPrice) || 0;
+
+        if (!productName || !fundSource) {
+            toast({ variant: "destructive", title: "Gagal", description: "Nama Produk dan Sumber Modal wajib diisi." });
+            return;
+        }
+        if (!isPaymentValid) {
+            toast({ variant: "destructive", title: "Gagal", description: "Total pembayaran tidak sesuai dengan harga jual." });
+            return;
+        }
+        if (payments.some(p => !p.method || (p.method === 'Hutang' && !p.debtorName))) {
+            toast({ variant: "destructive", title: "Gagal", description: "Harap lengkapi semua detail pembayaran (termasuk Nama Penghutang jika ada)." });
+            return;
+        }
+
+        setIsSubmitting(true);
+        const fundSourceCard = financialCards.find(c => c.id === fundSource);
+        if (!fundSourceCard) {
+            toast({ variant: "destructive", title: "Gagal", description: "Sumber dana tidak valid." });
+            setIsSubmitting(false);
+            return;
+        }
+
+        const transactionData = {
+            datetime, customerId: customerId || '', productName,
+            sellingPrice: price, costPrice: cost,
+            fundSource: fundSourceCard.name, fundSourceId: fundSourceCard.id,
+            payments: payments.map(({ amount, method, cardId, debtorName }) => {
+                const d: any = { amount, method };
+                if (cardId) d.cardId = cardId;
+                if (debtorName) d.debtorName = debtorName;
+                return d;
+            }),
+            isDeleted: false,
+        };
+
+        let promise: Promise<void>;
+        if (editingTransaction) {
+            promise = update(ref(db, `transaksi_reguler/${editingTransaction.id}`), transactionData);
+        } else {
+            const newRef = push(ref(db, 'transaksi_reguler'));
+            promise = update(newRef, { ...transactionData, createdAt: serverTimestamp() });
+            const transactionId = newRef.key;
+            if (transactionId) {
+                payments.forEach(payment => {
+                    if (payment.method === 'Hutang' && payment.amount > 0) {
+                        push(ref(db, 'hutang'), {
+                            nama: payment.debtorName, productName, nominal: payment.amount,
+                            tanggal: datetime, status: 'Belum Lunas', transactionId,
+                            sourcePath: 'transaksi_reguler', isDeleted: false,
+                        });
+                    }
+                });
+            }
+        }
+
+        promise.then(() => {
+            if (selectedProductId) updateMasterProduct(selectedProductId, price, cost);
+            toast({ title: "Sukses", description: `Transaksi berhasil ${editingTransaction ? 'diperbarui' : 'disimpan'}.` });
+            onSuccess();
+        }).catch(error => {
+            toast({ variant: "destructive", title: "Gagal", description: `Terjadi kesalahan: ${error.message}` });
+        }).finally(() => {
+            setIsSubmitting(false);
+        });
+    }, [
+        datetime, customerId, productName, sellingPrice, costPrice, fundSource,
+        payments, isPaymentValid, editingTransaction, financialCards, selectedProductId,
+        toast, updateMasterProduct, onSuccess,
+    ]);
+
     return (
         <form onSubmit={handleSubmit}>
         <CardContent className="p-0">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="space-y-2">
                 <Label htmlFor="datetime">Tanggal &amp; Waktu</Label>
-                <Input id="datetime" type="datetime-local" value={datetime} onChange={(e) => setDatetime(e.target.value)} required 
+                <Input id="datetime" type="datetime-local" value={datetime} onChange={(e) => setDatetime(e.target.value)} required
                         className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
                 </div>
                 <div className="space-y-2">
@@ -136,7 +324,7 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({
                 </div>
                 <div className="space-y-2 md:col-span-2 lg:col-span-1 relative" ref={productNameInputRef}>
                     <Label htmlFor="productName">Nama Produk</Label>
-                    <Input 
+                    <Input
                     id="productName"
                     placeholder={isLoadingProducts ? "Memuat produk..." : "Ketik nama produk"}
                     value={productName}
@@ -149,11 +337,9 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({
                     required
                     className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"
                     />
-                    {showSuggestions && productMaster.length > 0 && (
+                    {showSuggestions && filteredProducts.length > 0 && (
                         <div className="absolute z-20 w-full mt-1 bg-card border border-border rounded-md shadow-lg max-h-60 overflow-y-auto">
-                            {productMaster
-                            .filter(p => p.name.toLowerCase().includes(productName.toLowerCase()))
-                            .map((product) => (
+                            {filteredProducts.map((product) => (
                                 <div
                                     key={product.id}
                                     className="p-2 hover:bg-accent cursor-pointer text-sm"
@@ -167,12 +353,12 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({
                 </div>
                 <div className="space-y-2">
                 <Label htmlFor="sellingPrice">Harga Jual</Label>
-                <Input id="sellingPrice" type="text" placeholder="Harga Jual (Opsional)" value={sellingPrice} onChange={handlePriceChange(setSellingPrice)} 
+                <Input id="sellingPrice" type="text" placeholder="Harga Jual (Opsional)" value={sellingPrice} onChange={handleSellingPriceChange}
                         className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
                 </div>
                 <div className="space-y-2">
                 <Label htmlFor="costPrice">Modal</Label>
-                <Input id="costPrice" type="text" placeholder="Modal (Opsional)" value={costPrice} onChange={handlePriceChange(setCostPrice)} 
+                <Input id="costPrice" type="text" placeholder="Modal (Opsional)" value={costPrice} onChange={handleCostPriceChange}
                         className="focus:ring-2 focus:ring-primary-foreground focus:ring-offset-2"/>
                 </div>
                 <div className="space-y-2">
@@ -215,7 +401,7 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({
                             {payment.method === 'Hutang' && (
                                 <div className="space-y-2 col-span-12 md:col-span-3">
                                     <Label htmlFor={`debtor-name-${index}`}>Nama Penghutang</Label>
-                                    <Input 
+                                    <Input
                                     id={`debtor-name-${index}`}
                                     placeholder="Masukkan nama"
                                     value={payment.debtorName || ''}
@@ -227,7 +413,7 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({
                             )}
                             <div className={`space-y-2 col-span-12 ${payment.method === 'Hutang' ? 'md:col-span-3' : 'md:col-span-6'}`}>
                                 <Label htmlFor={`payment-amount-${index}`}>Nominal</Label>
-                                <Input 
+                                <Input
                                     id={`payment-amount-${index}`}
                                     type="text"
                                     placeholder="0"
@@ -261,7 +447,7 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({
         <CardFooter className="border-t px-6 py-4">
             <Button type="submit" disabled={isSubmitting || isLoadingCards || isLoadingProducts || !isPaymentValid} className="transition-all duration-300 hover:scale-105 w-full md:w-auto">
                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {isSubmitting ? 'Menyimpan...' : (editingTransactionId ? 'Simpan Perubahan' : 'Simpan Transaksi')}
+                {isSubmitting ? 'Menyimpan...' : (editingTransaction ? 'Simpan Perubahan' : 'Simpan Transaksi')}
             </Button>
         </CardFooter>
         </form>
@@ -270,18 +456,13 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({
 FormComponent.displayName = 'FormComponent';
 
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Halaman utama — HANYA mengelola: daftar transaksi, data master, dan UI state
+// Re-render di sini TIDAK akan memengaruhi FormComponent
+// ─────────────────────────────────────────────────────────────────────────────
 export default function RegularSalesPage() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
-  // Form State
-  const [datetime, setDatetime] = useState('');
-  const [customerId, setCustomerId] = useState('');
-  const [productName, setProductName] = useState('');
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
-  const [sellingPrice, setSellingPrice] = useState('');
-  const [costPrice, setCostPrice] = useState('');
-  const [fundSource, setFundSource] = useState('');
-  const [payments, setPayments] = useState<Payment[]>([{ method: '', cardId: '', amount: 0, debtorName: '' }]);
 
   // Data & UI State
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -292,47 +473,13 @@ export default function RegularSalesPage() {
   const [showForm, setShowForm] = useState(false);
 
   // Editing State
-  const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
   // Detail Modal State
   const [detailTransaction, setDetailTransaction] = useState<Transaction | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
-  // Suggestions State
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const productNameInputRef = useRef<HTMLDivElement>(null);
-
-  const resetForm = useCallback(() => {
-    const now = new Date();
-    const localIsoString = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString();
-    setDatetime(localIsoString.slice(0, 16));
-
-    setCustomerId('');
-    setProductName('');
-    setSelectedProductId(null);
-    setSellingPrice('');
-    setCostPrice('');
-    
-    setPayments([{ method: '', cardId: '', amount: 0, debtorName: '' }]);
-
-    const agenPulsaCard = financialCards.find(card => card.name.toLowerCase() === 'agen pulsa');
-    if (agenPulsaCard) {
-      setFundSource(agenPulsaCard.id);
-    } else if (financialCards.length > 0) {
-      setFundSource(financialCards[0].id);
-    }
-    
-    setEditingTransactionId(null);
-    setShowForm(false);
-  }, [financialCards]);
-
-  useEffect(() => {
-    if (!editingTransactionId) {
-        resetForm();
-    }
-  }, [editingTransactionId, resetForm]);
-
+  // ── Firebase listeners ──
   useEffect(() => {
     const transactionsRef = ref(db, 'transaksi_reguler');
     const unsubscribe = onValue(transactionsRef, (snapshot) => {
@@ -341,16 +488,14 @@ export default function RegularSalesPage() {
       for (const key in data) {
         const trxData = data[key];
         if (trxData.isDeleted) continue;
-        const profit = (trxData.sellingPrice || 0) - (trxData.costPrice || 0);
-        loadedTransactions.push({ id: key, ...trxData, profit });
+        loadedTransactions.push({ id: key, ...trxData, profit: (trxData.sellingPrice || 0) - (trxData.costPrice || 0) });
       }
       loadedTransactions.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       setTransactions(loadedTransactions);
     });
-
     return () => unsubscribe();
   }, []);
-  
+
   useEffect(() => {
     const cardsRef = ref(db, 'keuangan/cards');
     const unsubscribeCards = onValue(cardsRef, (snapshot) => {
@@ -358,9 +503,7 @@ export default function RegularSalesPage() {
         const loadedCards: FinancialCard[] = [];
         if (data) {
             for (const key in data) {
-                if(!data[key].isDeleted) {
-                   loadedCards.push({ id: key, ...data[key] });
-                }
+                if (!data[key].isDeleted) loadedCards.push({ id: key, ...data[key] });
             }
         }
         setFinancialCards(loadedCards);
@@ -389,168 +532,27 @@ export default function RegularSalesPage() {
     };
   }, []);
 
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-        if (productNameInputRef.current && !productNameInputRef.current.contains(event.target as Node)) {
-            setShowSuggestions(false);
-        }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-    };
+  // ── Handler untuk menutup/reset form ──
+  const handleFormSuccess = useCallback(() => {
+    setEditingTransaction(null);
+    setShowForm(false);
   }, []);
-  
-  // Set default fund source once cards are loaded
-  useEffect(() => {
-      if (!isLoadingCards && !fundSource && !editingTransactionId) {
-          const agenPulsaCard = financialCards.find(card => card.name.toLowerCase() === 'agen pulsa');
-          if (agenPulsaCard) {
-              setFundSource(agenPulsaCard.id);
-          } else if (financialCards.length > 0) {
-              setFundSource(financialCards[0].id);
-          }
-      }
-  }, [isLoadingCards, financialCards, fundSource, editingTransactionId]);
-  
-  const isPaymentValid = useMemo(() => {
-    const price = cleanRupiah(sellingPrice) || 0;
-    const totalPaid = payments.reduce((acc, p) => acc + p.amount, 0);
-    return price === totalPaid;
-  }, [sellingPrice, payments]);
 
-  const totalPaid = useMemo(() => payments.reduce((acc, p) => acc + p.amount, 0), [payments]);
-  const remainingAmount = useMemo(() => (cleanRupiah(sellingPrice) || 0) - totalPaid, [sellingPrice, totalPaid]);
+  const handleFormCancel = useCallback(() => {
+    setEditingTransaction(null);
+    setShowForm(false);
+  }, []);
 
-  const updateMasterProduct = useCallback(async (productId: string, newSellingPrice: number, newCostPrice: number) => {
-    const productInMaster = productMaster.find(p => p.id === productId);
-    if (!productInMaster) return;
-
-    const masterSellingPrice = productInMaster.sellingPrice || 0;
-    const masterCostPrice = productInMaster.costPrice || 0;
-
-    if (newSellingPrice !== masterSellingPrice || newCostPrice !== masterCostPrice) {
-      const productRef = ref(db, `produk_master/${productId}`);
-      await update(productRef, { sellingPrice: newSellingPrice, costPrice: newCostPrice });
-      toast({
-        title: "Data Master Diperbarui",
-        description: `Harga untuk "${productInMaster.name}" telah diupdate.`
-      });
-    }
-  }, [productMaster, toast]);
-
-
-  const handleSubmit = useCallback((e: React.FormEvent) => {
-    e.preventDefault();
-
-    const price = cleanRupiah(sellingPrice) || 0;
-    const cost = cleanRupiah(costPrice) || 0;
-
-    if (!productName || !fundSource) {
-      toast({ variant: "destructive", title: "Gagal", description: "Nama Produk dan Sumber Modal wajib diisi." });
-      return;
-    }
-    
-    if (!isPaymentValid) {
-        toast({ variant: "destructive", title: "Gagal", description: "Total pembayaran tidak sesuai dengan harga jual."});
-        return;
-    }
-
-    if (payments.some(p => !p.method || (p.method === 'Hutang' && !p.debtorName))) {
-        toast({ variant: "destructive", title: "Gagal", description: "Harap lengkapi semua detail pembayaran (termasuk Nama Penghutang jika ada)." });
-        return;
-    }
-
-    setIsSubmitting(true);
-
-    const fundSourceCard = financialCards.find(c => c.id === fundSource);
-    
-    if (!fundSourceCard) {
-        toast({ variant: "destructive", title: "Gagal", description: "Sumber dana tidak valid." });
-        setIsSubmitting(false);
-        return;
-    }
-    
-    const transactionData = {
-      datetime,
-      customerId: customerId || '',
-      productName,
-      sellingPrice: price,
-      costPrice: cost,
-      fundSource: fundSourceCard.name,
-      fundSourceId: fundSourceCard.id,
-      payments: payments.map(({amount, method, cardId, debtorName}) => {
-        const paymentData: any = { amount, method };
-        if (cardId) paymentData.cardId = cardId;
-        if (debtorName) paymentData.debtorName = debtorName;
-        return paymentData;
-      }),
-      isDeleted: false
-    };
-    
-    let promise;
-    if (editingTransactionId) {
-        promise = update(ref(db, `transaksi_reguler/${editingTransactionId}`), transactionData);
-    } else {
-        const newTransactionRef = push(ref(db, 'transaksi_reguler'));
-        promise = update(newTransactionRef, { ...transactionData, createdAt: serverTimestamp() });
-        const transactionId = newTransactionRef.key;
-        if (transactionId) {
-            payments.forEach(payment => {
-                if(payment.method === 'Hutang' && payment.amount > 0) {
-                    push(ref(db, 'hutang'), {
-                        nama: payment.debtorName,
-                        productName: productName,
-                        nominal: payment.amount,
-                        tanggal: datetime,
-                        status: 'Belum Lunas',
-                        transactionId: transactionId,
-                        sourcePath: 'transaksi_reguler',
-                        isDeleted: false
-                    });
-                }
-            });
-        }
-    }
-    
-    promise.then(() => {
-        if (selectedProductId) {
-          updateMasterProduct(selectedProductId, price, cost);
-        }
-        
-        toast({
-          title: "Sukses",
-          description: `Transaksi berhasil ${editingTransactionId ? 'diperbarui' : 'disimpan'}.`,
-        });
-        resetForm();
-      })
-      .catch((error) => {
-        toast({
-          variant: "destructive",
-          title: "Gagal",
-          description: `Terjadi kesalahan: ${error.message}`,
-        });
-      })
-      .finally(() => {
-        setIsSubmitting(false);
-      });
-  }, [
-    datetime, customerId, productName, sellingPrice, costPrice, fundSource, 
-    payments, isPaymentValid, editingTransactionId, financialCards, 
-    selectedProductId, resetForm, toast, updateMasterProduct
-  ]);
-
-
+  // ── Handler tabel ──
   const handleDelete = (id: string) => {
     const transactionToDelete = transactions.find(t => t.id === id);
     if (!transactionToDelete) return;
-  
+
     const updates: { [key: string]: any } = {};
     const deletedAt = serverTimestamp();
     updates[`/transaksi_reguler/${id}/isDeleted`] = true;
     updates[`/transaksi_reguler/${id}/deletedAt`] = deletedAt;
-  
+
     get(query(ref(db, 'hutang'), orderByChild('transactionId'), equalTo(id))).then(snapshot => {
       if (snapshot.exists()) {
         snapshot.forEach(child => {
@@ -558,7 +560,6 @@ export default function RegularSalesPage() {
           updates[`/hutang/${child.key}/deletedAt`] = deletedAt;
         });
       }
-  
       update(ref(db), updates).then(() => {
         toast({ title: "Sukses", description: "Transaksi dipindahkan ke folder sampah." });
       }).catch((error) => {
@@ -568,24 +569,10 @@ export default function RegularSalesPage() {
   };
 
   const handleEditClick = (transaction: Transaction) => {
-    setEditingTransactionId(transaction.id);
-    setDatetime(transaction.datetime);
-    setCustomerId(transaction.customerId);
-    setProductName(transaction.productName);
-    setSellingPrice(formatRupiah(transaction.sellingPrice));
-    setCostPrice(formatRupiah(transaction.costPrice));
-    setFundSource(transaction.fundSourceId || '');
-    setPayments(transaction.payments);
+    setEditingTransaction(transaction);
     setShowForm(true);
-
-    const productMatch = productMaster.find(p => p.name === transaction.productName);
-    if (productMatch) {
-      setSelectedProductId(productMatch.id);
-    } else {
-      setSelectedProductId(null);
-    }
   };
-  
+
   const handleDetailClick = (transaction: Transaction) => {
     setDetailTransaction(transaction);
     setIsDetailModalOpen(true);
@@ -595,11 +582,11 @@ export default function RegularSalesPage() {
     if (!payments || payments.length === 0) return 'Tidak Diketahui';
     if (payments.length === 1) return payments[0].method;
     return `${payments.length} metode`;
-  }
+  };
 
   const getDetailData = (trx: Transaction | null) => {
     if (!trx) return [];
-    let details: any[] = [
+    const details: any[] = [
         { label: 'Waktu Transaksi', value: format(parseISO(trx.datetime), "d MMMM yyyy, HH:mm:ss", { locale: id }) },
         { label: 'ID Pelanggan', value: trx.customerId || '-' },
         { label: 'Nama Produk', value: trx.productName },
@@ -608,88 +595,29 @@ export default function RegularSalesPage() {
         { label: 'Laba', value: formatRupiah(trx.profit), badge: trx.profit > 0 ? 'default' : 'destructive' },
         { label: 'Sumber Modal', value: trx.fundSource },
     ];
-    
     trx.payments?.forEach((p, i) => {
-        const paymentLabel = `Pembayaran ${i+1}${p.method === 'Hutang' ? ` (${p.debtorName})` : ''}`;
-        const paymentValue = `${p.method} - ${formatRupiah(p.amount)}`;
-        details.push({ label: paymentLabel, value: paymentValue });
-    })
-
+        details.push({ label: `Pembayaran ${i+1}${p.method === 'Hutang' ? ` (${p.debtorName})` : ''}`, value: `${p.method} - ${formatRupiah(p.amount)}` });
+    });
     return details;
   };
-  
-  const handlePriceChange = useCallback((setter: React.Dispatch<React.SetStateAction<string>>) => (e: React.ChangeEvent<HTMLInputElement>) => {
-      const { value } = e.target;
-      const cleanedValue = value.replace(/[^0-9]/g, '');
-      setter(formatRupiah(cleanedValue));
-  }, []);
 
-  const handlePaymentAmountChange = useCallback((index: number, value: string) => {
-      const newPayments = [...payments];
-      const cleanedValue = value.replace(/[^0-9]/g, '');
-      newPayments[index].amount = cleanRupiah(cleanedValue);
-      setPayments(newPayments);
-  }, [payments]);
-
-  const handlePaymentMethodChange = useCallback((index: number, value: string) => {
-      const newPayments = [...payments];
-      const card = financialCards.find(c => c.id === value);
-      if (value === 'Hutang') {
-          newPayments[index].method = 'Hutang';
-          newPayments[index].cardId = undefined;
-          newPayments[index].debtorName = ''; 
-      } else if (card) {
-          newPayments[index].method = card.name;
-          newPayments[index].cardId = card.id;
-          newPayments[index].debtorName = undefined;
-      }
-      setPayments(newPayments);
-  }, [payments, financialCards]);
-
-  const handleDebtorNameChange = useCallback((index: number, value: string) => {
-      const newPayments = [...payments];
-      newPayments[index].debtorName = value;
-      setPayments(newPayments);
-  }, [payments]);
-
-  const addPayment = useCallback(() => {
-      const remaining = (cleanRupiah(sellingPrice) || 0) - payments.reduce((acc, p) => acc + p.amount, 0);
-      setPayments([...payments, { method: '', cardId: '', amount: remaining > 0 ? remaining : 0, debtorName: '' }]);
-  }, [payments, sellingPrice]);
-
-  const removePayment = useCallback((index: number) => {
-      const newPayments = payments.filter((_, i) => i !== index);
-      setPayments(newPayments);
-  }, [payments]);
-
-  const handleProductSelect = useCallback((product: ProductMaster) => {
-    setProductName(product.name);
-    const newSellingPrice = formatRupiah(String(product.sellingPrice || ''));
-    setSellingPrice(newSellingPrice);
-    setCostPrice(formatRupiah(String(product.costPrice || '')));
-    setSelectedProductId(product.id);
-    setShowSuggestions(false);
-    
-    // Auto-fill payment
-    setPayments([{ method: '', cardId: '', amount: cleanRupiah(newSellingPrice), debtorName: '' }]);
-  }, []);
-
-  const formProps = {
-    handleSubmit, datetime, setDatetime, customerId, setCustomerId,
-    productName, setProductName, sellingPrice, setSellingPrice, handlePriceChange, costPrice, setCostPrice,
-    fundSource, setFundSource, payments, handlePaymentAmountChange, handlePaymentMethodChange, handleDebtorNameChange,
-    addPayment, removePayment, totalPaid, remainingAmount,
-    financialCards, productMaster, isLoadingCards,
-    isLoadingProducts, showSuggestions, setShowSuggestions, handleProductSelect, productNameInputRef,
-    isSubmitting, isPaymentValid, editingTransactionId
-  };
+  // Props stabil untuk FormComponent — tidak berubah kecuali data benar-benar berubah
+  const formProps = useMemo(() => ({
+    financialCards,
+    productMaster,
+    isLoadingCards,
+    isLoadingProducts,
+    editingTransaction,
+    onSuccess: handleFormSuccess,
+    onCancel: handleFormCancel,
+  }), [financialCards, productMaster, isLoadingCards, isLoadingProducts, editingTransaction, handleFormSuccess, handleFormCancel]);
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-background">
       <AppHeader title="Pulsa, Token, & Paket Data">
-        <Button onClick={() => { editingTransactionId ? resetForm() : setShowForm(!showForm) }} variant={showForm ? "outline" : "default"} className="hidden md:flex">
+        <Button onClick={() => { editingTransaction ? handleFormCancel() : setShowForm(!showForm) }} variant={showForm ? "outline" : "default"} className="hidden md:flex">
             {showForm ? <X className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-            {showForm ? (editingTransactionId ? 'Batalkan Edit' : 'Tutup') : 'Tambah Transaksi'}
+            {showForm ? (editingTransaction ? 'Batalkan Edit' : 'Tutup') : 'Tambah Transaksi'}
         </Button>
       </AppHeader>
       <main className="flex flex-1 flex-col">
@@ -702,10 +630,10 @@ export default function RegularSalesPage() {
             )}
         </div>
         {isMobile ? (
-          <Sheet open={showForm} onOpenChange={(isOpen) => { if (!isOpen) resetForm(); else setShowForm(true); }}>
+          <Sheet open={showForm} onOpenChange={(isOpen) => { if (!isOpen) handleFormCancel(); else setShowForm(true); }}>
             <SheetContent side="right" className="w-full p-0">
               <SheetHeader className="p-6">
-                <SheetTitle>{editingTransactionId ? 'Edit Transaksi' : 'Transaksi Baru'}</SheetTitle>
+                <SheetTitle>{editingTransaction ? 'Edit Transaksi' : 'Transaksi Baru'}</SheetTitle>
               </SheetHeader>
               <div className="px-6 h-[calc(100vh-140px)] overflow-y-auto">
                 <FormComponent {...formProps} />
@@ -725,10 +653,10 @@ export default function RegularSalesPage() {
                 <Card className="rounded-xl shadow-sm w-full">
                   <CardHeader className='flex flex-row items-center justify-between'>
                       <div>
-                          <CardTitle>{editingTransactionId ? 'Edit Transaksi' : 'Transaksi Baru'}</CardTitle>
+                          <CardTitle>{editingTransaction ? 'Edit Transaksi' : 'Transaksi Baru'}</CardTitle>
                           <CardDescription>Isi detail untuk penjualan Pulsa, Token, dan Paket Data.</CardDescription>
                       </div>
-                      <Button variant="ghost" size="icon" onClick={() => { editingTransactionId ? resetForm() : setShowForm(false) }}>
+                      <Button variant="ghost" size="icon" onClick={handleFormCancel}>
                           <X className="h-4 w-4" />
                       </Button>
                   </CardHeader>
@@ -838,7 +766,7 @@ export default function RegularSalesPage() {
             </CardContent>
             </Card>
         </div>
-        
+
         <DetailModal
             isOpen={isDetailModalOpen}
             onClose={() => setIsDetailModalOpen(false)}
