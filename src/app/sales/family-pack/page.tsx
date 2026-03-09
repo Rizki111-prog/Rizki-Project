@@ -148,12 +148,27 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({
       setLinkAkunPengelola('');
       setEWalletPengelola('');
       setTanggalKadaluarsa(getThirtyDaysFromDate(now));
-      setPayments([{ method: '', cardId: '', amount: 0, debtorName: '' }]);
+      // Set default pembayaran ke Tunai saat reset
+      const tunaiCard = financialCards.find(c => c.name.toLowerCase() === 'tunai');
+      setPayments([{ method: tunaiCard?.name || '', cardId: tunaiCard?.id || '', amount: 0, debtorName: '' }]);
       setFundSources([{ cardId: '', cardName: '', amount: 0 }]);
       isExpiryDateManuallySet.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingTransaction]);
+
+  // ── Set default metode pembayaran ke Tunai saat kartu pertama kali dimuat ──
+  useEffect(() => {
+    if (financialCards.length === 0) return;
+    const tunaiCard = financialCards.find(c => c.name.toLowerCase() === 'tunai');
+    if (!tunaiCard) return;
+    setPayments(prev => {
+      if (prev.length === 1 && !prev[0].method) {
+        return [{ ...prev[0], method: tunaiCard.name, cardId: tunaiCard.id }];
+      }
+      return prev;
+    });
+  }, [financialCards]);
 
   // ── Tutup dropdown pelanggan saat klik di luar ──
   useEffect(() => {
